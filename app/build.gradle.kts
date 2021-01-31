@@ -8,7 +8,7 @@ plugins {
 
 android {
     compileSdkVersion(30)
-    buildToolsVersion("30.0.2")
+    buildToolsVersion("30.0.3")
 
     defaultConfig {
         applicationId = "fr.groggy.racecontrol.tv"
@@ -61,14 +61,12 @@ android {
 }
 
 dependencies {
-    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
-
-    val kotlinCoroutinesVersion = "1.3.9"
+    val kotlinCoroutinesVersion = "1.4.2"
     implementation(kotlin("stdlib"))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlinCoroutinesVersion")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:$kotlinCoroutinesVersion")
 
-    implementation("androidx.core:core-ktx:1.3.1")
+    implementation("androidx.core:core-ktx:1.3.2")
     implementation("androidx.fragment:fragment-ktx:1.2.5")
     implementation("androidx.leanback:leanback:1.0.0")
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.2.0")
@@ -80,9 +78,10 @@ dependencies {
     implementation("androidx.hilt:hilt-lifecycle-viewmodel:$androidxHiltVersion")
     kapt("androidx.hilt:hilt-compiler:$androidxHiltVersion")
 
-    val okHttpVersion = "4.8.1"
+    val okHttpVersion = "4.9.0"
     implementation("com.squareup.okhttp3:okhttp:$okHttpVersion")
     implementation("com.squareup.okhttp3:okhttp-urlconnection:$okHttpVersion")
+    implementation("com.squareup.okhttp3:logging-interceptor:$okHttpVersion")
 
     val moshiVersion = "1.9.3"
     implementation("com.squareup.moshi:moshi-kotlin:$moshiVersion") {
@@ -107,11 +106,11 @@ dependencies {
     implementation("androidx.room:room-ktx:$roomVersion")
     kapt("androidx.room:room-compiler:$roomVersion")
 
-    implementation("com.google.android.material:material:1.3.0-alpha02")
+    implementation("com.google.android.material:material:1.3.0-rc01")
 
     implementation("net.swiftzer.semver:semver:1.1.1")
 
-    implementation("io.noties.markwon:core:4.5.1")
+    implementation("io.noties.markwon:core:4.6.0")
 }
 
 kapt {

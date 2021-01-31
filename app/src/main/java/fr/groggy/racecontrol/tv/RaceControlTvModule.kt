@@ -15,6 +15,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import io.noties.markwon.Markwon
 import okhttp3.JavaNetCookieJar
 import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 import java.net.CookieManager
 import java.net.CookiePolicy
 import java.time.Clock
@@ -38,10 +39,20 @@ class RaceControlTvModule {
     }
 
     @Provides
+    fun loggingInterceptor(): HttpLoggingInterceptor {
+        return if (BuildConfig.DEBUG) {
+            HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY)
+        } else {
+            HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.NONE)
+        }
+    }
+
+    @Provides
     @Singleton
-    fun okHttpClient(cookieManager: CookieManager): OkHttpClient =
+    fun okHttpClient(cookieManager: CookieManager, loggingInterceptor: HttpLoggingInterceptor): OkHttpClient =
         OkHttpClient.Builder()
             .cookieJar(JavaNetCookieJar(cookieManager))
+            .addInterceptor(loggingInterceptor)
             .build()
 
     @Provides
