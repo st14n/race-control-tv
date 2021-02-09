@@ -36,8 +36,6 @@
         <activity android:name=".ui.signin.SignInActivity" />
         <activity android:name=".ui.season.archive.SeasonArchiveActivity"/>
 
-        <service android:name=".core.release.ApkService" />
-
     </application>
 
 </manifest>
