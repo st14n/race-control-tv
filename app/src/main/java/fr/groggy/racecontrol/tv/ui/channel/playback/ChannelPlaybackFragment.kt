@@ -7,7 +7,6 @@ import android.util.Log
 import androidx.annotation.Keep
 import androidx.leanback.app.VideoSupportFragment
 import androidx.leanback.app.VideoSupportFragmentGlueHost
-import androidx.leanback.media.PlaybackGlue
 import androidx.lifecycle.lifecycleScope
 import com.google.android.exoplayer2.SimpleExoPlayer
 import com.google.android.exoplayer2.source.MediaSourceFactory
@@ -41,7 +40,6 @@ class ChannelPlaybackFragment : VideoSupportFragment() {
 
     @Inject lateinit var viewingService: ViewingService
     @Inject lateinit var httpDataSourceFactory: HttpDataSource.Factory
-    @Inject lateinit var mediaSessionHelper: MediaSessionHelper
 
     private val trackSelector: DefaultTrackSelector by lazy {
         DefaultTrackSelector(requireContext())
@@ -65,12 +63,6 @@ class ChannelPlaybackFragment : VideoSupportFragment() {
         Log.d(TAG, "onCreate")
         super.onCreate(savedInstanceState)
         val glue = ExoPlayerPlaybackTransportControlGlue(requireActivity(), player, trackSelector)
-        glue.addPlayerCallback(object : PlaybackGlue.PlayerCallback() {
-            override fun onPlayStateChanged(glue: PlaybackGlue?) {
-                super.onPreparedStateChanged(glue)
-                mediaSessionHelper.setActive(glue?.isPlaying ?: false)
-            }
-        })
         glue.host = VideoSupportFragmentGlueHost(this)
     }
 
@@ -92,7 +84,6 @@ class ChannelPlaybackFragment : VideoSupportFragment() {
     override fun onStop() {
         super.onStop()
         player.playWhenReady = false
-        mediaSessionHelper.setActive(false)
     }
 
     override fun onDestroy() {
