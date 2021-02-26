@@ -23,7 +23,14 @@ class EventService @Inject constructor(
 
     suspend fun loadEvents(ids: List<F1TvEventId>) {
         Log.d(TAG, "loadEvents")
-        val events = ids.concurrentMap { f1Tv.getEvent(it) }
+        val events = ids.mapNotNull {
+            try {
+                f1Tv.getEvent(it)
+            } catch (_: Exception) {
+                /* Ignored */
+                null
+            }
+        }
         repository.save(events)
         val (future, pastAndCurrent) = events.partition { it.isFutureEvent(clock) }
         (pastAndCurrent.sortedByDescending { it.period.start } + future)
