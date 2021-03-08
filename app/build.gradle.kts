@@ -12,10 +12,10 @@ android {
 
     defaultConfig {
         applicationId = "com.github.leonardoxh.f1"
-        minSdkVersion(26)
+        minSdkVersion(21)
         targetSdkVersion(30)
-        versionCode = 9
-        versionName = "1.2.5"
+        versionCode = 10
+        versionName = "1.2.6"
     }
 
     signingConfigs {
