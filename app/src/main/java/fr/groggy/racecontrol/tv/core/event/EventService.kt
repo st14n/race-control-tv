@@ -2,7 +2,6 @@ package fr.groggy.racecontrol.tv.core.event
 
 import android.util.Log
 import fr.groggy.racecontrol.tv.core.session.SessionService
-import fr.groggy.racecontrol.tv.utils.coroutines.concurrentMap
 import fr.groggy.racecontrol.tv.f1tv.F1TvClient
 import fr.groggy.racecontrol.tv.f1tv.F1TvEventId
 import java.time.Clock
@@ -26,15 +25,21 @@ class EventService @Inject constructor(
         val events = ids.mapNotNull {
             try {
                 f1Tv.getEvent(it)
-            } catch (_: Exception) {
-                /* Ignored */
+            } catch (e: Exception) {
+                e.printStackTrace()
                 null
             }
         }
         repository.save(events)
         val (future, pastAndCurrent) = events.partition { it.isFutureEvent(clock) }
         (pastAndCurrent.sortedByDescending { it.period.start } + future)
-            .forEach { sessionService.loadSessionsWithImages(it.sessions) }
+            .forEach {
+                try {
+                    sessionService.loadSessionsWithImages(it.sessions)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
     }
 
 }

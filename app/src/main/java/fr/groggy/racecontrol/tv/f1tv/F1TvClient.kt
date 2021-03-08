@@ -86,6 +86,7 @@ class F1TvClient @Inject constructor(
 
     suspend fun getSession(id: F1TvSessionId): F1TvSession {
         val response = get(id.value, sessionResponseJsonAdapter)
+        //TODO might not be available?
         Log.d(TAG, "Fetched session $id")
         return F1TvSession(
             id = F1TvSessionId(response.self),
