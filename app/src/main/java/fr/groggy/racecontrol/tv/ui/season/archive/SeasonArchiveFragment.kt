@@ -8,6 +8,7 @@ import androidx.leanback.app.VerticalGridSupportFragment
 import androidx.leanback.widget.*
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
+import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.f1tv.Archive
 import fr.groggy.racecontrol.tv.f1tv.F1TvSeasonId
 import fr.groggy.racecontrol.tv.ui.season.browse.SeasonBrowseActivity
@@ -22,6 +23,7 @@ class SeasonArchiveFragment: VerticalGridSupportFragment(), OnItemViewClickedLis
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        title = getText(R.string.choose_a_season)
         gridPresenter = VerticalGridPresenter().apply {
             numberOfColumns = 5
         }
