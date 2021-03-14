@@ -9,7 +9,7 @@ import fr.groggy.racecontrol.tv.f1tv.F1TvSeasonId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import java.time.Year
+import org.threeten.bp.Year
 import javax.inject.Inject
 import javax.inject.Singleton
 

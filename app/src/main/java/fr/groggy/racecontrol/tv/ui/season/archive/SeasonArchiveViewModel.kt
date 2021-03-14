@@ -4,7 +4,7 @@ import androidx.hilt.lifecycle.ViewModelInject
 import androidx.lifecycle.ViewModel
 import fr.groggy.racecontrol.tv.core.season.SeasonService
 import fr.groggy.racecontrol.tv.f1tv.Archive
-import java.time.Year
+import org.threeten.bp.Year
 
 class SeasonArchiveViewModel @ViewModelInject constructor(
     private val seasonService: SeasonService

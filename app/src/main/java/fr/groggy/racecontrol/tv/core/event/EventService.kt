@@ -4,7 +4,7 @@ import android.util.Log
 import fr.groggy.racecontrol.tv.core.session.SessionService
 import fr.groggy.racecontrol.tv.f1tv.F1TvClient
 import fr.groggy.racecontrol.tv.f1tv.F1TvEventId
-import java.time.Clock
+import org.threeten.bp.Clock
 import javax.inject.Inject
 import javax.inject.Singleton
 

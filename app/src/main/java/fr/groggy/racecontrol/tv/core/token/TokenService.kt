@@ -7,7 +7,7 @@ import fr.groggy.racecontrol.tv.f1.F1Client
 import fr.groggy.racecontrol.tv.f1.F1Token
 import fr.groggy.racecontrol.tv.f1tv.F1TvClient
 import fr.groggy.racecontrol.tv.f1tv.F1TvToken
-import java.time.Duration
+import org.threeten.bp.Duration
 import javax.inject.Inject
 import javax.inject.Singleton
 

@@ -3,8 +3,6 @@ package fr.groggy.racecontrol.tv.f1tv
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 import fr.groggy.racecontrol.tv.core.InstantPeriod
-import java.time.Clock
-import java.time.Instant
 
 @JsonClass(generateAdapter = true)
 data class F1TVSessionAvailabilityDetailsResponse(
@@ -50,8 +48,4 @@ data class F1TvSession(
     val available: Boolean,
     val images: List<F1TvImageId>,
     val channels: List<F1TvChannelId>
-) {
-
-    fun isFutureSession(clock: Clock): Boolean = period.start.isAfter(Instant.now(clock))
-
-}
+)

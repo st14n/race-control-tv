@@ -12,9 +12,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import okhttp3.JavaNetCookieJar
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
+import org.threeten.bp.Clock
 import java.net.CookieManager
 import java.net.CookiePolicy
-import java.time.Clock
 import javax.inject.Singleton
 
 @Module

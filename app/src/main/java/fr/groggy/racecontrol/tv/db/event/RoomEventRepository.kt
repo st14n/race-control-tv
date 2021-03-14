@@ -10,7 +10,7 @@ import fr.groggy.racecontrol.tv.f1tv.F1TvSessionId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import java.time.LocalDate
+import org.threeten.bp.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
 

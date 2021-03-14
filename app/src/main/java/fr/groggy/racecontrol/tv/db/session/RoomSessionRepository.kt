@@ -15,7 +15,7 @@ import fr.groggy.racecontrol.tv.f1tv.F1TvSessionStatus.Companion.Upcoming
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import java.time.Instant
+import org.threeten.bp.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
 

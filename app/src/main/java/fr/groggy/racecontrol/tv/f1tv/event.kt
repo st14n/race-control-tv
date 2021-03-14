@@ -3,8 +3,8 @@ package fr.groggy.racecontrol.tv.f1tv
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 import fr.groggy.racecontrol.tv.core.LocalDatePeriod
-import java.time.Clock
-import java.time.LocalDate
+import org.threeten.bp.Clock
+import org.threeten.bp.LocalDate
 
 @JsonClass(generateAdapter = true)
 data class F1TvEventResponse(
