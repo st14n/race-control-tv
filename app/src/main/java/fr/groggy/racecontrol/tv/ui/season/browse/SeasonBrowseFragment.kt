@@ -56,7 +56,7 @@ class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener 
 
     private fun setupUIElements() {
         headersState = HEADERS_ENABLED
-        isHeadersTransitionOnBackEnabled = false
+        isHeadersTransitionOnBackEnabled = true
         brandColor = ContextCompat.getColor(requireContext(), R.color.fastlane_background)
         eventsAdapter = ArrayObjectAdapter(ListRowPresenter())
         adapter = eventsAdapter
