@@ -21,6 +21,7 @@ class TextCardView @JvmOverloads constructor(
     init {
         LayoutInflater.from(getContext())
             .inflate(R.layout.item_text_card, this)
+        isFocusable = true
 
         textView = findViewById(R.id.text_view)
     }

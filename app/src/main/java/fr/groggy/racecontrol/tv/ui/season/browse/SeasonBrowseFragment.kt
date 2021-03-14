@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.annotation.Keep
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.viewModels
 import androidx.leanback.app.BrowseSupportFragment
 import androidx.leanback.widget.*
@@ -56,7 +57,7 @@ class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener 
     private fun setupUIElements() {
         headersState = HEADERS_ENABLED
         isHeadersTransitionOnBackEnabled = false
-        brandColor = resources.getColor(R.color.fastlane_background, null)
+        brandColor = ContextCompat.getColor(requireContext(), R.color.fastlane_background)
         eventsAdapter = ArrayObjectAdapter(ListRowPresenter())
         adapter = eventsAdapter
     }
