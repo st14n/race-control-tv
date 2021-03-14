@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<TextView
+<fr.groggy.racecontrol.tv.ui.season.archive.TextCardView
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:textColor="@android:color/white"
-    android:padding="72dp"
-    android:textSize="72sp"/>
+    android:layout_height="wrap_content"/>

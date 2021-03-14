@@ -37,12 +37,8 @@ class SeasonArchiveFragment: VerticalGridSupportFragment(), OnItemViewClickedLis
         val viewModel: SeasonArchiveViewModel by viewModels()
         lifecycleScope.launchWhenStarted {
             val archives = viewModel.listArchive()
-            bindUi(archives)
+            itemAdapter.setItems(archives, null)
         }
-    }
-
-    private fun bindUi(archive: List<Archive>) {
-        itemAdapter.setItems(archive, null)
     }
 
     override fun onItemClicked(
