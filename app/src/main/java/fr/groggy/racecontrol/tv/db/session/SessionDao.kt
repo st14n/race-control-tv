@@ -18,7 +18,7 @@ interface SessionDao {
     @Query("SELECT * FROM sessions WHERE id = :id")
     fun observeById(id: String): Flow<SessionEntity>
 
-    @Query("SELECT * FROM sessions WHERE id IN (:ids)")
+    @Query("SELECT * FROM sessions WHERE event_id IN (:ids)")
     fun observeById(ids: List<String>): Flow<List<SessionEntity>>
 
 }

@@ -6,24 +6,50 @@ import org.threeten.bp.Year
 
 @JsonClass(generateAdapter = true)
 data class F1TvSeasonResponse(
-    val self: String,
-    val name: String,
-    val year: Int,
-    @Json(name = "eventoccurrence_urls") val eventOccurrenceUrls: List<String>
+    val resultObj: F1TvSeasonResult
 )
 
-inline class F1TvSeasonId(val value: String) {
-    companion object {
-        // 2020 example = race_11cd5edd03404b6199bf4712efb34391
-        val CURRENT = F1TvSeasonId("/api/race-season/current/")
+@JsonClass(generateAdapter = true)
+data class F1TvSeasonResult(
+    val containers: List<F1TvSeasonResultContainer>
+)
 
-        fun ofUid(uid: String) = F1TvSeasonId("/api/race-season/$uid/")
-    }
-}
+@JsonClass(generateAdapter = true)
+data class F1TvSeasonResultContainer(
+    val id: String,
+    val metadata: F1TvSeasonMetadata,
+    val actions: List<F1TvSeasonAction>
+)
+
+@JsonClass(generateAdapter = true)
+data class F1TvSeasonAction(
+    val targetType: String,
+    val uri: String
+)
+
+@JsonClass(generateAdapter = true)
+data class F1TvSeasonMetadata(
+    val emfAttributes: F1TvSeasonEmfAttributes
+)
+
+@JsonClass(generateAdapter = true)
+data class F1TvSeasonEmfAttributes(
+    @Json(name = "MeetingKey") val meetingKey: String,
+    @Json(name = "Global_Meeting_Name") val title: String
+)
+
+
+inline class F1TvSeasonId(val value: String)
 
 data class F1TvSeason(
-    val id: F1TvSeasonId,
-    val name: String,
     val year: Year,
-    val events: List<F1TvEventId>
+    val title: String,
+    val events: List<F1TvSeasonEvent>,
+    val detailAction: String?
+)
+
+data class F1TvSeasonEvent(
+    val id: String,
+    val meetingKey: String,
+    val title: String
 )
