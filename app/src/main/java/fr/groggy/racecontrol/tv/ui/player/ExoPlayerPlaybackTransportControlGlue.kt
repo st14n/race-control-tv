@@ -1,6 +1,7 @@
 package fr.groggy.racecontrol.tv.ui.player
 
 import android.util.Log
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.leanback.media.PlaybackTransportControlGlue
 import androidx.leanback.media.PlayerAdapter
@@ -23,9 +24,11 @@ import kotlin.math.roundToInt
 class ExoPlayerPlaybackTransportControlGlue(
     private val activity: FragmentActivity,
     player: SimpleExoPlayer,
-    private val trackSelector: DefaultTrackSelector) :
-    PlaybackTransportControlGlue<LeanbackPlayerAdapter>(activity, LeanbackPlayerAdapter(activity, player, 1_000)),
-    AnalyticsListener {
+    private val trackSelector: DefaultTrackSelector
+) : PlaybackTransportControlGlue<LeanbackPlayerAdapter>(
+    activity,
+    LeanbackPlayerAdapter(activity, player, 1_000)
+), AnalyticsListener {
 
     companion object {
         private val TAG = ExoPlayerPlaybackTransportControlGlue::class.simpleName
@@ -39,7 +42,7 @@ class ExoPlayerPlaybackTransportControlGlue(
         Action.NO_ID,
         activity.getString(R.string.audio_selection_dialog_title),
         null,
-        activity.getDrawable(R.drawable.lb_ic_search_mic_out)
+        ContextCompat.getDrawable(context, R.drawable.lb_ic_search_mic_out)
     )
 
     private var currentVideoFormat: Format? = null
@@ -47,6 +50,7 @@ class ExoPlayerPlaybackTransportControlGlue(
 
     init {
         player.addAnalyticsListener(this)
+        isSeekEnabled = true
     }
 
     override fun onCreatePrimaryActions(adapter: ArrayObjectAdapter) {

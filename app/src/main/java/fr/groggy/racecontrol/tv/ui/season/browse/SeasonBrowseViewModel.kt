@@ -2,8 +2,8 @@ package fr.groggy.racecontrol.tv.ui.season.browse
 
 import android.net.Uri
 import android.util.Log
-import androidx.hilt.lifecycle.ViewModelInject
 import androidx.lifecycle.ViewModel
+import dagger.hilt.android.lifecycle.HiltViewModel
 import fr.groggy.racecontrol.tv.core.event.EventRepository
 import fr.groggy.racecontrol.tv.core.season.SeasonRepository
 import fr.groggy.racecontrol.tv.core.session.SessionRepository
@@ -13,8 +13,10 @@ import fr.groggy.racecontrol.tv.ui.DataClassByIdDiffCallback
 import fr.groggy.racecontrol.tv.ui.session.SessionCard
 import fr.groggy.racecontrol.tv.utils.coroutines.traverse
 import kotlinx.coroutines.flow.*
+import javax.inject.Inject
 
-class SeasonBrowseViewModel @ViewModelInject constructor(
+@HiltViewModel
+class SeasonBrowseViewModel @Inject constructor(
     private val eventRepository: EventRepository,
     private val seasonRepository: SeasonRepository,
     private val sessionRepository: SessionRepository
@@ -24,12 +26,12 @@ class SeasonBrowseViewModel @ViewModelInject constructor(
         private val TAG = SeasonBrowseViewModel::class.simpleName
     }
 
-    suspend fun archiveLoaded(archive: Archive) {
-        loaded(season(archive))
+    suspend fun archiveLoaded(archive: Archive): Season {
+        return loaded(season(archive))
     }
 
-    private suspend fun loaded(season: Flow<Season>) {
-        season.filter { it.events.isNotEmpty() }.first()
+    private suspend fun loaded(season: Flow<Season>): Season {
+        return season.filter { it.events.isNotEmpty() }.first()
     }
 
     suspend fun season(archive: Archive): Flow<Season> =
