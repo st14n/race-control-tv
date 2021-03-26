@@ -25,7 +25,7 @@ class F1TvClient @Inject constructor(
         private const val ROOT_URL = "https://f1tv.formula1.com"
 
         private const val GROUP_ID = 2 //TODO this might need to be migrated to the correct ONE
-        private const val LIST_SEASON = "/2.0/R/ENG/BIG_SCREEN_HLS/ALL/PAGE/SEARCH/VOD/F1_TV_Pro_Monthly/$GROUP_ID?filter_objectSubtype=Meeting&filter_season=%s&filter_fetchAll=Y&filter_orderByFom=Y"
+        private const val LIST_SEASON = "/2.0/R/ENG/BIG_SCREEN_HLS/ALL/PAGE/SEARCH/VOD/F1_TV_Pro_Monthly/$GROUP_ID?filter_objectSubtype=Meeting&filter_season=%s&filter_orderByFom=Y&maxResults=100"
         private const val LIST_SESSIONS = "/2.0/R/ENG/BIG_SCREEN_HLS/ALL/PAGE/SANDWICH/F1_TV_Pro_Monthly/$GROUP_ID?meetingId=%s&title=weekend-sessions"
         private const val LIST_CHANNELS = "/2.0/R/ENG/BIG_SCREEN_HLS/ALL/CONTENT/VIDEO/%s/F1_TV_Pro_Monthly/$GROUP_ID"
         private const val PICTURE_URL = "https://ott.formula1.com/image-resizer/image/%s?w=384&h=384&o=L&q=HI"
