@@ -11,9 +11,10 @@
         then login on your account and logout then come
         back to the app and it will eventually work.\n
         2. It is also possible that for some reason your IP is blocked (401 response) in this case try
-        to switch networks it might also work.
+        to switch networks it might also work. In this case you have to reach F1 support as well.
     </string>
 
+    <string name="unable_to_play_video_message">Something went wrong while trying to play this video</string>
     <string name="video_quality">%1$dp%2$d</string>
     <string name="audio_selection_dialog_title">Audio</string>
     <string name="choose_a_season">Select a season</string>
