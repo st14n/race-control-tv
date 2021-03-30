@@ -62,7 +62,7 @@ class F1TvClient @Inject constructor(
         return if (season.year.value < 2018) {
             getSessionArchive(event, season)
         } else {
-            getF1TvSessions(event)
+            getF1TvSessions(event, season)
         }
     }
 
@@ -93,7 +93,7 @@ class F1TvClient @Inject constructor(
         }
     }
 
-    private suspend fun getF1TvSessions(event: F1TvSeasonEvent): List<F1TvSession> {
+    private suspend fun getF1TvSessions(event: F1TvSeasonEvent, season: F1TvSeason): List<F1TvSession> {
         try {
             val response = get(LIST_SESSIONS.format(event.meetingKey), sessionResponseJsonAdapter)
             Log.d(TAG, "Fetched session ${event.id}")
@@ -115,8 +115,13 @@ class F1TvClient @Inject constructor(
                     channels = listOf()
                 )
             }
-        } catch (_: Exception) {
-            /* The pre seasons for example are not available to query */
+        } catch (e: Exception) {
+            /*
+             * The pre seasons for example are not available to query
+             * on the regular api, for this fallback to the archive
+             */
+            Log.d(TAG, "getF1TvSessions failed with ${e.message}")
+            //return getSessionArchive(event, season)
             return listOf()
         }
     }

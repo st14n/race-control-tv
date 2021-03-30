@@ -47,6 +47,12 @@ class ExoPlayerPlaybackTransportControlGlue(
         null,
         ContextCompat.getDrawable(context, R.drawable.lb_ic_search_mic_out)
     )
+    private val resolutionSelectionAction = Action(
+        Action.NO_ID,
+        activity.getText(R.string.video_selection_dialog_title),
+        null,
+        ContextCompat.getDrawable(context, R.drawable.ic_video_settings)
+    )
     private val closedCaptionAction = PlaybackControlsRow.ClosedCaptioningAction(activity)
 
     private val closedCaptionsTextView: TextView by lazy {
@@ -73,6 +79,7 @@ class ExoPlayerPlaybackTransportControlGlue(
             add(rewindAction)
             add(fastFormatAction)
             add(selectAudioAction)
+            add(resolutionSelectionAction)
             add(closedCaptionAction)
         }
     }
@@ -84,7 +91,19 @@ class ExoPlayerPlaybackTransportControlGlue(
             fastFormatAction -> playerAdapter.seekOffset(DEFAULT_SEEK_OFFSET)
             selectAudioAction -> openAudioSelectionDialog()
             closedCaptionAction -> toggleClosedCaptions()
+            resolutionSelectionAction -> openResolutionSelectionDialog()
             else -> super.onActionClicked(action)
+        }
+    }
+
+    private fun openResolutionSelectionDialog() {
+        trackSelector.currentMappedTrackInfo?.let {
+            ResolutionSelectionDialog(it)
+                .setResolutionSelectedListener { width, height ->
+                    val newParams = trackSelector.buildUponParameters()
+                        .setMaxVideoSize(width, height)
+                    trackSelector.setParameters(newParams)
+                }.show(activity.supportFragmentManager, null)
         }
     }
 
@@ -102,7 +121,7 @@ class ExoPlayerPlaybackTransportControlGlue(
 
     private fun openAudioSelectionDialog() {
         trackSelector.currentMappedTrackInfo?.let {
-            val audio = it.getTrackGroups(1)
+            val audio = it.getTrackGroups(C.TRACK_TYPE_AUDIO)
             val dialog = AudioSelectionDialogFragment(audio)
             dialog.onAudioLanguageSelected { language ->
                 val parameters = trackSelector.buildUponParameters()

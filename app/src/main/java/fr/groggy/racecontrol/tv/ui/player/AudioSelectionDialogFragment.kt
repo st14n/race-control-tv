@@ -27,6 +27,7 @@ class AudioSelectionDialogFragment(
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val items = formats.map { it.label }.toTypedArray()
+
         return AlertDialog.Builder(requireContext())
             .setTitle(R.string.audio_selection_dialog_title)
             .setItems(items) { _, i -> selectAudio(i) }
