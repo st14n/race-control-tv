@@ -55,4 +55,4 @@ First of all thank you [Groggy](https://github.com/Groggy) the original creator 
 
 Thanks to all contributors of [f1viewer](https://github.com/SoMuchForSubtlety/f1viewer) for their work on how to use the F1 TV API.
 
-Launcher icon and banner made by [Freepik](https://www.flaticon.com/authors/freepik) from [www.flaticon.com](http://www.flaticon.com/).
+Thanks to my friend [Thiago Andrade](https://github.com/ttandrade) for the exclusive icons and color guidelines.
