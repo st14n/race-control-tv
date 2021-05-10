@@ -20,4 +20,10 @@
     <string name="video_selection_quality_auto">Automático</string>
 
     <string name="choose_a_season">Selecione uma temporada</string>
+
+    <string name="teaser_image_text">Temporada atual: %1$d</string>
+    <string name="teaser_image_description">Temporada atual</string>
+
+    <string name="home_all">Ver todos</string>
+    <string name="home_archive">Arquivo</string>
 </resources>
