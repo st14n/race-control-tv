@@ -13,7 +13,6 @@ import fr.groggy.racecontrol.tv.ui.session.SessionCard
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
-import org.threeten.bp.Year
 import javax.inject.Inject
 
 @HiltViewModel

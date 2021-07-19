@@ -11,17 +11,13 @@ import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.viewModels
 import androidx.leanback.app.RowsSupportFragment
 import androidx.leanback.widget.*
-import androidx.lifecycle.asLiveData
-import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.f1tv.Archive
 import fr.groggy.racecontrol.tv.ui.common.CustomListRowPresenter
 import fr.groggy.racecontrol.tv.ui.season.archive.SeasonArchiveActivity
-import fr.groggy.racecontrol.tv.ui.season.browse.Season
 import fr.groggy.racecontrol.tv.ui.season.browse.SeasonBrowseActivity
 import fr.groggy.racecontrol.tv.ui.season.browse.Session
-import fr.groggy.racecontrol.tv.ui.session.SessionCardPresenter
 import fr.groggy.racecontrol.tv.ui.session.browse.SessionBrowseActivity
 import org.threeten.bp.Year
 
@@ -72,55 +68,56 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
 
         val teaserImageText = requireActivity().findViewById<TextView>(R.id.teaserImageText)
         teaserImageText.text = resources.getString(R.string.teaser_image_text, currentYear)
-        homeEntriesAdapter.clear()
     }
 
     private fun buildRowsAdapter() {
         val viewModel: HomeViewModel by viewModels()
 
-        lifecycleScope.launchWhenStarted {
-            viewModel.getCurrentSeason(Archive(currentYear)).asLiveData()
-                .observe(viewLifecycleOwner, ::onUpdatedSeason)
-        }
+        // - Revert this for now as it creates some database locks and some focus issues in some devices
+//        lifecycleScope.launchWhenStarted {
+//            viewModel.getCurrentSeason(Archive(currentYear)).asLiveData()
+//                .observe(viewLifecycleOwner, ::onUpdatedSeason)
+//        }
 
         archivesRow = getArchiveRow(viewModel)
+        homeEntriesAdapter.add(archivesRow)
     }
 
-    private fun onUpdatedSeason(season: Season) {
-        val events = season.events.filter { it.sessions.isNotEmpty() }
-        if (events.isNotEmpty()) {
-            val event = events.first()
-            val existingListRows = homeEntriesAdapter.unmodifiableList<ListRow>()
-            val headerName =
-                getString(R.string.season_last_event, event.name, currentYear.toString())
-            val existingListRow = existingListRows.find { it.headerItem.name == headerName }
-            val sessionsListRow = getLastSessionsRow(event.sessions, headerName, existingListRow)
+//    private fun onUpdatedSeason(season: Season) {
+//        val events = season.events.filter { it.sessions.isNotEmpty() }
+//        if (events.isNotEmpty()) {
+//            val event = events.first()
+//            val existingListRows = homeEntriesAdapter.unmodifiableList<ListRow>()
+//            val headerName =
+//                getString(R.string.season_last_event, event.name, currentYear.toString())
+//            val existingListRow = existingListRows.find { it.headerItem.name == headerName }
+//            val sessionsListRow = getLastSessionsRow(event.sessions, headerName, existingListRow)
+//
+//            if (existingListRow == null) {
+//                homeEntriesAdapter.add(sessionsListRow)
+//                homeEntriesAdapter.add(archivesRow)
+//            } else {
+//                homeEntriesAdapter.replace(0, sessionsListRow)
+//            }
+//        }
+//    }
 
-            if (existingListRow == null) {
-                homeEntriesAdapter.add(sessionsListRow)
-                homeEntriesAdapter.add(archivesRow)
-            } else {
-                homeEntriesAdapter.replace(0, sessionsListRow)
-            }
-        }
-    }
-
-    private fun getLastSessionsRow(
-        sessions: List<Session>,
-        headerName: String,
-        existingListRow: ListRow?
-    ): ListRow {
-        val (listRow, listRowAdapter) = if (existingListRow == null) {
-            val listRowAdapter = ArrayObjectAdapter(SessionCardPresenter())
-            val listRow = ListRow(HeaderItem(headerName), listRowAdapter)
-            listRow to listRowAdapter
-        } else {
-            val listRowAdapter = existingListRow.adapter as ArrayObjectAdapter
-            existingListRow to listRowAdapter
-        }
-        listRowAdapter.setItems(sessions, Session.diffCallback)
-        return listRow
-    }
+//    private fun getLastSessionsRow(
+//        sessions: List<Session>,
+//        headerName: String,
+//        existingListRow: ListRow?
+//    ): ListRow {
+//        val (listRow, listRowAdapter) = if (existingListRow == null) {
+//            val listRowAdapter = ArrayObjectAdapter(SessionCardPresenter())
+//            val listRow = ListRow(HeaderItem(headerName), listRowAdapter)
+//            listRow to listRowAdapter
+//        } else {
+//            val listRowAdapter = existingListRow.adapter as ArrayObjectAdapter
+//            existingListRow to listRowAdapter
+//        }
+//        listRowAdapter.setItems(sessions, Session.diffCallback)
+//        return listRow
+//    }
 
     private fun getArchiveRow(viewModel: HomeViewModel): ListRow {
         val archives = viewModel.listArchive().subList(1, 6)
