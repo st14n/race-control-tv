@@ -32,7 +32,7 @@ class SessionCardPresenter : Presenter() {
     }
 
     override fun onBindViewHolder(viewHolder: ViewHolder, item: Any) {
-        val imageCardView = viewHolder.view.findViewById<ImageCardView>(R.id.image_card_view)
+        val imageCardView = viewHolder.view as ImageCardView
         val session = item as SessionCard
 
         imageCardView.titleText = session.name
