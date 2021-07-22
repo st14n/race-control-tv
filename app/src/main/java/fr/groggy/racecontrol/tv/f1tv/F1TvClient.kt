@@ -8,7 +8,6 @@ import fr.groggy.racecontrol.tv.utils.http.execute
 import fr.groggy.racecontrol.tv.utils.http.parseJsonBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.internal.toImmutableList
 import org.threeten.bp.Instant
 import org.threeten.bp.OffsetDateTime
 import org.threeten.bp.Year
@@ -17,7 +16,6 @@ import org.threeten.bp.format.DateTimeFormatter
 import java.util.*
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.collections.ArrayList
 
 @Singleton
 class F1TvClient @Inject constructor(
@@ -71,7 +69,7 @@ class F1TvClient @Inject constructor(
                 getSessionArchive(event, season)
             }
             event.period.start < Instant.now() -> {
-                getF1TvSessions(event)
+                getBroadcastF1TvSessions(event)
             }
             else -> {
                 return listOf()
@@ -106,17 +104,7 @@ class F1TvClient @Inject constructor(
         }
     }
 
-    private suspend fun getF1TvSessions(event: F1TvSeasonEvent): List<F1TvSession> {
-        val list = mutableListOf<F1TvSession>()
-        if (event.period.start < Instant.now() && event.period.end > Instant.now()) {
-            list.addAll(getFutureF1TvSessions(event))
-        }
-        list.addAll(getBroadcastedF1TvSessions(event))
-        list.forEach { it -> Log.d(TAG, it.toString()) }
-        return list
-    }
-
-    private suspend fun getBroadcastedF1TvSessions(event: F1TvSeasonEvent): List<F1TvSession> {
+    private suspend fun getBroadcastF1TvSessions(event: F1TvSeasonEvent): List<F1TvSession> {
         try {
             val response = get(
                 LIST_SESSIONS.format(getCurrentLocale(), event.meetingKey),
@@ -144,6 +132,17 @@ class F1TvClient @Inject constructor(
             Log.d(TAG, "getF1TvSessions failed with ${e.message}")
             return listOf()
         }
+    }
+
+    /* Methods bellow are disabled until we can investigate issues with tiles */
+    private suspend fun getF1TvSessions(event: F1TvSeasonEvent): List<F1TvSession> {
+        val list = mutableListOf<F1TvSession>()
+        if (event.period.start < Instant.now() && event.period.end > Instant.now()) {
+            list.addAll(getFutureF1TvSessions(event))
+        }
+        list.addAll(getBroadcastF1TvSessions(event))
+        list.forEach { Log.d(TAG, it.toString()) }
+        return list
     }
 
     private suspend fun getFutureF1TvSessions(event: F1TvSeasonEvent): List<F1TvSession> {

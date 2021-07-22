@@ -3,28 +3,38 @@
 Android TV application to watch content from [F1 TV](https://f1tv.formula1.com).
 
 At this time, content from the current session and old sessions are available, including F1, F2, F3...
-Onboard channels when available are supported, as well as technical channels like the tracker channel.
+Onboard channels when available are supported, as well as technical channels like the tracker channel,
+and on future I will bring documentaries (I hope).
 
 This app currently use the F1TV 2.0 apis and support stream content of 1080p at 50FPS
 
 Audio selection (language or no commentary) is supported.
 
 Resolution selection (from 270p to 1080p) is available, however the app knows based on bandwidth what
-is the best resolution to pickup.
+is the best resolution to pickup, this is built in with ExoPlayer.
 
 Closed captions supported in english, spanish, dutch and german.
 
-Application is available in English, Dutch and German. Feel free to translate it and open a PR :D
+Application is available in English, Dutch, German, French, Portuguese and Russian.
+Feel free to translate it and open a PR :D
 
 ## Install
 
 The app is available on [Google Playstore](https://play.google.com/store/apps/details?id=com.github.leonardoxh.f1)
 
-## Fire Sticks / Tvs
+## Fire Sticks / TVS
 
 The app is supported on fire sticks / tvs, however due some technicalities I can't offer
 the app directly on Amazon store please refer to the [releases page](https://github.com/leonardoxh/race-control-tv/releases)
 to download the latest apk and side load it.
+
+## New features PR
+
+I normally accept new features in PRs that bring improvements to the app, however, due some last recent
+bugs introduced in some PRs where I had to revert literally the whole PR for new features please create a github issue
+first before any code change and try to describe what you want to do as detailed as possible so we can chat on the issue
+and see if this is something we want to onboard or not, be in mind also that we do not work in this app full time, so
+the features have to be very well tested, so everyone can enjoy the races.
 
 ## Screenshots
 
@@ -47,8 +57,6 @@ would be available, I will happily abandon this one.
 
 This will always be a free and open source app.
 
-Do what you want with it : use it or modify it.
-
 ## Credits
 
 First of all thank you [Groggy](https://github.com/Groggy) the original creator of this project that I forked without you this would never be possible.
@@ -56,5 +64,7 @@ First of all thank you [Groggy](https://github.com/Groggy) the original creator 
 Thanks to all contributors of [f1viewer](https://github.com/SoMuchForSubtlety/f1viewer) for their work on how to use the F1 TV API.
 
 Thanks to my friend [Thiago Andrade](https://github.com/ttandrade) for the exclusive icons and color guidelines.
+
+## Donations
 
 [![Donations](https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png)](https://www.buymeacoffee.com/lrossett)
