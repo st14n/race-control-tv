@@ -1,7 +1,6 @@
 package fr.groggy.racecontrol.tv.ui.session
 
 import android.net.Uri
-import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.leanback.widget.ImageCardView
@@ -19,10 +18,8 @@ class SessionCardPresenter : Presenter() {
     }
 
     override fun onCreateViewHolder(parent: ViewGroup): ViewHolder {
-        val view = LayoutInflater.from(parent.context)
-            .inflate(R.layout.session_card, parent, false)
+        val imageCardView = ImageCardView(parent.context)
 
-        val imageCardView = view.findViewById<ImageCardView>(R.id.image_card_view)
         imageCardView.setMainImageDimensions(
             WIDTH,
             HEIGHT
@@ -31,7 +28,7 @@ class SessionCardPresenter : Presenter() {
 
         imageCardView.findViewById<TextView>(R.id.title_text)?.setLines(2)
 
-        return ViewHolder(view)
+        return ViewHolder(imageCardView)
     }
 
     override fun onBindViewHolder(viewHolder: ViewHolder, item: Any) {
@@ -47,7 +44,7 @@ class SessionCardPresenter : Presenter() {
     }
 
     override fun onUnbindViewHolder(viewHolder: ViewHolder) {
-        val imageCardView = viewHolder.view.findViewById<ImageCardView>(R.id.image_card_view)
+        val imageCardView = viewHolder.view as ImageCardView
         imageCardView.badgeImage = null
         imageCardView.mainImage = null
     }
