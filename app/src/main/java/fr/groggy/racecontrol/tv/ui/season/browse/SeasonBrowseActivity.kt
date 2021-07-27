@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.viewModels
 import androidx.fragment.app.FragmentActivity
+import androidx.fragment.app.commit
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.R
@@ -14,10 +15,9 @@ import fr.groggy.racecontrol.tv.f1tv.Archive
 import fr.groggy.racecontrol.tv.utils.coroutines.schedule
 import org.threeten.bp.Duration
 import javax.inject.Inject
-import kotlin.time.minutes
 
 @AndroidEntryPoint
-class SeasonBrowseActivity : FragmentActivity() {
+class SeasonBrowseActivity : FragmentActivity(R.layout.activity_season_browse) {
 
     companion object {
         private val TAG = SeasonBrowseActivity::class.simpleName
@@ -35,12 +35,11 @@ class SeasonBrowseActivity : FragmentActivity() {
         }
     }
 
-    @Inject lateinit var seasonService: SeasonService
+    @Inject internal lateinit var seasonService: SeasonService
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        Log.d(TAG, "onCreate")
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_season_browse)
+
         val viewModel: SeasonBrowseViewModel by viewModels()
         lifecycleScope.launchWhenCreated {
             val archive = SeasonBrowseFragment.findArchive(this@SeasonBrowseActivity)
@@ -49,7 +48,6 @@ class SeasonBrowseActivity : FragmentActivity() {
     }
 
     override fun onStart() {
-        Log.d(TAG, "onStart")
         super.onStart()
         lifecycleScope.launchWhenStarted {
             schedule(Duration.ofMinutes(1)) {
@@ -58,9 +56,9 @@ class SeasonBrowseActivity : FragmentActivity() {
                 seasonService.loadSeason(archive)
 
                 if (supportFragmentManager.findFragmentByTag(TAG) !is SeasonBrowseFragment) {
-                    supportFragmentManager.beginTransaction()
-                        .replace(R.id.fragment_container, SeasonBrowseFragment(), TAG)
-                        .commit()
+                    supportFragmentManager.commit {
+                        replace(R.id.fragment_container, SeasonBrowseFragment(), TAG)
+                    }
                 }
             }
         }

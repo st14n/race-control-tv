@@ -10,7 +10,8 @@ import javax.inject.Inject
 class SeasonArchiveViewModel @Inject constructor(
     private val seasonService: SeasonService
 ): ViewModel() {
-    fun listArchive(): List<Archive> {
+    fun listArchive(): Map<Int, List<Archive>> {
         return seasonService.listArchive()
+            .groupBy { (it.year / 10) * 10 }
     }
 }

@@ -38,14 +38,13 @@ class SeasonArchiveFragment : BrowseSupportFragment(), OnItemViewClickedListener
 
     private fun buildRowsAdapter() {
         val viewModel: SeasonArchiveViewModel by viewModels()
-        val archives = viewModel.listArchive()
-        val decades = archives.groupBy { (it.year / 10) * 10 }
-        decades.entries.forEach { decade ->
+        viewModel.listArchive().entries.forEach { decade ->
             val entries = decade.value
             val listRowAdapter = ArrayObjectAdapter(ArchivePresenter())
             listRowAdapter.setItems(entries, null)
             val title = getString(
-                R.string.season_archives_title, entries[0].year.toString(),
+                R.string.season_archives_title,
+                entries[0].year.toString(),
                 entries[entries.size - 1].year.toString()
             )
             archivesAdapter.add(ListRow(HeaderItem(title), listRowAdapter))

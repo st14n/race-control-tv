@@ -13,7 +13,7 @@ import org.threeten.bp.OffsetDateTime
 import org.threeten.bp.Year
 import org.threeten.bp.ZoneId
 import org.threeten.bp.format.DateTimeFormatter
-import java.util.*
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -69,7 +69,7 @@ class F1TvClient @Inject constructor(
                 getSessionArchive(event, season)
             }
             event.period.start < Instant.now() -> {
-                getBroadcastF1TvSessions(event)
+                getF1TvSessions(event)
             }
             else -> {
                 return listOf()
@@ -134,14 +134,12 @@ class F1TvClient @Inject constructor(
         }
     }
 
-    /* Methods bellow are disabled until we can investigate issues with tiles */
     private suspend fun getF1TvSessions(event: F1TvSeasonEvent): List<F1TvSession> {
         val list = mutableListOf<F1TvSession>()
         if (event.period.start < Instant.now() && event.period.end > Instant.now()) {
             list.addAll(getFutureF1TvSessions(event))
         }
         list.addAll(getBroadcastF1TvSessions(event))
-        list.forEach { Log.d(TAG, it.toString()) }
         return list
     }
 
@@ -249,6 +247,10 @@ class F1TvClient @Inject constructor(
         return request.execute(httpClient).parseJsonBody(jsonAdapter)
     }
 
+    /**
+     * This is the locale supported by F1TvAPI
+     * currently these are the only locales that it supports
+     */
     private fun getCurrentLocale(): String {
         return when (val isO3Language = Locale.getDefault().isO3Language) {
             "deu", "fra", "nld", "spa", "por" -> isO3Language.toUpperCase(Locale.ROOT)

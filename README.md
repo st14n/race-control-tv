@@ -28,6 +28,11 @@ The app is supported on fire sticks / tvs, however due some technicalities I can
 the app directly on Amazon store please refer to the [releases page](https://github.com/leonardoxh/race-control-tv/releases)
 to download the latest apk and side load it.
 
+## Open beta testing
+The app itself is always sort of "beta", however you can join the public app beta (on playstore) by clicking
+on the following link (on your web browser) https://play.google.com/apps/testing/com.github.leonardoxh.f1
+by joining the beta you'll receive the features before anyone else, but it might mean that the app is uninstable.
+
 ## New features PR
 
 I normally accept new features in PRs that bring improvements to the app, however, due some last recent
@@ -35,6 +40,8 @@ bugs introduced in some PRs where I had to revert literally the whole PR for new
 first before any code change and try to describe what you want to do as detailed as possible so we can chat on the issue
 and see if this is something we want to onboard or not, be in mind also that we do not work in this app full time, so
 the features have to be very well tested, so everyone can enjoy the races.
+
+Also be in mind that the code of the app needs an extensive refactor.
 
 ## Screenshots
 

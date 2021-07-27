@@ -15,6 +15,7 @@ class HomeViewModel @Inject constructor(
 
     fun listArchive(): List<Archive> {
         return seasonService.listArchive()
+            .subList(1, 6)
     }
 
     suspend fun getCurrentSeason(archive: Archive): Flow<Season> {

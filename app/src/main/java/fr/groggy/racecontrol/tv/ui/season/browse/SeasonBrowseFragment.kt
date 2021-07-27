@@ -14,7 +14,6 @@ import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.f1tv.Archive
-import fr.groggy.racecontrol.tv.ui.common.CustomListRowPresenter
 import fr.groggy.racecontrol.tv.ui.event.EventListRowDiffCallback
 import fr.groggy.racecontrol.tv.ui.session.SessionCardPresenter
 import fr.groggy.racecontrol.tv.ui.session.browse.SessionBrowseActivity
