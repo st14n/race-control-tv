@@ -3,4 +3,9 @@
     <string name="video_quality" translatable="false">%1$dp%2$d</string>
     <string name="season_archives_title" translatable="false">%s - %s</string>
     <string name="season_last_event" translatable="false">%s %s</string>
+
+    <string-array name="stream_types">
+        <item>HLS</item>
+        <item>DASH</item>
+    </string-array>
 </resources>

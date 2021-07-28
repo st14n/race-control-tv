@@ -36,6 +36,7 @@
         <activity android:name=".ui.signin.SignInActivity" />
         <activity android:name=".ui.season.archive.SeasonArchiveActivity"/>
         <activity android:name=".ui.home.HomeActivity"/>
+        <activity android:name=".ui.settings.SettingsActivity"/>
 
     </application>
 

@@ -59,4 +59,6 @@ class CredentialsService @Inject constructor(
             false
         }
     }
+
+    fun clearCredentials() = f1CredentialsRepository.delete()
 }

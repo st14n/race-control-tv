@@ -13,8 +13,8 @@ android {
         applicationId = "com.github.leonardoxh.f1"
         minSdkVersion(21)
         targetSdkVersion(30)
-        versionCode = 31
-        versionName = "2.3.0"
+        versionCode = 33
+        versionName = "2.4.0"
 
         buildConfigField("String", "DEFAULT_USER_AGENT", "\"RaceControl f1viewer\"")
     }
@@ -67,7 +67,9 @@ dependencies {
 
     implementation("androidx.core:core-ktx:1.6.0")
     implementation("androidx.fragment:fragment-ktx:1.3.6")
-    implementation("androidx.leanback:leanback:1.0.0")
+    val leanbackVersion = "1.2.0-alpha01"
+    implementation("androidx.leanback:leanback:$leanbackVersion")
+    implementation("androidx.leanback:leanback-preference:$leanbackVersion")
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.3.1")
 
     val hiltVersion = rootProject.extra["hiltVersion"]
@@ -104,7 +106,7 @@ dependencies {
     kapt("androidx.room:room-compiler:$roomVersion")
 
     implementation("com.google.android.material:material:1.4.0")
-    implementation("com.jakewharton.threetenabp:threetenabp:1.3.0")
+    implementation("com.jakewharton.threetenabp:threetenabp:1.3.1")
 }
 
 kapt {

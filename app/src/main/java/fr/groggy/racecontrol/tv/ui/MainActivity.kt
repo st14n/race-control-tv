@@ -1,7 +1,6 @@
 package fr.groggy.racecontrol.tv.ui
 
 import android.os.Bundle
-import android.util.Log
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
@@ -13,15 +12,9 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
-
-    companion object {
-        private val TAG = MainActivity::class.simpleName
-    }
-
-    @Inject lateinit var credentialsService: CredentialsService
+    @Inject internal lateinit var credentialsService: CredentialsService
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        Log.d(TAG, "onCreate")
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         startHomeActivity()

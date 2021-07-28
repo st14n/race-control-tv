@@ -25,8 +25,11 @@ class SignInActivity : ComponentActivity() {
     companion object {
         private val TAG = SignInActivity::class.simpleName
 
-        fun intent(context: Context): Intent =
-            Intent(context, SignInActivity::class.java)
+        fun intent(context: Context) = Intent(context, SignInActivity::class.java)
+
+        fun intentClearTask(context: Context) = intent(context).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
     }
 
     @Inject lateinit var credentialsService: CredentialsService

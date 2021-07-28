@@ -3,23 +3,23 @@ package fr.groggy.racecontrol.tv.ui.session.browse
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
 import androidx.annotation.Keep
 import androidx.fragment.app.viewModels
 import androidx.leanback.app.VerticalGridSupportFragment
 import androidx.leanback.widget.*
-import androidx.lifecycle.asLiveData
+import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
+import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
 import fr.groggy.racecontrol.tv.ui.channel.ChannelCardPresenter
 import fr.groggy.racecontrol.tv.ui.channel.playback.ChannelPlaybackActivity
+import kotlinx.coroutines.flow.collect
+import javax.inject.Inject
 
 @Keep
 @AndroidEntryPoint
 class SessionGridFragment : VerticalGridSupportFragment(), OnItemViewClickedListener {
 
     companion object {
-        private val TAG = SessionGridFragment::class.simpleName
-
         private const val COLUMNS = 5
 
         private val CONTENT_ID = "${SessionGridFragment::class}.CONTENT_ID"
@@ -42,10 +42,11 @@ class SessionGridFragment : VerticalGridSupportFragment(), OnItemViewClickedList
         }
     }
 
+    @Inject internal lateinit var settingsRepository: SettingsRepository
+
     private val channelsAdapter = ArrayObjectAdapter(ChannelCardPresenter())
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        Log.d(TAG, "onCreate")
         super.onCreate(savedInstanceState)
         setupUIElements()
         setupEventListeners()
@@ -53,7 +54,9 @@ class SessionGridFragment : VerticalGridSupportFragment(), OnItemViewClickedList
         val sessionId = findSessionId(requireActivity()) ?: return requireActivity().finish()
         val contentId = findContentId(requireActivity()) ?: return requireActivity().finish()
         val viewModel: SessionBrowseViewModel by viewModels({ requireActivity() })
-        viewModel.session(sessionId, contentId).asLiveData().observe(this, this::onUpdatedSession)
+        lifecycleScope.launchWhenCreated {
+            viewModel.session(sessionId, contentId).collect(::onUpdatedSession)
+        }
     }
 
     private fun setupUIElements() {
@@ -71,19 +74,30 @@ class SessionGridFragment : VerticalGridSupportFragment(), OnItemViewClickedList
     private fun onUpdatedSession(session: Session) {
         when (session) {
             is SingleChannelSession -> {
-                val intent = ChannelPlaybackActivity.intent(
-                    requireActivity(),
-                    session.channel?.value,
-                    session.contentId
-                )
-                startActivity(intent)
-                requireActivity().finish()
+                goToPlayback(session.contentId, session.channel?.value)
+                activity?.finish()
             }
             is MultiChannelsSession -> {
                 title = session.name
                 channelsAdapter.setItems(session.channels, Channel.diffCallback)
+
+                if (settingsRepository.getCurrent().bypassChannelSelection) {
+                    goToPlayback(session.contentId, channelId = null)
+                }
             }
         }
+    }
+
+    private fun goToPlayback(
+        contentId: String,
+        channelId: String?
+    ) {
+        val intent = ChannelPlaybackActivity.intent(
+            requireActivity(),
+            channelId,
+            contentId
+        )
+        startActivity(intent)
     }
 
     override fun onItemClicked(itemViewHolder: Presenter.ViewHolder?, item: Any, rowViewHolder: RowPresenter.ViewHolder?, row: Row?) {

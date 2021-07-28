@@ -26,4 +26,18 @@
 
     <string name="home_all">Afficher tout</string>
     <string name="home_archive">Archiver</string>
+
+    <string name="settings_content_description">Settings</string>
+    <string name="settings_category_player_title">Player</string>
+    <string name="settings_stream_type_title">Select the stream format (beta)</string>
+    <string name="settings_bypass_channel_selection_title">Bypass channel selection</string>
+    <string name="settings_bypass_channel_selection_summary">If ON after select a event you will be immediately redirected to the player in the general broadcast</string>
+    <string name="settings_open_with_external_player_title">Open with external player</string>
+    <string name="settings_reset_to_default_title">Reset settings to default</string>
+    <string name="settings_open_with_external_player_summary">If ON we will use an external player to play content instead the built in player</string>
+    <string name="settings_category_other_title">Other</string>
+    <string name="settings_donations_title">Donations</string>
+    <string name="settings_donations_summary">Support the project by buying the developer a beer</string>
+    <string name="settings_logout_title">Logout</string>
+    <string name="donations_explanation_summary">Scan the QR code bellow with your phone, you will be redirected to the BuyMeACoffee page where you can donate</string>
 </resources>

@@ -12,6 +12,7 @@ import androidx.lifecycle.lifecycleScope
 import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.SimpleExoPlayer
 import com.google.android.exoplayer2.source.MediaSourceFactory
+import com.google.android.exoplayer2.source.dash.DashMediaSource
 import com.google.android.exoplayer2.source.hls.HlsMediaSource
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector
 import com.google.android.exoplayer2.upstream.HttpDataSource
@@ -19,6 +20,8 @@ import com.google.android.exoplayer2.util.EventLogger
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.core.ViewingService
+import fr.groggy.racecontrol.tv.core.settings.Settings
+import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
 import fr.groggy.racecontrol.tv.f1tv.F1TvViewing
 import fr.groggy.racecontrol.tv.ui.player.ExoPlayerPlaybackTransportControlGlue
 import javax.inject.Inject
@@ -49,8 +52,9 @@ class ChannelPlaybackFragment : VideoSupportFragment() {
         }
     }
 
-    @Inject lateinit var viewingService: ViewingService
-    @Inject lateinit var httpDataSourceFactory: HttpDataSource.Factory
+    @Inject internal lateinit var viewingService: ViewingService
+    @Inject internal lateinit var httpDataSourceFactory: HttpDataSource.Factory
+    @Inject internal lateinit var settingsRepository: SettingsRepository
 
     private val trackSelector: DefaultTrackSelector by lazy {
         DefaultTrackSelector(requireContext())
@@ -66,8 +70,12 @@ class ChannelPlaybackFragment : VideoSupportFragment() {
     }
 
     private val mediaSourceFactory: MediaSourceFactory by lazy {
-        HlsMediaSource.Factory(httpDataSourceFactory)
-            .setAllowChunklessPreparation(true)
+        if (settingsRepository.getCurrent().streamType == Settings.StreamType.HLS) {
+            HlsMediaSource.Factory(httpDataSourceFactory)
+                .setAllowChunklessPreparation(true)
+        } else {
+            DashMediaSource.Factory(httpDataSourceFactory)
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

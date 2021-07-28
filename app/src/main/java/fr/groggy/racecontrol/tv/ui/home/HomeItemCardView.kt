@@ -2,7 +2,6 @@ package fr.groggy.racecontrol.tv.ui.home
 
 import android.content.Context
 import android.util.AttributeSet
-import android.view.LayoutInflater
 import android.widget.TextView
 import androidx.leanback.widget.BaseCardView
 import fr.groggy.racecontrol.tv.R

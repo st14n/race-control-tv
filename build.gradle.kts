@@ -4,10 +4,10 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath("com.android.tools.build:gradle:4.2.1")
+        classpath("com.android.tools.build:gradle:4.2.2")
         classpath(kotlin("gradle-plugin", version = "1.4.32"))
 
-        val hiltVersion = "2.35.1"
+        val hiltVersion = "2.38"
         project.extra["hiltVersion"] = hiltVersion
         classpath("com.google.dagger:hilt-android-gradle-plugin:$hiltVersion")
     }

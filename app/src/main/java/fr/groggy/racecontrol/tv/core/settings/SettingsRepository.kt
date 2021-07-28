@@ -1,0 +1,43 @@
+package fr.groggy.racecontrol.tv.core.settings
+
+import android.content.SharedPreferences
+import androidx.core.content.edit
+
+class SettingsRepository(
+    private val preferences: SharedPreferences
+) {
+    private var currentSettings: Settings? = null
+
+    fun getCurrent(): Settings {
+        if (currentSettings == null) {
+            currentSettings = getFromStorage()
+        }
+
+        /* Less then ideal, but safe at least */
+        return currentSettings ?: Settings.DEFAULT
+    }
+
+    fun resetSettings() {
+        preferences.edit {
+            clear()
+        }
+
+        applySettings()
+    }
+
+    fun applySettings() {
+        currentSettings = getFromStorage()
+    }
+
+    private fun getFromStorage(): Settings {
+        return with(preferences) {
+            Settings(
+                streamType = Settings.StreamType.valueOf(
+                    getString(Settings.KEY_STREAM_TYPE, null) ?: Settings.DEFAULT.streamType.name
+                ),
+                bypassChannelSelection = getBoolean(Settings.KEY_BYPASS_CHANNEL_SELECTION, Settings.DEFAULT.bypassChannelSelection),
+                openWithExternalPlayer = getBoolean(Settings.KEY_OPEN_WITH_EXTERNAL_PLAYER, Settings.DEFAULT.openWithExternalPlayer)
+            )
+        }
+    }
+}

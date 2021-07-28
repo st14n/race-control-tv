@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
+import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.fragment.app.FragmentActivity
@@ -14,6 +15,7 @@ import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.core.season.SeasonService
 import fr.groggy.racecontrol.tv.f1tv.Archive
 import fr.groggy.racecontrol.tv.ui.season.browse.SeasonBrowseActivity
+import fr.groggy.racecontrol.tv.ui.settings.SettingsActivity
 import fr.groggy.racecontrol.tv.utils.coroutines.schedule
 import org.threeten.bp.Duration
 import org.threeten.bp.Year
@@ -42,6 +44,10 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
 
         val teaserImageText = findViewById<TextView>(R.id.teaserImageText)
         teaserImageText.text = resources.getString(R.string.teaser_image_text, currentYear)
+
+        findViewById<View>(R.id.settings).setOnClickListener {
+            startActivity(SettingsActivity.intent(this))
+        }
     }
 
     override fun onStart() {

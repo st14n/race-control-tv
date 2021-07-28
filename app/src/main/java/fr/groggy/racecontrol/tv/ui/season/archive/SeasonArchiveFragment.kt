@@ -48,7 +48,6 @@ class SeasonArchiveFragment : BrowseSupportFragment(), OnItemViewClickedListener
                 entries[entries.size - 1].year.toString()
             )
             archivesAdapter.add(ListRow(HeaderItem(title), listRowAdapter))
-
         }
     }
 

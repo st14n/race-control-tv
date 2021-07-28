@@ -13,10 +13,7 @@ import fr.groggy.racecontrol.tv.ui.channel.playback.ChannelPlaybackActivity
 
 @AndroidEntryPoint
 class SessionBrowseActivity : FragmentActivity() {
-
     companion object {
-        private val TAG = SessionBrowseActivity::class.simpleName
-
         fun intent(
             context: Context,
             sessionId: String,
@@ -30,7 +27,6 @@ class SessionBrowseActivity : FragmentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        Log.d(TAG, "onCreate")
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_session_browse)
 

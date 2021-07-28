@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory android:title="@string/settings_category_player_title">
+
+        <ListPreference
+            android:key="stream_type"
+            android:title="@string/settings_stream_type_title"
+            android:entries="@array/stream_types"
+            android:entryValues="@array/stream_types"
+            android:defaultValue="HLS"
+            app:useSimpleSummaryProvider="true"/>
+
+        <SwitchPreference
+            android:key="bypass_channel_selection"
+            android:title="@string/settings_bypass_channel_selection_title"
+            android:summary="@string/settings_bypass_channel_selection_summary"/>
+
+<!--        <SwitchPreference-->
+<!--            android:key="open_with_external_player"-->
+<!--            android:title="@string/settings_open_with_external_player_title"-->
+<!--            android:summary="@string/settings_open_with_external_player_summary"/>-->
+
+        <Preference
+            android:key="reset_settings"
+            android:title="@string/settings_reset_to_default_title"/>
+
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="@string/settings_category_other_title">
+
+        <Preference
+            android:key="donations"
+            android:title="@string/settings_donations_title"
+            android:summary="@string/settings_donations_summary"/>
+
+        <Preference
+            android:key="logout"
+            android:title="@string/settings_logout_title"/>
+
+    </PreferenceCategory>
+
+</PreferenceScreen>
