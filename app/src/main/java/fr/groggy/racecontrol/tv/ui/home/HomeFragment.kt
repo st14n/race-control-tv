@@ -79,6 +79,7 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
                 homeEntriesAdapter.add(sessionsListRow)
                 homeEntriesAdapter.add(archivesRow)
             } else {
+                /* Makes the adapter blink :| */
                 homeEntriesAdapter.replace(0, sessionsListRow)
             }
         }
@@ -105,7 +106,7 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
         val subArchives = archives.map { archive -> HomeItem(HomeItemType.ARCHIVE, archive.year.toString()) }
 
         val listRowAdapter = ArrayObjectAdapter(HomeItemPresenter())
-        listRowAdapter.setItems(subArchives, null)
+        listRowAdapter.setItems(subArchives, HomeItem.diffCallback)
         listRowAdapter.add(
             HomeItem(
                 HomeItemType.ARCHIVE_ALL,

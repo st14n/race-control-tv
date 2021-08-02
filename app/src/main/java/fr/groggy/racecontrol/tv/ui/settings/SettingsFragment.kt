@@ -53,7 +53,7 @@ class SettingsFragment: LeanbackSettingsFragmentCompat() {
     @Keep
     @AndroidEntryPoint
     class PreferenceFragment: LeanbackPreferenceFragmentCompat() {
-        private val viewModel: SettingsViewModel by viewModels()
+        private val viewModel: SettingsViewModel by viewModels({ requireParentFragment() })
 
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             setPreferencesFromResource(R.xml.preferences, rootKey)

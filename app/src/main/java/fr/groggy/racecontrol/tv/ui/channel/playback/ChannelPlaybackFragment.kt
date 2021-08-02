@@ -2,13 +2,13 @@ package fr.groggy.racecontrol.tv.ui.channel.playback
 
 import android.app.Activity
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import androidx.annotation.Keep
-import androidx.appcompat.app.AlertDialog
+import androidx.core.os.bundleOf
 import androidx.leanback.app.VideoSupportFragment
 import androidx.leanback.app.VideoSupportFragmentGlueHost
-import androidx.lifecycle.lifecycleScope
 import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.SimpleExoPlayer
 import com.google.android.exoplayer2.source.MediaSourceFactory
@@ -18,8 +18,6 @@ import com.google.android.exoplayer2.trackselection.DefaultTrackSelector
 import com.google.android.exoplayer2.upstream.HttpDataSource
 import com.google.android.exoplayer2.util.EventLogger
 import dagger.hilt.android.AndroidEntryPoint
-import fr.groggy.racecontrol.tv.R
-import fr.groggy.racecontrol.tv.core.ViewingService
 import fr.groggy.racecontrol.tv.core.settings.Settings
 import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
 import fr.groggy.racecontrol.tv.f1tv.F1TvViewing
@@ -31,10 +29,11 @@ import javax.inject.Inject
 class ChannelPlaybackFragment : VideoSupportFragment() {
 
     companion object {
-        private val TAG = ChannelPlaybackFragment::class.simpleName
+        internal val TAG = ChannelPlaybackFragment::class.simpleName
 
         private val CHANNEL_ID = "${ChannelPlaybackFragment::class}.CHANNEL_ID"
         private val CONTENT_ID = "${ChannelPlaybackFragment::class}.CONTENT_ID"
+        private val VIEWING_URI = "${ChannelPlaybackFragment::class}.VIEWING"
 
         fun putChannelId(intent: Intent, channelId: String?) {
             intent.putExtra(CHANNEL_ID, channelId)
@@ -50,9 +49,22 @@ class ChannelPlaybackFragment : VideoSupportFragment() {
         fun findContentId(activity: Activity): String? {
             return activity.intent.getStringExtra(CONTENT_ID)
         }
+
+        fun findViewing(fragment: ChannelPlaybackFragment): F1TvViewing? {
+            val uri = fragment.arguments?.getParcelable<Uri>(VIEWING_URI)
+
+            return if (uri != null) {
+                F1TvViewing(uri)
+            } else {
+                null
+            }
+        }
+
+        fun newInstance(viewing: F1TvViewing) = ChannelPlaybackFragment().apply {
+            arguments = bundleOf(VIEWING_URI to viewing.url)
+        }
     }
 
-    @Inject internal lateinit var viewingService: ViewingService
     @Inject internal lateinit var httpDataSourceFactory: HttpDataSource.Factory
     @Inject internal lateinit var settingsRepository: SettingsRepository
 
@@ -79,7 +91,6 @@ class ChannelPlaybackFragment : VideoSupportFragment() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        Log.d(TAG, "onCreate")
         super.onCreate(savedInstanceState)
 
         startPlayer()
@@ -89,29 +100,12 @@ class ChannelPlaybackFragment : VideoSupportFragment() {
         val glue = ExoPlayerPlaybackTransportControlGlue(requireActivity(), player, trackSelector)
         glue.host = VideoSupportFragmentGlueHost(this)
 
-        val contentId = findContentId(requireActivity()) ?: return requireActivity().finish()
-        val channelId = findChannelId(requireActivity())
-        lifecycleScope.launchWhenStarted {
-            try {
-                val viewing = viewingService.getViewing(channelId, contentId)
-                onViewingCreated(viewing)
-            } catch (_: Exception) {
-                handleError()
-            }
-        }
-    }
-
-    private fun handleError() {
-        AlertDialog.Builder(requireContext())
-            .setCancelable(false)
-            .setMessage(R.string.unable_to_play_video_message)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                requireActivity().finish()
-            }
+        val viewing = findViewing(this) ?: return requireActivity().finish()
+        onViewingCreated(viewing)
     }
 
     private fun onViewingCreated(viewing: F1TvViewing) {
-        Log.d("ChannelPlayback", "Viewing is ready $viewing")
+        Log.d(TAG, "Viewing is ready $viewing")
         if (!player.isPlaying) { //IF is playing already just ignore these calls
             val mediaSource = mediaSourceFactory.createMediaSource(MediaItem.fromUri(viewing.url))
             player.setMediaSource(mediaSource)
@@ -125,7 +119,6 @@ class ChannelPlaybackFragment : VideoSupportFragment() {
     }
 
     override fun onDestroy() {
-        Log.d(TAG, "onDestroy")
         player.release()
         super.onDestroy()
     }

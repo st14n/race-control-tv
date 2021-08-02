@@ -17,10 +17,10 @@
             android:title="@string/settings_bypass_channel_selection_title"
             android:summary="@string/settings_bypass_channel_selection_summary"/>
 
-<!--        <SwitchPreference-->
-<!--            android:key="open_with_external_player"-->
-<!--            android:title="@string/settings_open_with_external_player_title"-->
-<!--            android:summary="@string/settings_open_with_external_player_summary"/>-->
+        <SwitchPreference
+            android:key="open_with_external_player"
+            android:title="@string/settings_open_with_external_player_title"
+            android:summary="@string/settings_open_with_external_player_summary"/>
 
         <Preference
             android:key="reset_settings"

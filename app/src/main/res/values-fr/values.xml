@@ -18,6 +18,8 @@
     <string name="audio_selection_dialog_title">Audio</string>
     <string name="video_selection_dialog_title">Vidéo</string>
     <string name="video_selection_quality_auto">Auto</string>
+    <string name="unable_to_open_with_external_player">No supported external player detected, please install a supported player such as VLC and try again, or disable the open with external player feature</string>
+    <string name="watching_on_external_player">You are watching the content with an external player</string>
 
     <string name="choose_a_season">Sélectionnez une saison</string>
 
@@ -32,7 +34,7 @@
     <string name="settings_stream_type_title">Select the stream format (beta)</string>
     <string name="settings_bypass_channel_selection_title">Bypass channel selection</string>
     <string name="settings_bypass_channel_selection_summary">If ON after select a event you will be immediately redirected to the player in the general broadcast</string>
-    <string name="settings_open_with_external_player_title">Open with external player</string>
+    <string name="settings_open_with_external_player_title">Open with external player (beta)</string>
     <string name="settings_reset_to_default_title">Reset settings to default</string>
     <string name="settings_open_with_external_player_summary">If ON we will use an external player to play content instead the built in player</string>
     <string name="settings_category_other_title">Other</string>
