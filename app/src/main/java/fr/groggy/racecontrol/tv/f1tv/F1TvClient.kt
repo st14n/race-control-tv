@@ -32,7 +32,7 @@ class F1TvClient @Inject constructor(
         private const val LIST_SESSIONS = "/2.0/R/%s/BIG_SCREEN_HLS/ALL/PAGE/SANDWICH/F1_TV_Pro_Monthly/$GROUP_ID?meetingId=%s&title=weekend-sessions"
         private const val LIST_FUTURE_SESSIONS = "/2.0/R/%s/BIG_SCREEN_HLS/ALL/PAGE/1350/F1_TV_Pro_Monthly/$GROUP_ID"
         private const val LIST_CHANNELS = "/2.0/R/%s/BIG_SCREEN_HLS/ALL/CONTENT/VIDEO/%s/F1_TV_Pro_Monthly/$GROUP_ID"
-        private const val PICTURE_URL = "https://ott.formula1.com/image-resizer/image/%s?w=384&h=384&o=L&q=HI"
+        private const val PICTURE_URL = "$ROOT_URL/image-resizer/image/%s?w=384&h=384&o=L&q=HI"
     }
 
     private val seasonResponseJsonAdapter = moshi.adapter(F1TvSeasonResponse::class.java)

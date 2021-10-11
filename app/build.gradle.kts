@@ -6,15 +6,15 @@ plugins {
 }
 
 android {
-    compileSdkVersion(30)
+    compileSdkVersion(31)
     buildToolsVersion("30.0.3")
 
     defaultConfig {
         applicationId = "com.github.leonardoxh.f1"
         minSdkVersion(21)
-        targetSdkVersion(30)
-        versionCode = 34
-        versionName = "2.4.1"
+        targetSdkVersion(31)
+        versionCode = 37
+        versionName = "2.4.2"
 
         buildConfigField("String", "DEFAULT_USER_AGENT", "\"RaceControl f1viewer\"")
     }
@@ -95,7 +95,7 @@ dependencies {
     implementation("com.github.bumptech.glide:okhttp3-integration:$glideVersion")
     kapt("com.github.bumptech.glide:compiler:$glideVersion")
 
-    val exoplayerVersion = "2.14.1"
+    val exoplayerVersion = "2.15.1"
     implementation("com.google.android.exoplayer:exoplayer:$exoplayerVersion")
     implementation("com.google.android.exoplayer:extension-leanback:$exoplayerVersion")
     implementation("com.google.android.exoplayer:extension-okhttp:$exoplayerVersion")
