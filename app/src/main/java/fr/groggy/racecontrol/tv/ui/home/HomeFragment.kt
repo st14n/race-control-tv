@@ -12,7 +12,6 @@ import androidx.leanback.widget.*
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.R
-import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
 import fr.groggy.racecontrol.tv.f1tv.Archive
 import fr.groggy.racecontrol.tv.ui.season.archive.SeasonArchiveActivity
 import fr.groggy.racecontrol.tv.ui.season.browse.Season
@@ -27,7 +26,7 @@ import javax.inject.Inject
 @Keep
 @AndroidEntryPoint
 class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
-    @Inject internal lateinit var settingsRepository: SettingsRepository
+    @Inject internal lateinit var sessionCardPresenter: SessionCardPresenter
 
     private val homeEntriesAdapter = ArrayObjectAdapter(ListRowPresenter())
     private val currentYear = Year.now().value
@@ -94,7 +93,7 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
         existingListRow: ListRow?
     ): ListRow {
         val (listRow, listRowAdapter) = if (existingListRow == null) {
-            val listRowAdapter = ArrayObjectAdapter(SessionCardPresenter(settingsRepository))
+            val listRowAdapter = ArrayObjectAdapter(sessionCardPresenter)
             val listRow = ListRow(HeaderItem(headerName), listRowAdapter)
             listRow to listRowAdapter
         } else {

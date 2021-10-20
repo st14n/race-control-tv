@@ -13,7 +13,6 @@ import androidx.lifecycle.asLiveData
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.R
-import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
 import fr.groggy.racecontrol.tv.f1tv.Archive
 import fr.groggy.racecontrol.tv.ui.event.EventListRowDiffCallback
 import fr.groggy.racecontrol.tv.ui.session.SessionCardPresenter
@@ -24,27 +23,9 @@ import javax.inject.Inject
 @Keep
 @AndroidEntryPoint
 class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener {
-    @Inject internal lateinit var settingsRepository: SettingsRepository
-
-    companion object {
-        private val TAG = SeasonBrowseFragment::class.simpleName
-
-        private val YEAR = "${SeasonBrowseFragment::class}.YEAR"
-
-        fun putArchive(intent: Intent, archive: Archive) {
-            intent.putExtra(YEAR, archive.year)
-        }
-
-        fun findArchive(activity: Activity): Archive {
-            val year = activity.intent.getIntExtra(
-                YEAR, Year.now().value
-            )
-            return Archive(year)
-        }
-    }
+    @Inject internal lateinit var sessionCardPresenter: SessionCardPresenter
 
     private val eventListRowDiffCallback = EventListRowDiffCallback()
-    private val sessionCardPresenter = SessionCardPresenter(settingsRepository)
 
     private val eventsAdapter = ArrayObjectAdapter(ListRowPresenter())
 
@@ -107,4 +88,20 @@ class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener 
         startActivity(intent)
     }
 
+    companion object {
+        private val TAG = SeasonBrowseFragment::class.simpleName
+
+        private val YEAR = "${SeasonBrowseFragment::class}.YEAR"
+
+        fun putArchive(intent: Intent, archive: Archive) {
+            intent.putExtra(YEAR, archive.year)
+        }
+
+        fun findArchive(activity: Activity): Archive {
+            val year = activity.intent.getIntExtra(
+                YEAR, Year.now().value
+            )
+            return Archive(year)
+        }
+    }
 }

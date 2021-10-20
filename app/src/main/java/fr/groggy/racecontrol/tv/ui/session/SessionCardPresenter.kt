@@ -7,10 +7,8 @@ import androidx.leanback.widget.ImageCardView
 import androidx.leanback.widget.ImageCardView.CARD_TYPE_FLAG_CONTENT
 import androidx.leanback.widget.ImageCardView.CARD_TYPE_FLAG_TITLE
 import androidx.leanback.widget.Presenter
-import androidx.preference.PreferenceManager
 import com.bumptech.glide.Glide
 import fr.groggy.racecontrol.tv.R
-import fr.groggy.racecontrol.tv.core.season.SeasonRepository
 import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
 import javax.inject.Inject
 
