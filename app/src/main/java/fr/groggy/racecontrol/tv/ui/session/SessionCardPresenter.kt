@@ -7,10 +7,16 @@ import androidx.leanback.widget.ImageCardView
 import androidx.leanback.widget.ImageCardView.CARD_TYPE_FLAG_CONTENT
 import androidx.leanback.widget.ImageCardView.CARD_TYPE_FLAG_TITLE
 import androidx.leanback.widget.Presenter
+import androidx.preference.PreferenceManager
 import com.bumptech.glide.Glide
 import fr.groggy.racecontrol.tv.R
+import fr.groggy.racecontrol.tv.core.season.SeasonRepository
+import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
+import javax.inject.Inject
 
-class SessionCardPresenter : Presenter() {
+class SessionCardPresenter @Inject constructor(
+    private val settingsRepository: SettingsRepository
+) : Presenter() {
 
     companion object {
         private const val WIDTH = 313
@@ -38,10 +44,11 @@ class SessionCardPresenter : Presenter() {
         imageCardView.titleText = session.name
         imageCardView.contentText = session.contentSubtype
 
-        Glide.with(viewHolder.view.context)
-            .load(session.thumbnail?.url)
-            .into(imageCardView.mainImageView)
-    }
+        if (settingsRepository.getCurrent().displayThumbnailsEnabled)
+            Glide.with(viewHolder.view.context)
+                .load(session.thumbnail?.url)
+                .into(imageCardView.mainImageView)
+        }
 
     override fun onUnbindViewHolder(viewHolder: ViewHolder) {
         val imageCardView = viewHolder.view as ImageCardView

@@ -22,6 +22,12 @@
             android:title="@string/settings_open_with_external_player_title"
             android:summary="@string/settings_open_with_external_player_summary"/>
 
+        <SwitchPreference
+            android:key="display_thumbnails_enabled"
+            android:title="@string/settings_display_thumbnails_enabled_title"
+            android:summary="@string/settings_display_thumbnails_enabled_summary"
+            android:defaultValue="true" />
+
         <Preference
             android:key="reset_settings"
             android:title="@string/settings_reset_to_default_title"/>

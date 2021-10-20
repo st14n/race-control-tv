@@ -36,6 +36,7 @@ class SettingsRepository(
                     getString(Settings.KEY_STREAM_TYPE, null) ?: Settings.DEFAULT.streamType.name
                 ),
                 bypassChannelSelection = getBoolean(Settings.KEY_BYPASS_CHANNEL_SELECTION, Settings.DEFAULT.bypassChannelSelection),
+                displayThumbnailsEnabled = getBoolean(Settings.KEY_DISPLAY_THUMBNAILS_ENABLED, Settings.DEFAULT.displayThumbnailsEnabled),
                 openWithExternalPlayer = getBoolean(Settings.KEY_OPEN_WITH_EXTERNAL_PLAYER, Settings.DEFAULT.openWithExternalPlayer)
             )
         }
