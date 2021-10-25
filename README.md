@@ -43,6 +43,13 @@ the features have to be very well tested, so everyone can enjoy the races.
 
 Also be in mind that the code of the app needs an extensive refactor.
 
+## App is buffering all the time, can't get content at 1080p
+
+Normally that is not an app issue, as you might know we simply use the content that is available on F1TvPro, most of the cases
+I'd say 99.99% of the cases this is **related to problems on the API that we cannot fix**, unless it is a major outage that is happening to 
+everyone using the app, there is simply nothing I can do. As a workaround try to enable the option to play with external players and use a
+external player like VLC. Issues that are open with these subjects will be closed.
+
 ## Screenshots
 
 ![Browse current season](/screenshots/season_browse.png)
