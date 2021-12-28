@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="login">Correo electrónico</string>
+    <string name="password">Contraseña</string>
+    <string name="signin">Iniciar sesión</string>
+    <string name="signin_required_f1_tv_pro_account">Es necesaria una cuenta F1Tv/F1TvPro para iniciar sesión</string>
+    <string name="invalid_credentials">Credenciales no válidos</string>
+    <string name="rejected_credentials">Email o contraseña incorrectos</string>
+    <string name="rejected_credentials_message">
+        A veces esto puede ocurrir incluso si su nombre de usuario y contraseña son correctos debido a un BUG de la <b>F1 API</b>.\n\n
+        1. Si ese es el caso, una posible solución es <b>ir al sitio web de F1TV en tu ordenador</b>,
+        luego iniciar sesión en su cuenta y cerrar sesión y luego volver
+        a la app y funcionará.\n
+        2. También es posible, que por alguna razón, su IP esté bloqueada (401 response), en ese caso,
+        trate de cambiar de red, eso también podría funcionar. En ese caso, también debería contactar con
+        el soporte de F1.
+    </string>
+
+    <string name="unable_to_play_video_message">Algo fue mal cuando intentó reproducir este vídeo</string>
+    <string name="audio_selection_dialog_title">Audio</string>
+    <string name="video_selection_dialog_title">Video</string>
+    <string name="video_selection_quality_auto">Auto</string>
+    <string name="unable_to_open_with_external_player">No se ha detectado ningún reproductor externo compatible, por favor, instale un reproductor compatible como VLC e inténtelo de nuevo, o desactive la función de abrir con reproductor externo</string>
+    <string name="watching_on_external_player">Estás viendo el contenido con un reproductor multimedia externo</string>
+
+    <string name="choose_a_season">Selecciona una temporada</string>
+
+    <string name="teaser_image_text">Temporada actual: %1$d</string>
+    <string name="teaser_image_description">Temporada actual</string>
+
+    <string name="home_all">Mostrar todo</string>
+    <string name="home_archive">Archivo</string>
+
+    <string name="settings_content_description">Ajustes</string>
+    <string name="settings_category_player_title">Reproductor</string>
+    <string name="settings_stream_type_title">Selecciona formato de retransmisión (beta)</string>
+    <string name="settings_bypass_channel_selection_title">Selección de canal Bypass</string>
+    <string name="settings_bypass_channel_selection_summary">Si se activa después de seleccionar un evento, se le redirigirá inmediatamente al reproductor de la emisión general</string>
+    <string name="settings_display_thumbnails_enabled_title">Mostrar miniaturas</string>
+    <string name="settings_display_thumbnails_enabled_summary">Las miniaturas pueden contener spoilers. Desactivalo para deshabilitar las miniaturas</string>
+    <string name="settings_open_with_external_player_title">Abrir con reproductor multimedia externo (beta)</string>
+    <string name="settings_reset_to_default_title">Restablecer la configuración por defecto</string>
+    <string name="settings_open_with_external_player_summary">Si está ON, usará una reprodtor multimedia externo para reproducir el contenido en lugar del incorporado</string>
+    <string name="settings_category_other_title">Otro</string>
+    <string name="settings_donations_title">Donaciones</string>
+    <string name="settings_donations_summary">Apoya al proyecto comprando una cerveza al desarrollador</string>
+    <string name="settings_logout_title">Cerrar sesión</string>
+    <string name="donations_explanation_summary">Escanea el siguiente código QR con tu teléfono, te redirigirá a la web BuyMeACoffee donde podrás hacer una donación</string>
+</resources>
