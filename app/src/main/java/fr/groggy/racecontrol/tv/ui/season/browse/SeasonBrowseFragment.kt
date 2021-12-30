@@ -2,32 +2,52 @@ package fr.groggy.racecontrol.tv.ui.season.browse
 
 import android.app.Activity
 import android.content.Intent
+import android.graphics.drawable.Drawable
 import android.os.Bundle
+import android.util.DisplayMetrics
 import android.util.Log
 import androidx.annotation.Keep
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.viewModels
+import androidx.leanback.app.BackgroundManager
 import androidx.leanback.app.BrowseSupportFragment
 import androidx.leanback.widget.*
 import androidx.lifecycle.asLiveData
 import androidx.lifecycle.lifecycleScope
+import com.bumptech.glide.Glide
+import com.bumptech.glide.request.target.CustomTarget
+import com.bumptech.glide.request.transition.Transition
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.R
+import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
 import fr.groggy.racecontrol.tv.f1tv.Archive
 import fr.groggy.racecontrol.tv.ui.event.EventListRowDiffCallback
 import fr.groggy.racecontrol.tv.ui.session.SessionCardPresenter
 import fr.groggy.racecontrol.tv.ui.session.browse.SessionBrowseActivity
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.threeten.bp.Year
 import javax.inject.Inject
 
 @Keep
 @AndroidEntryPoint
 class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener {
-    @Inject internal lateinit var sessionCardPresenter: SessionCardPresenter
+    @Inject
+    internal lateinit var sessionCardPresenter: SessionCardPresenter
+
+    @Inject
+    lateinit var settingsRepository: SettingsRepository
 
     private val eventListRowDiffCallback = EventListRowDiffCallback()
 
     private val eventsAdapter = ArrayObjectAdapter(ListRowPresenter())
+
+    override fun onActivityCreated(savedInstanceState: Bundle?) {
+        super.onActivityCreated(savedInstanceState)
+        if (settingsRepository.getCurrent().displayThumbnailsEnabled) {
+            initializeBackground()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Log.d(TAG, "onCreate")
@@ -47,6 +67,46 @@ class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener 
         isHeadersTransitionOnBackEnabled = true
         brandColor = ContextCompat.getColor(requireContext(), R.color.fastlane_background)
         adapter = eventsAdapter
+    }
+
+    /**
+     * Function that will load a [Session.largePictureUrl] as a background image when a card is selected
+     */
+    private fun initializeBackground() {
+        val backgroundManager = BackgroundManager.getInstance(activity).apply {
+            attach(activity?.window)
+        }
+
+        val metrics = DisplayMetrics()
+        requireActivity().windowManager.defaultDisplay.getMetrics(metrics)
+
+        onItemViewSelectedListener = OnItemViewSelectedListener { _, item, _, _ ->
+            if (item is Session) {
+                viewLifecycleOwner.lifecycleScope.launch {
+                    delay(BACKGROUND_UPDATE_DELAY) // A small delay so that the loading of the image and transition is more smooth
+
+                    Glide.with(requireActivity())
+                        .load(item.largePictureUrl)
+                        .centerCrop()
+                        .error(R.drawable.banner)
+                        .into<CustomTarget<Drawable>>(object :
+                            CustomTarget<Drawable>(metrics.widthPixels, metrics.heightPixels) {
+
+                            override fun onResourceReady(
+                                resource: Drawable,
+                                transition: Transition<in Drawable>?
+                            ) {
+                                backgroundManager.drawable = resource
+                            }
+
+                            override fun onLoadCleared(placeholder: Drawable?) {
+
+                            }
+                        })
+
+                }
+            }
+        }
     }
 
     private fun setupEventListeners() {
@@ -92,6 +152,8 @@ class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener 
         private val TAG = SeasonBrowseFragment::class.simpleName
 
         private val YEAR = "${SeasonBrowseFragment::class}.YEAR"
+
+        private const val BACKGROUND_UPDATE_DELAY = 300L
 
         fun putArchive(intent: Intent, archive: Archive) {
             intent.putExtra(YEAR, archive.year)

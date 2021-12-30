@@ -88,6 +88,7 @@ class SeasonService @Inject constructor(
                         id = session.id,
                         contentId = session.contentId,
                         name = session.name,
+                        largePictureUrl =session.largePictureUrl,
                         contentSubtype = session.contentSubtype,
                         thumbnail = thumbnail,
                         channels = session.channels

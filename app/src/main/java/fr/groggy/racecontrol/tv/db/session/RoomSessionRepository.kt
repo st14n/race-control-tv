@@ -36,6 +36,7 @@ class RoomSessionRepository @Inject constructor(
             name = session.name,
             eventId = session.eventId,
             pictureUrl = session.pictureUrl,
+            largePictureUrl = session.largePictureUrl,
             contentId = session.contentId,
             contentSubtype = session.contentSubtype,
             period = InstantPeriod(
@@ -64,6 +65,7 @@ class RoomSessionRepository @Inject constructor(
             eventId = session.eventId,
             contentId = session.contentId,
             pictureUrl = session.pictureUrl,
+            largePictureUrl = session.largePictureUrl,
             contentSubtype = session.contentSubtype,
             startTime = session.period.start.toEpochMilli(),
             endTime = session.period.end.toEpochMilli(),

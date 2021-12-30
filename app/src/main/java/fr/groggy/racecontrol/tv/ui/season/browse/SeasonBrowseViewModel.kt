@@ -50,6 +50,7 @@ data class Session(
     override val name: String,
     override val contentSubtype: String,
     override val thumbnail: Image?,
+    val largePictureUrl:String,
     val channels: List<F1TvChannelId>
 ) : SessionCard {
 

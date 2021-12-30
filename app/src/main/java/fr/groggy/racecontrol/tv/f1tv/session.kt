@@ -43,6 +43,7 @@ data class F1TvSession(
     val name: String,
     val eventId: String,
     val pictureUrl: String,
+    val largePictureUrl:String,
     val contentId: String,
     val contentSubtype: String,
     val period: InstantPeriod,

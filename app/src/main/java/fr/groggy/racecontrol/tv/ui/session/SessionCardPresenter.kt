@@ -16,6 +16,7 @@ class SessionCardPresenter @Inject constructor(
     private val settingsRepository: SettingsRepository
 ) : Presenter() {
 
+    // We set the size of the Card to be 1/4 of the 1920 x 1080 since we use the LargePictureUrl , this way we preserve aspect ratio and images wont be cut or cropped
     companion object {
         private const val WIDTH = 313
         private const val HEIGHT = 176

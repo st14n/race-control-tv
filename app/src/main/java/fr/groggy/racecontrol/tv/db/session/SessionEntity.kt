@@ -10,6 +10,7 @@ data class SessionEntity(
     @ColumnInfo(name = "name") val name: String,
     @ColumnInfo(name = "event_id") val eventId: String,
     @ColumnInfo(name = "picture_url") val pictureUrl: String,
+    @ColumnInfo(name = "large_picture_url") val largePictureUrl: String,
     @ColumnInfo(name = "content_id") val contentId: String,
     @ColumnInfo(name = "content_subtype") val contentSubtype: String,
     @ColumnInfo(name = "start_time") val startTime: Long,

@@ -32,7 +32,8 @@ class F1TvClient @Inject constructor(
         private const val LIST_SESSIONS = "/2.0/R/%s/BIG_SCREEN_HLS/ALL/PAGE/SANDWICH/F1_TV_Pro_Monthly/$GROUP_ID?meetingId=%s&title=weekend-sessions"
         private const val LIST_FUTURE_SESSIONS = "/2.0/R/%s/BIG_SCREEN_HLS/ALL/PAGE/1350/F1_TV_Pro_Monthly/$GROUP_ID"
         private const val LIST_CHANNELS = "/2.0/R/%s/BIG_SCREEN_HLS/ALL/CONTENT/VIDEO/%s/F1_TV_Pro_Monthly/$GROUP_ID"
-        private const val PICTURE_URL = "$ROOT_URL/image-resizer/image/%s?w=384&h=384&o=L&q=HI"
+        private const val PICTURE_URL = "$ROOT_URL/image-resizer/image/%s?w=313&h=176&o=L&q=HI"
+        private const val LARGE_PICTURE_URL = "$ROOT_URL/image-resizer/image/%s?w=1920&h=1080&o=L&q=HI"
     }
 
     private val seasonResponseJsonAdapter = moshi.adapter(F1TvSeasonResponse::class.java)
@@ -88,6 +89,7 @@ class F1TvClient @Inject constructor(
                     eventId = event.id,
                     pictureUrl = PICTURE_URL.format(it.metadata.pictureUrl),
                     contentId = it.metadata.contentId,
+                    largePictureUrl = LARGE_PICTURE_URL.format(it.metadata.pictureUrl),
                     name = it.metadata.title,
                     contentSubtype = it.metadata.contentSubtype,
                     period = InstantPeriod(
@@ -117,6 +119,7 @@ class F1TvClient @Inject constructor(
                     eventId = event.id,
                     pictureUrl = PICTURE_URL.format(it.metadata.pictureUrl),
                     contentId = it.metadata.contentId,
+                    largePictureUrl = LARGE_PICTURE_URL.format(it.metadata.pictureUrl),
                     name = it.metadata.title,
                     contentSubtype = it.metadata.contentSubtype,
                     period = InstantPeriod(
@@ -177,6 +180,7 @@ class F1TvClient @Inject constructor(
                     eventId = event.id,
                     pictureUrl = PICTURE_URL.format(it.metadata.pictureUrl),
                     contentId = it.metadata.contentId,
+                    largePictureUrl = LARGE_PICTURE_URL.format(it.metadata.pictureUrl),
                     name = it.metadata.title,
                     contentSubtype = dateTimeFormatter.format(Instant.ofEpochMilli(it.metadata.emfAttributes.sessionStartDate)),
                     period = InstantPeriod(
