@@ -24,6 +24,9 @@ class F1TvClient @Inject constructor(
 ) {
 
     companion object {
+        const val MAIN_IMAGE_WIDTH = 313
+        const val MAIN_IMAGE_HEIGHT = 176
+
         private val TAG = F1TvClient::class.simpleName
         private const val ROOT_URL = "https://f1tv.formula1.com"
 
@@ -32,7 +35,7 @@ class F1TvClient @Inject constructor(
         private const val LIST_SESSIONS = "/2.0/R/%s/BIG_SCREEN_HLS/ALL/PAGE/SANDWICH/F1_TV_Pro_Monthly/$GROUP_ID?meetingId=%s&title=weekend-sessions"
         private const val LIST_FUTURE_SESSIONS = "/2.0/R/%s/BIG_SCREEN_HLS/ALL/PAGE/1350/F1_TV_Pro_Monthly/$GROUP_ID"
         private const val LIST_CHANNELS = "/2.0/R/%s/BIG_SCREEN_HLS/ALL/CONTENT/VIDEO/%s/F1_TV_Pro_Monthly/$GROUP_ID"
-        private const val PICTURE_URL = "$ROOT_URL/image-resizer/image/%s?w=313&h=176&o=L&q=HI"
+        private const val PICTURE_URL = "$ROOT_URL/image-resizer/image/%s?w=$MAIN_IMAGE_WIDTH&h=$MAIN_IMAGE_HEIGHT&o=L&q=HI"
         private const val LARGE_PICTURE_URL = "$ROOT_URL/image-resizer/image/%s?w=1920&h=1080&o=L&q=HI"
     }
 

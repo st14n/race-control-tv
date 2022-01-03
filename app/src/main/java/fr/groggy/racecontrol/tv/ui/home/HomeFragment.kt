@@ -20,6 +20,7 @@ import fr.groggy.racecontrol.tv.ui.season.browse.Session
 import fr.groggy.racecontrol.tv.ui.session.SessionCardPresenter
 import fr.groggy.racecontrol.tv.ui.session.browse.SessionBrowseActivity
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.onEmpty
 import org.threeten.bp.Year
 import javax.inject.Inject
 
@@ -63,7 +64,9 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
         archivesRow = getArchiveRow(viewModel.listArchive())
 
         lifecycleScope.launchWhenCreated {
-            viewModel.getCurrentSeason(Archive(currentYear)).collect(::onUpdatedSeason)
+            viewModel.getCurrentSeason(Archive(currentYear))
+                .onEmpty { onEmptySeason() }
+                .collect(::onUpdatedSeason)
         }
     }
 
@@ -85,6 +88,11 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
                 homeEntriesAdapter.replace(0, sessionsListRow)
             }
         }
+    }
+
+    private fun onEmptySeason() {
+        /* Session wasn't started yet, just add the archive */
+        homeEntriesAdapter.add(archivesRow)
     }
 
     private fun getLastSessionsRow(

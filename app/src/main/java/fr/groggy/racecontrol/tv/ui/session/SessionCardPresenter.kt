@@ -10,24 +10,18 @@ import androidx.leanback.widget.Presenter
 import com.bumptech.glide.Glide
 import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
+import fr.groggy.racecontrol.tv.f1tv.F1TvClient
 import javax.inject.Inject
 
 class SessionCardPresenter @Inject constructor(
     private val settingsRepository: SettingsRepository
 ) : Presenter() {
-
-    // We set the size of the Card to be 1/4 of the 1920 x 1080 since we use the LargePictureUrl , this way we preserve aspect ratio and images wont be cut or cropped
-    companion object {
-        private const val WIDTH = 313
-        private const val HEIGHT = 176
-    }
-
     override fun onCreateViewHolder(parent: ViewGroup): ViewHolder {
         val imageCardView = ImageCardView(parent.context)
 
         imageCardView.setMainImageDimensions(
-            WIDTH,
-            HEIGHT
+            F1TvClient.MAIN_IMAGE_WIDTH,
+            F1TvClient.MAIN_IMAGE_HEIGHT
         )
         imageCardView.cardType = CARD_TYPE_FLAG_TITLE or CARD_TYPE_FLAG_CONTENT
 

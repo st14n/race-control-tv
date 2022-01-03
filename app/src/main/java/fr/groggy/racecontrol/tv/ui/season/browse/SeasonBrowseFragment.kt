@@ -6,6 +6,7 @@ import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.util.DisplayMetrics
 import android.util.Log
+import android.view.View
 import androidx.annotation.Keep
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.viewModels
@@ -32,22 +33,12 @@ import javax.inject.Inject
 @Keep
 @AndroidEntryPoint
 class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener {
-    @Inject
-    internal lateinit var sessionCardPresenter: SessionCardPresenter
-
-    @Inject
-    lateinit var settingsRepository: SettingsRepository
+    @Inject internal lateinit var sessionCardPresenter: SessionCardPresenter
+    @Inject lateinit var settingsRepository: SettingsRepository
 
     private val eventListRowDiffCallback = EventListRowDiffCallback()
 
     private val eventsAdapter = ArrayObjectAdapter(ListRowPresenter())
-
-    override fun onActivityCreated(savedInstanceState: Bundle?) {
-        super.onActivityCreated(savedInstanceState)
-        if (settingsRepository.getCurrent().displayThumbnailsEnabled) {
-            initializeBackground()
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Log.d(TAG, "onCreate")
@@ -59,6 +50,14 @@ class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener 
         val archive = findArchive(requireActivity())
         lifecycleScope.launchWhenStarted {
             viewModel.getSeason(archive).asLiveData().observe(viewLifecycleOwner, ::onUpdatedSeason)
+        }
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        if (settingsRepository.getCurrent().displayThumbnailsEnabled) {
+            initializeBackground()
         }
     }
 
@@ -87,7 +86,6 @@ class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener 
 
                     Glide.with(requireActivity())
                         .load(item.largePictureUrl)
-                        .centerCrop()
                         .error(R.drawable.banner)
                         .into<CustomTarget<Drawable>>(object :
                             CustomTarget<Drawable>(metrics.widthPixels, metrics.heightPixels) {

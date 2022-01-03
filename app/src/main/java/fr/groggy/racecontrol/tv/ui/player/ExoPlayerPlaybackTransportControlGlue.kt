@@ -10,7 +10,7 @@ import androidx.leanback.media.PlayerAdapter
 import androidx.leanback.widget.*
 import com.google.android.exoplayer2.C
 import com.google.android.exoplayer2.Format
-import com.google.android.exoplayer2.SimpleExoPlayer
+import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.analytics.AnalyticsListener
 import com.google.android.exoplayer2.analytics.AnalyticsListener.EventTime
 import com.google.android.exoplayer2.ext.leanback.LeanbackPlayerAdapter
@@ -26,7 +26,7 @@ import kotlin.math.roundToInt
 
 class ExoPlayerPlaybackTransportControlGlue(
     private val activity: FragmentActivity,
-    private val player: SimpleExoPlayer,
+    private val player: ExoPlayer,
     private val trackSelector: DefaultTrackSelector
 ) : PlaybackTransportControlGlue<LeanbackPlayerAdapter>(
     activity,
@@ -80,7 +80,7 @@ class ExoPlayerPlaybackTransportControlGlue(
             add(fastFormatAction)
             add(selectAudioAction)
             add(resolutionSelectionAction)
-            add(closedCaptionAction)
+            //add(closedCaptionAction)
         }
     }
 
@@ -111,11 +111,11 @@ class ExoPlayerPlaybackTransportControlGlue(
         if (closedCaptionAction.index == PlaybackControlsRow.ClosedCaptioningAction.INDEX_OFF) {
             closedCaptionAction.index = PlaybackControlsRow.ClosedCaptioningAction.INDEX_ON
             closedCaptionsTextView.visibility = View.VISIBLE
-            player.addTextOutput(closedCaptionTextOutput)
+            //player.addTextOutput(closedCaptionTextOutput)
         } else {
             closedCaptionAction.index = PlaybackControlsRow.ClosedCaptioningAction.INDEX_OFF
             closedCaptionsTextView.visibility = View.GONE
-            player.removeTextOutput(closedCaptionTextOutput)
+            //player.removeTextOutput(closedCaptionTextOutput)
         }
     }
 

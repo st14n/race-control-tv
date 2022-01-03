@@ -10,7 +10,7 @@ import androidx.core.os.bundleOf
 import androidx.leanback.app.VideoSupportFragment
 import androidx.leanback.app.VideoSupportFragmentGlueHost
 import com.google.android.exoplayer2.MediaItem
-import com.google.android.exoplayer2.SimpleExoPlayer
+import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.source.MediaSourceFactory
 import com.google.android.exoplayer2.source.dash.DashMediaSource
 import com.google.android.exoplayer2.source.hls.HlsMediaSource
@@ -72,8 +72,8 @@ class ChannelPlaybackFragment : VideoSupportFragment() {
         DefaultTrackSelector(requireContext())
     }
 
-    private val player: SimpleExoPlayer by lazy {
-        val player = SimpleExoPlayer.Builder(requireContext())
+    private val player: ExoPlayer by lazy {
+        val player = ExoPlayer.Builder(requireContext())
             .setTrackSelector(trackSelector)
             .build()
         player.playWhenReady = true

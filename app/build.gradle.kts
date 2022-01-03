@@ -65,12 +65,12 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlinCoroutinesVersion")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:$kotlinCoroutinesVersion")
 
-    implementation("androidx.core:core-ktx:1.6.0")
-    implementation("androidx.fragment:fragment-ktx:1.3.6")
+    implementation("androidx.core:core-ktx:1.7.0")
+    implementation("androidx.fragment:fragment-ktx:1.4.0")
     val leanbackVersion = "1.2.0-alpha01"
     implementation("androidx.leanback:leanback:$leanbackVersion")
     implementation("androidx.leanback:leanback-preference:$leanbackVersion")
-    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.3.1")
+    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.4.0")
 
     val hiltVersion = rootProject.extra["hiltVersion"]
     implementation("com.google.dagger:hilt-android:$hiltVersion")
@@ -95,7 +95,7 @@ dependencies {
     implementation("com.github.bumptech.glide:okhttp3-integration:$glideVersion")
     kapt("com.github.bumptech.glide:compiler:$glideVersion")
 
-    val exoplayerVersion = "2.15.1"
+    val exoplayerVersion = "2.16.1"
     implementation("com.google.android.exoplayer:exoplayer:$exoplayerVersion")
     implementation("com.google.android.exoplayer:extension-leanback:$exoplayerVersion")
     implementation("com.google.android.exoplayer:extension-okhttp:$exoplayerVersion")

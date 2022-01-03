@@ -15,8 +15,8 @@ is the best resolution to pickup, this is built in with ExoPlayer.
 
 Closed captions supported in english, spanish, dutch and german.
 
-Application is available in English, Dutch, German, French, Portuguese and Russian.
-Feel free to translate it and open a PR :D
+Application is available in English, Dutch, German, French, Portuguese, Russian and Spanish.
+Feel free to translate it and open a PR :D, also to update some translations that are not fully ready.
 
 ## Install
 
