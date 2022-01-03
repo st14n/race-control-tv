@@ -13,8 +13,8 @@ android {
         applicationId = "com.github.leonardoxh.f1"
         minSdkVersion(21)
         targetSdkVersion(31)
-        versionCode = 38
-        versionName = "2.5.0"
+        versionCode = 39
+        versionName = "2.6.0"
 
         buildConfigField("String", "DEFAULT_USER_AGENT", "\"RaceControl f1viewer\"")
     }
