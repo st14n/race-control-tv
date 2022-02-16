@@ -1,4 +1,4 @@
-# Race Control TV
+# F1 TV Viewer
 
 Android TV application to watch content from [F1 TV](https://f1tv.formula1.com).
 
@@ -18,9 +18,10 @@ Closed captions supported in english, spanish, dutch and german.
 Application is available in English, Dutch, German, French, Portuguese, Russian and Spanish.
 Feel free to translate it and open a PR :D, also to update some translations that are not fully ready.
 
-## Install
+## Install (as of 15 Feb 2022)
 
-The app is available on [Google Playstore](https://play.google.com/store/apps/details?id=com.github.leonardoxh.f1)
+F1 has "requested" me to remove the app from Google Playstore, so that means that the only way to install the app now is sideloading the APK.
+For the users that already have the app installed nothing changes, but you wont get updates via Google Play anymore.
 
 ## Fire Sticks / TVS
 
