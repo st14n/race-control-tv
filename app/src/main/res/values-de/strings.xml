@@ -3,24 +3,24 @@
   <string name="login">E-Mail Adresse</string>
   <string name="password">Passwort</string>
   <string name="signin">Anmelden</string>
-  <string name="signin_required_f1_tv_pro_account">Ein F1Tv/F1TvPro-Konto ist für die Anmeldung erforderlich</string>
+  <string name="signin_required_f1_tv_pro_account">Ein F1TV Pro-Konto ist für die Anmeldung erforderlich</string>
   <string name="invalid_credentials">Zugangsdaten ungültig</string>
   <string name="rejected_credentials">Falsche E-Mail Adresse oder falsches Passwort</string>
   <string name="rejected_credentials_message">
         Manchmal kann dies aufgrund eines <b>F1 API BUGS</b> passieren, auch wenn Ihre E-Mail Adresse und Ihr Passwort korrekt sind.\n\n
-        1. Ein möglicher Workaround ist es die <b>F1Tv Webseite auf Ihrem Computer aufzurufen</b>.
+        1. Ein möglicher Workaround ist es die <b>F1TV Webseite auf Ihrem Computer aufzurufen</b>.
         Melden Sie sich mit Ihrem Konto an und anschließend wieder ab und kommen Sie wieder zurück zu dieser App. Dies könnte eventuell helfen.\n
         2. Es ist auch möglich, dass aus irgendeinem Grund Ihre IP-Adresse blockiert ist (401 Antwort). Eine Möglichkeit dies zu beheben ist das Wechseln des Netzwerkes.
         Sie sollten sich in diesem Fall an den F1 Support wenden.
   </string>
 
-  <string name="unable_to_play_video_session_expired">Your session is expired, please login again</string>
+  <string name="unable_to_play_video_session_expired">Ihre Sitzung ist abgelaufen, bitte loggen Sie sich erneut ein</string>
   <string name="unable_to_play_video_message">Beim Versuch dieses Video abzuspielen ist etwas schief gelaufen</string>
   <string name="audio_selection_dialog_title">Audio</string>
   <string name="video_selection_dialog_title">Video</string>
   <string name="video_selection_quality_auto">Automatisch</string>
-  <string name="unable_to_open_with_external_player">No supported external player detected, please install a supported player such as VLC and try again, or disable the open with external player feature</string>
-  <string name="watching_on_external_player">You are watching the content with an external player</string>
+  <string name="unable_to_open_with_external_player">Kein unterstützter externer Player erkannt, bitte installieren Sie einen unterstützten Player (z.B. VLC) und versuchen Sie es erneut, oder deaktivieren Sie die "Öffne mit externem Player" Option</string>
+  <string name="watching_on_external_player">Sie sehen sich diesen Inhalt mit einem externen Player an</string>
 
   <string name="choose_a_season">Saison auswählen</string>
 
@@ -30,19 +30,19 @@
   <string name="home_all">Alle anzeigen</string>
   <string name="home_archive">Archiv</string>
 
-  <string name="settings_content_description">Settings</string>
+  <string name="settings_content_description">Einstellungen</string>
   <string name="settings_category_player_title">Player</string>
-  <string name="settings_stream_type_title">Select the stream format (beta)</string>
-  <string name="settings_bypass_channel_selection_title">Bypass channel selection</string>
-  <string name="settings_bypass_channel_selection_summary">If ON after select a event you will be immediately redirected to the player in the general broadcast</string>
-  <string name="settings_display_thumbnails_enabled_title">Display Thumbnails</string>
-  <string name="settings_display_thumbnails_enabled_summary">Thumbnails may contain spoilers. Turning this OFF will disable thumbnail images</string>
-  <string name="settings_open_with_external_player_title">Open with external player (beta)</string>
-  <string name="settings_reset_to_default_title">Reset settings to default</string>
-  <string name="settings_open_with_external_player_summary">If ON we will use an external player to play content instead the built in player</string>
-  <string name="settings_category_other_title">Other</string>
-  <string name="settings_donations_title">Donations</string>
-  <string name="settings_donations_summary">Support the project by buying the developer a beer</string>
-  <string name="settings_logout_title">Logout</string>
-  <string name="donations_explanation_summary">Scan the QR code bellow with your phone, you will be redirected to the BuyMeACoffee page where you can donate</string>
+  <string name="settings_stream_type_title">Wählen Sie das Stream Format aus (Beta)</string>
+  <string name="settings_bypass_channel_selection_title">Kanalauswahl übersrpingen</string>
+  <string name="settings_bypass_channel_selection_summary">Wenn eingeschaltet, wird die Kanalauswahl nach dem auswählen eines Events übersprungen und Sie gelangen direkt im Player für den Hauptkanal</string>
+  <string name="settings_display_thumbnails_enabled_title">Vorschaubilder anzeigen</string>
+  <string name="settings_display_thumbnails_enabled_summary">Vorschaubilder könnten Spoiler enthalten. Diese Option auszuschalten deaktiviert die Anzeige der Vorschaubilder</string>
+  <string name="settings_open_with_external_player_title">Öffne mit externem Player (Beta)</string>
+  <string name="settings_reset_to_default_title">Einstellungen zum Standard zurücksetzen</string>
+  <string name="settings_open_with_external_player_summary">Wenn eingeschaltet wird anstatt der integrierte Player, ein externer Player genutzt um den Inhalt abzuspielen</string>
+  <string name="settings_category_other_title">Sonstiges</string>
+  <string name="settings_donations_title">Spenden</string>
+  <string name="settings_donations_summary">Unterstützen Sie dieses Projekt in dem Sie dem Entwickler ein Bier spenden</string>
+  <string name="settings_logout_title">Abmelden</string>
+  <string name="donations_explanation_summary">Scannen Sie den unteren QR Code mit Ihrem Smartphone, Sie werden zur BuyMeACoffee Seite weitergeleitet wo Sie spenden können</string>
 </resources>
