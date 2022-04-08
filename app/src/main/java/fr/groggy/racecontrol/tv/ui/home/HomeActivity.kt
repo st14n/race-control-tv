@@ -26,7 +26,9 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
     companion object {
         private val TAG = HomeActivity::class.simpleName
 
-        fun intent(context: Context) = Intent(context, HomeActivity::class.java)
+        fun intent(context: Context) = Intent(context, HomeActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
     }
 
     @Inject internal lateinit var seasonService: SeasonService

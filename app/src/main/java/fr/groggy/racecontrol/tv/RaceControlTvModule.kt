@@ -43,7 +43,10 @@ class RaceControlTvModule {
 
     @Provides
     @Singleton
-    fun okHttpClient(cookieManager: CookieManager, loggingInterceptor: HttpLoggingInterceptor): OkHttpClient =
+    fun okHttpClient(
+        cookieManager: CookieManager,
+        loggingInterceptor: HttpLoggingInterceptor
+    ): OkHttpClient =
         OkHttpClient.Builder()
             .cookieJar(JavaNetCookieJar(cookieManager))
             .addInterceptor(loggingInterceptor)

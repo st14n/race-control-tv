@@ -15,6 +15,7 @@
         to switch networks it might also work. In this case you have to reach F1 support as well.
     </string>
 
+    <string name="unable_to_play_video_session_expired">Your session is expired, please login again</string>
     <string name="unable_to_play_video_message">Something went wrong while trying to play this video</string>
     <string name="audio_selection_dialog_title">Audio</string>
     <string name="video_selection_dialog_title">Video</string>

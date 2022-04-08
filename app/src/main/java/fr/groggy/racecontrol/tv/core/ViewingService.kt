@@ -31,6 +31,8 @@ class ViewingService @Inject constructor(
         while (retryAttempts.getAndIncrement() < MAX_RETRIES) {
             try {
                 return@withContext getViewingOrThrow(channelId, contentId)
+            } catch (e: TokenExpiredException) {
+                throw e
             } catch (e: Exception) {
                 Log.d(TAG, "Unable to fetch viewing", e)
                 delay(RETRY_DELAY_IN_MILLS)
@@ -41,9 +43,14 @@ class ViewingService @Inject constructor(
     }
 
     private suspend fun getViewingOrThrow(channelId: String?, contentId: String): F1TvViewing {
-        val token = tokenService.loadAndGetF1Token()
+        val token = tokenService.getToken()
+        if (!token.isValid()) {
+            throw TokenExpiredException()
+        }
         return f1Tv.getViewing(channelId, contentId, token.value)
     }
+
+    class TokenExpiredException: IllegalStateException("The token is expired")
 
     class MaxRetryAttemptsReachedException: IllegalStateException("Max retries of $MAX_RETRIES reached, unable to fetch viewing")
 }

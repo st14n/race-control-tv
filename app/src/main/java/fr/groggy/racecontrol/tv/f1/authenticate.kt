@@ -19,7 +19,10 @@ data class F1AuthenticateResponse(val data: Data) {
 
 data class F1Credentials(
     val login: String,
-    val password: String
+    val password: String,
+    val subToken: String? = null
 )
 
-class F1Token(val value: JWT)
+class F1Token(val value: JWT) {
+    fun isValid(): Boolean = !value.isExpired(0)
+}

@@ -14,6 +14,7 @@
         Sie sollten sich in diesem Fall an den F1 Support wenden.
   </string>
 
+  <string name="unable_to_play_video_session_expired">Your session is expired, please login again</string>
   <string name="unable_to_play_video_message">Beim Versuch dieses Video abzuspielen ist etwas schief gelaufen</string>
   <string name="audio_selection_dialog_title">Audio</string>
   <string name="video_selection_dialog_title">Video</string>

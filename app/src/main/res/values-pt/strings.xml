@@ -14,6 +14,7 @@
         mudar de rede e contate o suporte F1.
     </string>
 
+    <string name="unable_to_play_video_session_expired">Sua sessão expirou, faça login novamente</string>
     <string name="unable_to_play_video_message">Algo deu errado durante a reprodução desse vídeo</string>
     <string name="audio_selection_dialog_title">Áudio</string>
     <string name="video_selection_dialog_title">Vídeo</string>

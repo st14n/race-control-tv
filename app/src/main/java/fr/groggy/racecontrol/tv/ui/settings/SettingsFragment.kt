@@ -1,6 +1,7 @@
 package fr.groggy.racecontrol.tv.ui.settings
 
 import android.os.Bundle
+import android.webkit.CookieManager
 import androidx.annotation.Keep
 import androidx.core.os.bundleOf
 import androidx.fragment.app.viewModels
@@ -71,9 +72,11 @@ class SettingsFragment: LeanbackSettingsFragmentCompat() {
 
             findPreference<Preference>("logout")?.setOnPreferenceClickListener {
                 viewModel.logout()
+                CookieManager.getInstance().removeAllCookies {
+                    startActivity(SignInActivity.intentClearTask(requireContext()))
+                    activity?.finish()
+                }
 
-                startActivity(SignInActivity.intentClearTask(requireContext()))
-                activity?.finish()
                 true
             }
         }

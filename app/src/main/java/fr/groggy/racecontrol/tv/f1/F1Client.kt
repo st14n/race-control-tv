@@ -9,7 +9,6 @@ import fr.groggy.racecontrol.tv.f1tv.F1TvViewing
 import fr.groggy.racecontrol.tv.f1tv.F1TvViewingResponse
 import fr.groggy.racecontrol.tv.utils.http.execute
 import fr.groggy.racecontrol.tv.utils.http.parseJsonBody
-import fr.groggy.racecontrol.tv.utils.http.toJsonRequestBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import javax.inject.Inject
@@ -23,30 +22,12 @@ class F1Client @Inject constructor(
 ) {
 
     companion object {
-        private const val ROOT_URL = "https://api.formula1.com"
         const val API_KEY = "fCUCjWrKPu9ylJwRAv8BpGLEgiAuThx7"
 
         private const val PLAY_URL = "https://f1tv.formula1.com/1.0/R/ENG/BIG_SCREEN_%s/ALL/CONTENT/PLAY?contentId=%s"
     }
 
-    private val authenticateRequestJsonAdapter = moshi.adapter(F1AuthenticateRequest::class.java)
-    private val authenticateResponseJsonAdapter = moshi.adapter(F1AuthenticateResponse::class.java)
     private val viewingResponseJsonAdapter = moshi.adapter(F1TvViewingResponse::class.java)
-
-    suspend fun authenticate(credentials: F1Credentials): F1Token {
-        val body = F1AuthenticateRequest(
-            login = credentials.login,
-            password = credentials.password
-        ).toJsonRequestBody(authenticateRequestJsonAdapter)
-        val request = Request.Builder()
-            .url("${ROOT_URL}/v2/account/subscriber/authenticate/by-password")
-            .post(body)
-            .header("apiKey", API_KEY)
-            .header("User-Agent", BuildConfig.DEFAULT_USER_AGENT)
-            .build()
-        val response = request.execute(httpClient).parseJsonBody(authenticateResponseJsonAdapter)
-        return F1Token(JWT(response.data.subscriptionToken))
-    }
 
     suspend fun getViewing(
         channelId: String?,

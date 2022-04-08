@@ -1,21 +1,18 @@
 package fr.groggy.racecontrol.tv.ui.signin
 
-import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
-import android.view.View
 import android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN
 import android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE
-import android.widget.EditText
-import android.widget.Toast
+import android.webkit.CookieManager
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
-import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.core.credentials.CredentialsService
-import fr.groggy.racecontrol.tv.f1.F1Credentials
 import fr.groggy.racecontrol.tv.ui.home.HomeActivity
 import javax.inject.Inject
 
@@ -34,37 +31,28 @@ class SignInActivity : ComponentActivity() {
 
     @Inject lateinit var credentialsService: CredentialsService
 
-    private val login by lazy { findViewById<EditText>(R.id.login) }
-    private val password by lazy { findViewById<EditText>(R.id.password) }
+    private val loginWebView: WebView by lazy { findViewById(R.id.login_webview) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Log.d(TAG, "onCreate")
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_signin)
-        findViewById<View>(R.id.signin).setOnClickListener { onSignIn() }
         window.setSoftInputMode(SOFT_INPUT_STATE_VISIBLE or SOFT_INPUT_ADJUST_PAN)
-    }
 
-    private fun onSignIn() {
-        Log.d(TAG, "onSignIn")
-        val credentials = F1Credentials(
-            login = login.text.toString(),
-            password = password.text.toString()
-        )
-        lifecycleScope.launchWhenStarted {
-            if (credentials.login.isEmpty() || credentials.password.isEmpty()) {
-                Toast.makeText(applicationContext, R.string.invalid_credentials, Toast.LENGTH_SHORT).show()
-            } else if (credentialsService.checkAndSave(credentials)) {
-                startActivity(HomeActivity.intent(this@SignInActivity))
-                finish()
-            } else {
-                AlertDialog.Builder(this@SignInActivity)
-                    .setTitle(R.string.rejected_credentials)
-                    .setMessage(R.string.rejected_credentials_message)
-                    .setPositiveButton(android.R.string.ok, null)
-                    .show()
+        loginWebView.settings.domStorageEnabled = true
+        loginWebView.settings.useWideViewPort = true
+        loginWebView.settings.javaScriptEnabled = true
+        loginWebView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+
+                if (credentialsService.storeToken(CookieManager.getInstance().getCookie(url))) {
+                    startActivity(HomeActivity.intent(this@SignInActivity))
+                    finish()
+                }
             }
         }
+        loginWebView.loadUrl("https://account.formula1.com/#/en/login")
     }
 
 }

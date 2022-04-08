@@ -14,6 +14,7 @@ import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.core.ViewingService
 import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
 import fr.groggy.racecontrol.tv.f1tv.F1TvViewing
+import fr.groggy.racecontrol.tv.ui.signin.SignInActivity
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -51,8 +52,13 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
             try {
                 val viewing = viewingService.getViewing(channelId, contentId)
                 onViewingCreated(viewing)
+            } catch (e: ViewingService.TokenExpiredException) {
+                handleError(R.string.unable_to_play_video_session_expired) {
+                    startActivity(SignInActivity.intentClearTask(this))
+                    finish()
+                }
             } catch (_: Exception) {
-                handleError(R.string.unable_to_play_video_message)
+                handleError(R.string.unable_to_play_video_message, ::finish)
             }
         }
     }
@@ -75,7 +81,7 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
                 .setDataAndType(viewing.url, "video/*")
             startActivity(intent)
         } catch (_: ActivityNotFoundException) {
-            handleError(R.string.unable_to_open_with_external_player)
+            handleError(R.string.unable_to_open_with_external_player, ::finish)
         }
     }
 
@@ -85,12 +91,12 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         }
     }
 
-    private fun handleError(@StringRes errorMessage: Int) {
+    private fun handleError(@StringRes errorMessage: Int, cancelAction: () -> Unit) {
         AlertDialog.Builder(this)
             .setCancelable(false)
             .setMessage(errorMessage)
             .setPositiveButton(android.R.string.ok) { _, _ ->
-                finish()
+                cancelAction.invoke()
             }
     }
 }

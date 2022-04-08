@@ -14,6 +14,7 @@
         2. Il est également possible que, pour une raison quelconque, votre adresse IP soit bloquée (réponse 401) dans ce cas, essayez
         de changer de réseau, cela pourrait également fonctionner. Dans ce cas, vous devez également joindre le support F1.</string>
 
+    <string name="unable_to_play_video_session_expired">Your session is expired, please login again</string>
     <string name="unable_to_play_video_message">Une erreur s\'est produite lors de la tentative de lecture de cette vidéo</string>
     <string name="audio_selection_dialog_title">Audio</string>
     <string name="video_selection_dialog_title">Vidéo</string>

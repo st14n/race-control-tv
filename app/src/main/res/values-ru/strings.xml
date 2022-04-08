@@ -15,6 +15,7 @@
         переключиться на другое сетевое соединение. Также Вы можете обратиться за помощью в службу технической поддержки F1Tv.
     </string>
 
+    <string name="unable_to_play_video_session_expired">Your session is expired, please login again</string>
     <string name="unable_to_play_video_message">Что-то пошло не так при попытке проигрывания видео</string>
     <string name="audio_selection_dialog_title">Звук</string>
     <string name="video_selection_dialog_title">Видео</string>

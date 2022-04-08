@@ -16,6 +16,7 @@
         el soporte de F1.
     </string>
 
+    <string name="unable_to_play_video_session_expired">Your session is expired, please login again</string>
     <string name="unable_to_play_video_message">Algo fue mal cuando intentó reproducir este vídeo</string>
     <string name="audio_selection_dialog_title">Audio</string>
     <string name="video_selection_dialog_title">Video</string>
