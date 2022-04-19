@@ -9,7 +9,6 @@ import androidx.annotation.Keep
 import androidx.core.os.bundleOf
 import androidx.leanback.app.VideoSupportFragment
 import androidx.leanback.app.VideoSupportFragmentGlueHost
-import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.source.MediaSourceFactory
 import com.google.android.exoplayer2.source.dash.DashMediaSource
@@ -51,13 +50,11 @@ class ChannelPlaybackFragment : VideoSupportFragment() {
         }
 
         fun findViewing(fragment: ChannelPlaybackFragment): F1TvViewing? {
-            val uri = fragment.arguments?.getParcelable<Uri>(VIEWING_URI)
+            val uri = fragment.arguments?.getParcelable<Uri>(VIEWING_URI) ?: return null
+            val contentId = findContentId(fragment.requireActivity()) ?: return null
+            val channelId = findChannelId(fragment.requireActivity())
 
-            return if (uri != null) {
-                F1TvViewing(uri)
-            } else {
-                null
-            }
+            return F1TvViewing(uri, contentId, channelId)
         }
 
         fun newInstance(viewing: F1TvViewing) = ChannelPlaybackFragment().apply {
@@ -107,7 +104,8 @@ class ChannelPlaybackFragment : VideoSupportFragment() {
     private fun onViewingCreated(viewing: F1TvViewing) {
         Log.d(TAG, "Viewing is ready $viewing")
         if (!player.isPlaying) { //IF is playing already just ignore these calls
-            val mediaSource = mediaSourceFactory.createMediaSource(MediaItem.fromUri(viewing.url))
+            val mediaSource = mediaSourceFactory
+                .createMediaSource(MediaSourceItemFactory.newMediaItem(viewing))
             player.setMediaSource(mediaSource)
             player.prepare()
         }

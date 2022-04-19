@@ -95,7 +95,7 @@ dependencies {
     implementation("com.github.bumptech.glide:okhttp3-integration:$glideVersion")
     kapt("com.github.bumptech.glide:compiler:$glideVersion")
 
-    val exoplayerVersion = "2.16.1"
+    val exoplayerVersion = "2.17.1"
     implementation("com.google.android.exoplayer:exoplayer:$exoplayerVersion")
     implementation("com.google.android.exoplayer:extension-leanback:$exoplayerVersion")
     implementation("com.google.android.exoplayer:extension-okhttp:$exoplayerVersion")

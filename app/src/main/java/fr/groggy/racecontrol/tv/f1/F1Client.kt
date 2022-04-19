@@ -25,6 +25,7 @@ class F1Client @Inject constructor(
         const val API_KEY = "fCUCjWrKPu9ylJwRAv8BpGLEgiAuThx7"
 
         private const val PLAY_URL = "https://f1tv.formula1.com/1.0/R/ENG/BIG_SCREEN_%s/ALL/CONTENT/PLAY?contentId=%s"
+        const val DRM_URL = "https://f1tv.formula1.com/2.0/R/ENG/BIG_SCREEN_HLS/ALL/CONTENT/LA/widevine?contentId=%s&channelId=%s"
     }
 
     private val viewingResponseJsonAdapter = moshi.adapter(F1TvViewingResponse::class.java)
@@ -45,7 +46,9 @@ class F1Client @Inject constructor(
             .build()
         val response = request.execute(httpClient).parseJsonBody(viewingResponseJsonAdapter)
         return F1TvViewing(
-            url = Uri.parse(response.resultObj.url)
+            url = Uri.parse(response.resultObj.url),
+            contentId = contentId,
+            channelId = channelId
         )
     }
 }

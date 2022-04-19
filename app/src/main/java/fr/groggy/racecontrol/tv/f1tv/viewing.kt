@@ -14,5 +14,7 @@ data class F1TvViewingResponseResultObject(
 )
 
 data class F1TvViewing(
-    val url: Uri
+    val url: Uri,
+    val contentId: String,
+    val channelId: String?
 )
