@@ -232,8 +232,14 @@ class F1TvClient @Inject constructor(
                         driver = F1TvDriverId("") //TODO - do we have to load the driver ?
                     )
                 } else {
+                    val channelId = if (it.playbackUrl.contains("channelId")) {
+                        it.channelId
+                    } else {
+                        null
+                    }
+
                     F1TvBasicChannel(
-                        it.channelId,
+                        channelId,
                         contentId,
                         type = F1TvBasicChannelType.from(it.type, it.title)
                     )
