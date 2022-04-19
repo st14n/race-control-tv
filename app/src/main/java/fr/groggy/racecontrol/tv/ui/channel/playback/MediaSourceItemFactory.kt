@@ -2,6 +2,7 @@ package fr.groggy.racecontrol.tv.ui.channel.playback
 
 import com.google.android.exoplayer2.C
 import com.google.android.exoplayer2.MediaItem
+import fr.groggy.racecontrol.tv.BuildConfig
 import fr.groggy.racecontrol.tv.f1.F1Client
 import fr.groggy.racecontrol.tv.f1tv.F1TvViewing
 
@@ -15,6 +16,9 @@ object MediaSourceItemFactory {
             .buildUpon()
             .setDrmConfiguration(
                 MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
+                    .setLicenseRequestHeaders(mutableMapOf(
+                        "User-Agent" to BuildConfig.DEFAULT_USER_AGENT
+                    ))
                     .setLicenseUri(F1Client.DRM_URL.format(viewing.contentId, viewing.channelId))
                     .setMultiSession(true)
                     .build()
