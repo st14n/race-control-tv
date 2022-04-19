@@ -106,7 +106,7 @@ dependencies {
     kapt("androidx.room:room-compiler:$roomVersion")
 
     implementation("com.google.android.material:material:1.4.0")
-    implementation("com.jakewharton.threetenabp:threetenabp:1.3.1")
+    implementation("com.jakewharton.threetenabp:threetenabp:1.4.0")
 }
 
 kapt {

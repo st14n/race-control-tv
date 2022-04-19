@@ -35,7 +35,7 @@ class RaceControlTvModule {
     @Provides
     fun loggingInterceptor(): HttpLoggingInterceptor {
         return if (BuildConfig.DEBUG) {
-            HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY)
+            HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BASIC)
         } else {
             HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.NONE)
         }
