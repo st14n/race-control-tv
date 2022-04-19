@@ -29,8 +29,10 @@ data class F1TvChannelAdditionalStream(
     val driverFirstName: String?,
     val driverLastName: String?,
     val racingNumber: Int?,
+    val default: Boolean,
     val driverImg: String?, //For some reason this is always empty
     val playbackUrl: String,
+    val channelId: String,
     val teamName: String?,
     val hex: String?,
     val type: String
