@@ -34,7 +34,7 @@ class F1TvClient @Inject constructor(
         private const val LIST_SEASON = "/2.0/R/%s/BIG_SCREEN_HLS/ALL/PAGE/SEARCH/VOD/F1_TV_Pro_Monthly/$GROUP_ID?filter_objectSubtype=Meeting&filter_season=%s&filter_orderByFom=Y&maxResults=100"
         private const val LIST_SESSIONS = "/2.0/R/%s/BIG_SCREEN_HLS/ALL/PAGE/SANDWICH/F1_TV_Pro_Monthly/$GROUP_ID?meetingId=%s&title=weekend-sessions"
         private const val LIST_FUTURE_SESSIONS = "/2.0/R/%s/BIG_SCREEN_HLS/ALL/PAGE/1350/F1_TV_Pro_Monthly/$GROUP_ID"
-        private const val LIST_CHANNELS = "/2.0/R/%s/BIG_SCREEN_HLS/ALL/CONTENT/VIDEO/%s/F1_TV_Pro_Monthly/$GROUP_ID"
+        private const val LIST_CHANNELS = "/3.0/R/%s/BIG_SCREEN_HLS/ALL/CONTENT/VIDEO/%s/F1_TV_Pro_Monthly/$GROUP_ID"
         private const val PICTURE_URL = "$ROOT_URL/image-resizer/image/%s?w=$MAIN_IMAGE_WIDTH&h=$MAIN_IMAGE_HEIGHT&o=L&q=HI"
         private const val LARGE_PICTURE_URL = "$ROOT_URL/image-resizer/image/%s?w=1920&h=1080&o=L&q=HI"
     }

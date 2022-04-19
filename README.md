@@ -6,14 +6,14 @@ At this time, content from the current session and old sessions are available, i
 Onboard channels when available are supported, as well as technical channels like the tracker channel,
 and on future I will bring documentaries (I hope).
 
-This app currently use the F1TV 2.0 apis and support stream content of 1080p at 50FPS
+This app currently use the F1TV 3.0 APIs and support stream content of 1080p at 50FPS
 
 Audio selection (language or no commentary) is supported.
 
 Resolution selection (from 270p to 1080p) is available, however the app knows based on bandwidth what
 is the best resolution to pickup, this is built in with ExoPlayer.
 
-Closed captions supported in english, spanish, dutch and german.
+Closed captions supported in English, Spanish, Dutch and German.
 
 Application is available in English, Dutch, German, French, Portuguese, Russian and Spanish.
 Feel free to translate it and open a PR :D, also to update some translations that are not fully ready.

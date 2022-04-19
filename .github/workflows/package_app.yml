@@ -1,12 +1,7 @@
 name: Minimal Android CI Workflow
 # copy of https://gist.github.com/alexanderbazo/227476190ef5ab655795e34ec0d314d6
 
-on:
-  push:
-    branches:
-      - master
-    tags:
-      - 'v*'
+on: [workflow_dispatch]
 
 jobs:
   test:

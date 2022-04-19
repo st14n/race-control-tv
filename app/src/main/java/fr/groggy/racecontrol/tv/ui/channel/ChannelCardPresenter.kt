@@ -11,6 +11,7 @@ import androidx.leanback.widget.Presenter
 import com.bumptech.glide.Glide
 import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType
 import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Companion.Data
+import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Companion.F1Live
 import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Companion.PitLane
 import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Companion.Tracker
 import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Companion.Unknown
@@ -39,8 +40,9 @@ class ChannelCardPresenter: Presenter() {
             is BasicChannelCard -> {
                 val type = item.type
                 view.titleText = when(type) {
-                    Wif -> "Main broadcast"
-                    PitLane -> "Pit lane"
+                    Wif -> "International"
+                    F1Live -> "F1 Live"
+                    PitLane -> "Pit Lane"
                     Tracker -> "Tracker"
                     Data -> "Data"
                     is Unknown -> type.name
