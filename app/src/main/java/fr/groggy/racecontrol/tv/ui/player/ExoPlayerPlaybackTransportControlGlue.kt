@@ -17,7 +17,6 @@ import com.google.android.exoplayer2.ext.leanback.LeanbackPlayerAdapter
 import com.google.android.exoplayer2.source.MediaLoadData
 import com.google.android.exoplayer2.source.TrackGroupArray
 import com.google.android.exoplayer2.text.Cue
-import com.google.android.exoplayer2.text.TextOutput
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray
 import fr.groggy.racecontrol.tv.R
@@ -27,7 +26,7 @@ import kotlin.math.roundToInt
 
 class ExoPlayerPlaybackTransportControlGlue(
     private val activity: FragmentActivity,
-    private val player: ExoPlayer,
+    player: ExoPlayer,
     private val trackSelector: DefaultTrackSelector
 ) : PlaybackTransportControlGlue<LeanbackPlayerAdapter>(
     activity,
