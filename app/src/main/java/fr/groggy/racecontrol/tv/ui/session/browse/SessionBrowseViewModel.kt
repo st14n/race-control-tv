@@ -38,21 +38,24 @@ class SessionBrowseViewModel @Inject constructor(
             .onEach { Log.d(TAG, "Session changed") }
             .flatMapLatest { session ->
                 val channelList = channels(contentId).first()
+                Log.d(TAG, "Loaded channel count ${channelList.size}")
 
-                channelList.singleOrNull()
-                    ?.let { channel -> flowOf(
+                if (channelList.isNullOrEmpty()) {
+                    flowOf(
                         SingleChannelSession(
                             contentId = session.contentId,
-                            channel = channel.id
+                            channel = channelList.firstOrNull()?.id
                         )
-                    ) }
-                    ?: flowOf(
+                    )
+                } else {
+                    flowOf(
                         MultiChannelsSession(
                             contentId = session.contentId,
                             name = session.name,
                             channels = channelList
                         )
                     )
+                }
             }
             .distinctUntilChanged()
             .onEach { Log.d(TAG, "VM session changed") }
