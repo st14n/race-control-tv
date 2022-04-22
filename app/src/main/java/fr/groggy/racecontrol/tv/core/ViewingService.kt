@@ -1,6 +1,7 @@
 package fr.groggy.racecontrol.tv.core
 
 import android.util.Log
+import fr.groggy.racecontrol.tv.core.settings.Settings
 import fr.groggy.racecontrol.tv.core.token.TokenService
 import fr.groggy.racecontrol.tv.f1.F1Client
 import fr.groggy.racecontrol.tv.f1tv.F1TvViewing
@@ -24,13 +25,13 @@ class ViewingService @Inject constructor(
 
     private val retryAttempts = AtomicInteger(0)
 
-    suspend fun getViewing(channelId: String?, contentId: String): F1TvViewing = withContext(Dispatchers.IO) {
+    suspend fun getViewing(channelId: String?, contentId: String, streamType: Settings.StreamType): F1TvViewing = withContext(Dispatchers.IO) {
         Log.d(TAG, "getViewing $channelId - $contentId")
         retryAttempts.set(0)
 
         while (retryAttempts.getAndIncrement() < MAX_RETRIES) {
             try {
-                return@withContext getViewingOrThrow(channelId, contentId)
+                return@withContext getViewingOrThrow(channelId, contentId, streamType)
             } catch (e: TokenExpiredException) {
                 throw e
             } catch (e: Exception) {
@@ -42,12 +43,13 @@ class ViewingService @Inject constructor(
         throw MaxRetryAttemptsReachedException()
     }
 
-    private suspend fun getViewingOrThrow(channelId: String?, contentId: String): F1TvViewing {
+    private suspend fun getViewingOrThrow(channelId: String?, contentId: String, streamType: Settings.StreamType): F1TvViewing {
         val token = tokenService.getToken()
         if (!token.isValid()) {
             throw TokenExpiredException()
         }
-        return f1Tv.getViewing(channelId, contentId, token.value)
+
+        return f1Tv.getViewing(channelId, contentId, streamType, token.value)
     }
 
     class TokenExpiredException: IllegalStateException("The token is expired")

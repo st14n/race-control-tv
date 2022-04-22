@@ -11,6 +11,7 @@ import androidx.leanback.widget.*
 import com.google.android.exoplayer2.C
 import com.google.android.exoplayer2.Format
 import com.google.android.exoplayer2.ExoPlayer
+import com.google.android.exoplayer2.PlaybackException
 import com.google.android.exoplayer2.analytics.AnalyticsListener
 import com.google.android.exoplayer2.analytics.AnalyticsListener.EventTime
 import com.google.android.exoplayer2.ext.leanback.LeanbackPlayerAdapter
@@ -20,6 +21,7 @@ import com.google.android.exoplayer2.text.Cue
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray
 import fr.groggy.racecontrol.tv.R
+import fr.groggy.racecontrol.tv.ui.channel.playback.ChannelPlaybackActivity
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -125,6 +127,13 @@ class ExoPlayerPlaybackTransportControlGlue(
             }
             dialog.show(activity.supportFragmentManager, null)
         }
+    }
+
+    override fun onPlayerErrorChanged(eventTime: EventTime, error: PlaybackException?) {
+        super.onPlayerErrorChanged(eventTime, error)
+
+        val channelActivity = activity as? ChannelPlaybackActivity
+        channelActivity?.playerError()
     }
 
     override fun onCues(eventTime: EventTime, cues: MutableList<Cue>) {

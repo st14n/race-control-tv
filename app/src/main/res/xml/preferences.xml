@@ -1,16 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto">
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
 
     <PreferenceCategory android:title="@string/settings_category_player_title">
-
-        <ListPreference
-            android:key="stream_type"
-            android:title="@string/settings_stream_type_title"
-            android:entries="@array/stream_types"
-            android:entryValues="@array/stream_types"
-            android:defaultValue="HLS"
-            app:useSimpleSummaryProvider="true"/>
 
         <SwitchPreference
             android:key="bypass_channel_selection"

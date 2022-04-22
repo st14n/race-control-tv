@@ -1,7 +1,6 @@
 package fr.groggy.racecontrol.tv.f1tv
 
 import android.util.Log
-import androidx.core.net.toUri
 import com.squareup.moshi.JsonAdapter
 import com.squareup.moshi.Moshi
 import fr.groggy.racecontrol.tv.core.InstantPeriod

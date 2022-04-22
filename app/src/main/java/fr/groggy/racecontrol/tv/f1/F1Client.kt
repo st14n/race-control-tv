@@ -4,7 +4,7 @@ import android.net.Uri
 import com.auth0.android.jwt.JWT
 import com.squareup.moshi.Moshi
 import fr.groggy.racecontrol.tv.BuildConfig
-import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
+import fr.groggy.racecontrol.tv.core.settings.Settings
 import fr.groggy.racecontrol.tv.f1tv.F1TvViewing
 import fr.groggy.racecontrol.tv.f1tv.F1TvViewingResponse
 import fr.groggy.racecontrol.tv.utils.http.execute
@@ -17,7 +17,6 @@ import javax.inject.Singleton
 @Singleton
 class F1Client @Inject constructor(
     private val httpClient: OkHttpClient,
-    private val settingsRepository: SettingsRepository,
     moshi: Moshi
 ) {
 
@@ -33,10 +32,9 @@ class F1Client @Inject constructor(
     suspend fun getViewing(
         channelId: String?,
         contentId: String,
+        streamType: Settings.StreamType,
         token: JWT
     ): F1TvViewing {
-        val streamType = settingsRepository.getCurrent().streamType
-
         val request = Request.Builder()
             .url(PLAY_URL.format(streamType.name, contentId) + if (channelId != null) "&channelId=$channelId" else "")
             .get()

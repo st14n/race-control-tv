@@ -10,7 +10,7 @@ import androidx.core.os.bundleOf
 import androidx.leanback.app.VideoSupportFragment
 import androidx.leanback.app.VideoSupportFragmentGlueHost
 import com.google.android.exoplayer2.ExoPlayer
-import com.google.android.exoplayer2.source.MediaSourceFactory
+import com.google.android.exoplayer2.source.MediaSource
 import com.google.android.exoplayer2.source.dash.DashMediaSource
 import com.google.android.exoplayer2.source.hls.HlsMediaSource
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector
@@ -33,6 +33,7 @@ class ChannelPlaybackFragment : VideoSupportFragment() {
         private val CHANNEL_ID = "${ChannelPlaybackFragment::class}.CHANNEL_ID"
         private val CONTENT_ID = "${ChannelPlaybackFragment::class}.CONTENT_ID"
         private val VIEWING_URI = "${ChannelPlaybackFragment::class}.VIEWING"
+        private val VIEWING_TYPE = "${ChannelPlaybackFragment::class}.VIEWING_TYPE"
 
         fun putChannelId(intent: Intent, channelId: String?) {
             intent.putExtra(CHANNEL_ID, channelId)
@@ -57,8 +58,11 @@ class ChannelPlaybackFragment : VideoSupportFragment() {
             return F1TvViewing(uri, contentId, channelId)
         }
 
-        fun newInstance(viewing: F1TvViewing) = ChannelPlaybackFragment().apply {
-            arguments = bundleOf(VIEWING_URI to viewing.url)
+        fun newInstance(viewing: F1TvViewing, viewingType: Settings.StreamType) = ChannelPlaybackFragment().apply {
+            arguments = bundleOf(
+                VIEWING_URI to viewing.url,
+                VIEWING_TYPE to viewingType
+            )
         }
     }
 
@@ -78,8 +82,8 @@ class ChannelPlaybackFragment : VideoSupportFragment() {
         player
     }
 
-    private val mediaSourceFactory: MediaSourceFactory by lazy {
-        if (settingsRepository.getCurrent().streamType == Settings.StreamType.HLS) {
+    private val mediaSourceFactory: MediaSource.Factory by lazy {
+        if (arguments?.getSerializable(VIEWING_TYPE) == Settings.StreamType.HLS) {
             HlsMediaSource.Factory(httpDataSourceFactory)
                 .setAllowChunklessPreparation(true)
         } else {

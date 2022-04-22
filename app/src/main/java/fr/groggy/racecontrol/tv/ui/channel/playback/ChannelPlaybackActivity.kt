@@ -12,9 +12,11 @@ import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.core.ViewingService
+import fr.groggy.racecontrol.tv.core.settings.Settings
 import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
 import fr.groggy.racecontrol.tv.f1tv.F1TvViewing
 import fr.groggy.racecontrol.tv.ui.signin.SignInActivity
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -41,17 +43,17 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         super.onCreate(savedInstanceState)
 
         lifecycleScope.launchWhenCreated {
-            attachViewingIfNeeded()
+            attachViewingIfNeeded(Settings.StreamType.DASH)
         }
     }
 
-    private suspend fun attachViewingIfNeeded() {
+    private suspend fun attachViewingIfNeeded(streamType: Settings.StreamType) {
         if (supportFragmentManager.findFragmentByTag(ChannelPlaybackFragment.TAG) == null) {
             val contentId = ChannelPlaybackFragment.findContentId(this) ?: return finish()
             val channelId = ChannelPlaybackFragment.findChannelId(this)
             try {
-                val viewing = viewingService.getViewing(channelId, contentId)
-                onViewingCreated(viewing)
+                val viewing = viewingService.getViewing(channelId, contentId, streamType)
+                onViewingCreated(viewing, streamType)
             } catch (e: ViewingService.TokenExpiredException) {
                 handleError(R.string.unable_to_play_video_session_expired) {
                     startActivity(SignInActivity.intentClearTask(this))
@@ -63,11 +65,11 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         }
     }
 
-    private fun onViewingCreated(viewing: F1TvViewing) {
+    private fun onViewingCreated(viewing: F1TvViewing, streamType: Settings.StreamType) {
         if (settingsRepository.getCurrent().openWithExternalPlayer) {
             openWithExternalPlayer(viewing)
         } else {
-            openWithInternalPlayer(viewing)
+            openWithInternalPlayer(viewing, streamType)
         }
     }
 
@@ -85,9 +87,13 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         }
     }
 
-    private fun openWithInternalPlayer(viewing: F1TvViewing) {
+    private fun openWithInternalPlayer(viewing: F1TvViewing, streamType: Settings.StreamType) {
         supportFragmentManager.commit {
-            replace(R.id.fragment_container, ChannelPlaybackFragment.newInstance(viewing), ChannelPlaybackFragment.TAG)
+            replace(
+                R.id.fragment_container,
+                ChannelPlaybackFragment.newInstance(viewing, streamType),
+                ChannelPlaybackFragment.TAG
+            )
         }
     }
 
@@ -98,5 +104,23 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 cancelAction.invoke()
             }
+    }
+
+    fun playerError() {
+        val fragment = supportFragmentManager.findFragmentByTag(ChannelPlaybackFragment.TAG)
+        if (fragment != null) {
+            supportFragmentManager.commit {
+                remove(fragment)
+                runOnCommit {
+                    lifecycleScope.launch {
+                        attachViewingIfNeeded(Settings.StreamType.HLS)
+                    }
+                }
+            }
+        } else {
+            lifecycleScope.launch {
+                attachViewingIfNeeded(Settings.StreamType.HLS)
+            }
+        }
     }
 }
