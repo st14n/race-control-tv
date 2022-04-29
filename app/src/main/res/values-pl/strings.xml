@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="login">Adres E-Mail</string>
+    <string name="password">Hasło</string>
+    <string name="signin">Zaloguj się</string>
+    <string name="signin_required_f1_tv_pro_account">Do zalogowania wymagane jest konto F1TV/F1TV Pro</string>
+    <string name="invalid_credentials">Nieprawidłowe dane logowania</string>
+    <string name="rejected_credentials">Nieprawidłowy e-mail lub hasło</string>
+    <string name="rejected_credentials_message">
+        Czasami może się to zdarzyć nawet mimo podania poprawnych danych logowania ze względu na <b>BŁĄD API F1</b>.\n\n
+        1. Jeśli tak się zdarzyło możliwe jest obejście tego problemu: <b>przejdź na stronę F1TV na swoim komputerze</b>,
+        zaloguj i wyloguj się ze swojego konta, a później
+        wróć do aplikacji która powinna zadziałać.\n
+        2. Możliwe jest również że Twój adres IP został zablokowany (błąd 401) w takim wypadku spróbuj
+        przełączyć się na inną sieć. W tym wypadu powinieneś również skontaktować się ze wsparciem technicznym F1.
+    </string>
+
+    <string name="unable_to_play_video_session_expired">Twoja sesja wygasła, zaloguj się ponownie</string>
+    <string name="unable_to_play_video_message">Coś poszło nie tak podczas próby odtwarzania tego wideo</string>
+    <string name="audio_selection_dialog_title">Dzwięk</string>
+    <string name="video_selection_dialog_title">Wideo</string>
+    <string name="video_selection_quality_auto">Auto</string>
+    <string name="unable_to_open_with_external_player">Nie znaleziono wspieranego odtwarzacza wideo, proszę zainstalować wspierany odtwarzacz np. VLC, lub wyłączyć funkcję otwierania wideo w zewnętrznym odtwarzaczu</string>
+    <string name="watching_on_external_player">Oglądasz zawartość korzystając z zewnętrznego odtwarzacza</string>
+
+    <string name="choose_a_season">Wybierz sezon</string>
+
+    <string name="teaser_image_text">Obecny sezon: %1$d</string>
+    <string name="teaser_image_description">Obecny sezon</string>
+
+    <string name="home_all">Pokaż wszystkie</string>
+    <string name="home_archive">Archiwum</string>
+
+    <string name="settings_content_description">Ustawienia</string>
+    <string name="settings_category_player_title">Odtwarzacz</string>
+    <string name="settings_stream_type_title">Wybierz format strumieniowania (beta)</string>
+    <string name="settings_bypass_channel_selection_title">Pomiń wybieranie kanału</string>
+    <string name="settings_bypass_channel_selection_summary">Jeśli WŁĄCZONE po wybraniu wydarzenia zostaniesz automatycznie przekierowany do odtwarzania głównej transmisji</string>
+    <string name="settings_display_thumbnails_enabled_title">Wyświetlaj miniatury</string>
+    <string name="settings_display_thumbnails_enabled_summary">Wyświetlane miniatury mogą zawierać spojlery. WYŁĄCZENIE tej opcji ukryje miniatury</string>
+    <string name="settings_open_with_external_player_title">Otwieraj w zewnętrznym odtwarzaczu (beta)</string>
+    <string name="settings_reset_to_default_title">Przywróć ustawienia domyślne</string>
+    <string name="settings_open_with_external_player_summary">Jeśli WŁĄCZONE aplikacja będzie korzystała z zewnętrznego odtwarzacza zamiast wbudowanego</string>
+    <string name="settings_category_other_title">Inne</string>
+    <string name="settings_donations_title">Darowizny</string>
+    <string name="settings_donations_summary">Wesprzyj projekt kupując programiście piwo</string>
+    <string name="settings_logout_title">Wyloguj</string>
+    <string name="donations_explanation_summary">Zeskanuj poniższy kod QR telefonem, by zostać przekierowanym do serwisu BuyMyACoffee umożliwiającego przekazanie darowizny</string>
+</resources>
