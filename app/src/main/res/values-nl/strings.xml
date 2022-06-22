@@ -30,19 +30,19 @@
     <string name="home_all">Toon alle</string>
     <string name="home_archive">Archief</string>
 
-    <string name="settings_content_description">Settings</string>
-    <string name="settings_category_player_title">Player</string>
-    <string name="settings_stream_type_title">Select the stream format (beta)</string>
-    <string name="settings_bypass_channel_selection_title">Bypass channel selection</string>
-    <string name="settings_bypass_channel_selection_summary">If ON after select a event you will be immediately redirected to the player in the general broadcast</string>
-    <string name="settings_display_thumbnails_enabled_title">Display Thumbnails</string>
-    <string name="settings_display_thumbnails_enabled_summary">Thumbnails may contain spoilers. Turning this OFF will disable thumbnail images</string>
-    <string name="settings_open_with_external_player_title">Open with external player (beta)</string>
-    <string name="settings_reset_to_default_title">Reset settings to default</string>
-    <string name="settings_open_with_external_player_summary">If ON we will use an external player to play content instead the built in player</string>
-    <string name="settings_category_other_title">Other</string>
-    <string name="settings_donations_title">Donations</string>
-    <string name="settings_donations_summary">Support the project by buying the developer a beer</string>
-    <string name="settings_logout_title">Logout</string>
-    <string name="donations_explanation_summary">Scan the QR code bellow with your phone, you will be redirected to the BuyMeACoffee page where you can donate</string>
+    <string name="settings_content_description">Instellingen</string>
+    <string name="settings_category_player_title">Speler</string>
+    <string name="settings_stream_type_title">Selecteer stream formaat(beta)</string>
+    <string name="settings_bypass_channel_selection_title">Omzeil kanaal selectie</string>
+    <string name="settings_bypass_channel_selection_summary">Indien AAN na het selecteren van een evenement, wordt u onmiddellijk doorgestuurd naar de speler in de algemene uitzending</string>
+    <string name="settings_display_thumbnails_enabled_title">Miniaturen weergeven</string>
+    <string name="settings_display_thumbnails_enabled_summary">Miniaturen kunnen spoilers bevatten. Als u dit uitschakelt, worden miniatuurafbeeldingen uitgeschakeld</string>
+    <string name="settings_open_with_external_player_title">Open in externe speler(beta)</string>
+    <string name="settings_reset_to_default_title">Instellingen terugzetten naar standaard</string>
+    <string name="settings_open_with_external_player_summary">Indien AAN gebruiken we een externe speler om inhoud af te spelen in plaats van de ingebouwde speler</string>
+    <string name="settings_category_other_title">Andere</string>
+    <string name="settings_donations_title">Donaties</string>
+    <string name="settings_donations_summary">Steun het project door voor de ontwikkelaar een biertje te kopen</string>
+    <string name="settings_logout_title">Log uit</string>
+    <string name="donations_explanation_summary">Scan de onderstaande QR-code met je telefoon, je wordt doorgestuurd naar de BuyMeACoffee-pagina waar je kunt doneren</string>
 </resources>
