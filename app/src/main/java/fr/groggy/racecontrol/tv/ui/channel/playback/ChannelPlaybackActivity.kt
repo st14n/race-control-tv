@@ -43,7 +43,7 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         super.onCreate(savedInstanceState)
 
         lifecycleScope.launchWhenCreated {
-            attachViewingIfNeeded(Settings.StreamType.DASH)
+            attachViewingIfNeeded(Settings.StreamType.DASH_HLS)
         }
     }
 

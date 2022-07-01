@@ -23,8 +23,8 @@ class F1Client @Inject constructor(
     companion object {
         const val API_KEY = "fCUCjWrKPu9ylJwRAv8BpGLEgiAuThx7"
 
-        private const val PLAY_URL = "https://f1tv.formula1.com/1.0/R/ENG/BIG_SCREEN_%s/ALL/CONTENT/PLAY?contentId=%s"
-        const val DRM_URL = "https://f1tv.formula1.com/2.0/R/ENG/BIG_SCREEN_HLS/ALL/CONTENT/LA/widevine?contentId=%s&channelId=%s"
+        private const val PLAY_URL = "https://f1tv.formula1.com/2.0/R/ENG/BIG_SCREEN_%s/ALL/CONTENT/PLAY?contentId=%s"
+        const val DRM_URL = "https://f1tv.formula1.com/2.0/R/ENG/BIG_SCREEN_HLS/ALL/CONTENT/LA/widevine?contentId=%s"
     }
 
     private val viewingResponseJsonAdapter = moshi.adapter(F1TvViewingResponse::class.java)
@@ -36,7 +36,7 @@ class F1Client @Inject constructor(
         token: JWT
     ): F1TvViewing {
         val request = Request.Builder()
-            .url(PLAY_URL.format(streamType.name, contentId) + if (channelId != null) "&channelId=$channelId" else "")
+            .url(PLAY_URL.format(streamType.rawName, contentId) + if (channelId != null) "&channelId=$channelId" else "")
             .get()
             .header("apiKey", API_KEY)
             .header("User-Agent", BuildConfig.DEFAULT_USER_AGENT)
@@ -46,7 +46,9 @@ class F1Client @Inject constructor(
         return F1TvViewing(
             url = Uri.parse(response.resultObj.url),
             contentId = contentId,
-            channelId = channelId
+            channelId = channelId,
+            ascendontoken = token.toString(),
+            entitlementtoken = response.resultObj.entitlementToken
         )
     }
 }

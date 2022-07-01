@@ -6,6 +6,7 @@ import com.squareup.moshi.Moshi
 import fr.groggy.racecontrol.tv.core.InstantPeriod
 import fr.groggy.racecontrol.tv.utils.http.execute
 import fr.groggy.racecontrol.tv.utils.http.parseJsonBody
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.threeten.bp.Instant
@@ -221,25 +222,20 @@ class F1TvClient @Inject constructor(
                 ?.sortedBy { it.default }
                 ?.map {
 
+                val channelAndContentId = it.playbackUrl.findChannelAndContentId()
                 if (it.type == "obc") {
                     F1TvOnboardChannel(
-                        it.channelId,
-                        contentId,
+                        channelAndContentId.second,
+                        channelAndContentId.first,
                         name = "${it.driverFirstName} ${it.driverLastName} ${it.racingNumber}",
                         background = it.hex,
                         subTitle = it.teamName,
                         driver = F1TvDriverId("") //TODO - do we have to load the driver ?
                     )
                 } else {
-                    val channelId = if (it.playbackUrl.contains("channelId")) {
-                        it.channelId
-                    } else {
-                        null
-                    }
-
                     F1TvBasicChannel(
-                        channelId,
-                        contentId,
+                        channelAndContentId.second.ifEmpty { null },
+                        channelAndContentId.first,
                         type = F1TvBasicChannelType.from(it.type, it.title)
                     )
                 }
@@ -248,6 +244,14 @@ class F1TvClient @Inject constructor(
             e.printStackTrace()
             return listOf()
         }
+    }
+
+    private fun String.findChannelAndContentId(): Pair<String, String> {
+        val url = "$ROOT_URL$this".toHttpUrlOrNull()
+        val contentId = url?.queryParameter("contentId")
+        val channelId = url?.queryParameter("channelId")
+
+        return contentId.orEmpty() to channelId.orEmpty()
     }
 
     private suspend fun <T> get(apiUrl: String, jsonAdapter: JsonAdapter<T>): T {

@@ -5,8 +5,8 @@ data class Settings(
     val displayThumbnailsEnabled: Boolean,
     val openWithExternalPlayer: Boolean
 ) {
-    enum class StreamType {
-        HLS, DASH
+    enum class StreamType(val rawName: String) {
+        HLS("HLS"), DASH("DASH"), DASH_HLS("HLS")
     }
 
     companion object {

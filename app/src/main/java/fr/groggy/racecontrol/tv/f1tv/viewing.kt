@@ -10,11 +10,14 @@ data class F1TvViewingResponse(
 
 @JsonClass(generateAdapter = true)
 data class F1TvViewingResponseResultObject(
-    val url: String
+    val url: String,
+    val entitlementToken: String
 )
 
 data class F1TvViewing(
     val url: Uri,
     val contentId: String,
-    val channelId: String?
+    val channelId: String?,
+    val ascendontoken: String,
+    val entitlementtoken: String
 )

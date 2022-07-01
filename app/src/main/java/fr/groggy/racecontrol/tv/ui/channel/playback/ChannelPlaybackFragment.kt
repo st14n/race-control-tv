@@ -34,6 +34,8 @@ class ChannelPlaybackFragment : VideoSupportFragment() {
         private val CONTENT_ID = "${ChannelPlaybackFragment::class}.CONTENT_ID"
         private val VIEWING_URI = "${ChannelPlaybackFragment::class}.VIEWING"
         private val VIEWING_TYPE = "${ChannelPlaybackFragment::class}.VIEWING_TYPE"
+        private val ASCENDON_TOKEN = "${ChannelPlaybackFragment::class}.ASCENDON_TOKEN"
+        private val ENTITLEMENT_TOKEN = "${ChannelPlaybackFragment::class}.ENTITLEMENT_TOKEN"
 
         fun putChannelId(intent: Intent, channelId: String?) {
             intent.putExtra(CHANNEL_ID, channelId)
@@ -53,15 +55,19 @@ class ChannelPlaybackFragment : VideoSupportFragment() {
         fun findViewing(fragment: ChannelPlaybackFragment): F1TvViewing? {
             val uri = fragment.arguments?.getParcelable<Uri>(VIEWING_URI) ?: return null
             val contentId = findContentId(fragment.requireActivity()) ?: return null
+            val ascendonToken = fragment.arguments?.getString(ASCENDON_TOKEN) ?: return null
+            val entitlementToken = fragment.arguments?.getString(ENTITLEMENT_TOKEN) ?: return null
             val channelId = findChannelId(fragment.requireActivity())
 
-            return F1TvViewing(uri, contentId, channelId)
+            return F1TvViewing(uri, contentId, channelId, ascendonToken, entitlementToken)
         }
 
         fun newInstance(viewing: F1TvViewing, viewingType: Settings.StreamType) = ChannelPlaybackFragment().apply {
             arguments = bundleOf(
                 VIEWING_URI to viewing.url,
-                VIEWING_TYPE to viewingType
+                VIEWING_TYPE to viewingType,
+                ASCENDON_TOKEN to viewing.ascendontoken,
+                ENTITLEMENT_TOKEN to viewing.entitlementtoken
             )
         }
     }

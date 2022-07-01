@@ -17,9 +17,11 @@ object MediaSourceItemFactory {
             .setDrmConfiguration(
                 MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
                     .setLicenseRequestHeaders(mutableMapOf(
-                        "User-Agent" to BuildConfig.DEFAULT_USER_AGENT
+                        "User-Agent" to BuildConfig.DEFAULT_USER_AGENT,
+                        "ascendontoken" to viewing.ascendontoken,
+                        "entitlementtoken" to viewing.entitlementtoken
                     ))
-                    .setLicenseUri(F1Client.DRM_URL.format(viewing.contentId, viewing.channelId))
+                    .setLicenseUri(F1Client.DRM_URL.format(viewing.contentId) + if (viewing.channelId != null) "&channelId=${viewing.channelId}" else "")
                     .setMultiSession(true)
                     .build()
             )
