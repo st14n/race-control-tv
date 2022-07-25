@@ -18,7 +18,6 @@ import com.google.android.exoplayer2.upstream.HttpDataSource
 import com.google.android.exoplayer2.util.EventLogger
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.core.settings.Settings
-import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
 import fr.groggy.racecontrol.tv.f1tv.F1TvViewing
 import fr.groggy.racecontrol.tv.ui.player.ExoPlayerPlaybackTransportControlGlue
 import javax.inject.Inject
@@ -30,12 +29,17 @@ class ChannelPlaybackFragment : VideoSupportFragment() {
     companion object {
         internal val TAG = ChannelPlaybackFragment::class.simpleName
 
+        private val SESSION_ID = "${ChannelPlaybackFragment::class}.SESSION_ID"
         private val CHANNEL_ID = "${ChannelPlaybackFragment::class}.CHANNEL_ID"
         private val CONTENT_ID = "${ChannelPlaybackFragment::class}.CONTENT_ID"
         private val VIEWING_URI = "${ChannelPlaybackFragment::class}.VIEWING"
         private val VIEWING_TYPE = "${ChannelPlaybackFragment::class}.VIEWING_TYPE"
         private val ASCENDON_TOKEN = "${ChannelPlaybackFragment::class}.ASCENDON_TOKEN"
         private val ENTITLEMENT_TOKEN = "${ChannelPlaybackFragment::class}.ENTITLEMENT_TOKEN"
+
+        fun putSessionId(intent: Intent, sessionId: String) {
+            intent.putExtra(SESSION_ID, sessionId)
+        }
 
         fun putChannelId(intent: Intent, channelId: String?) {
             intent.putExtra(CHANNEL_ID, channelId)
@@ -51,6 +55,9 @@ class ChannelPlaybackFragment : VideoSupportFragment() {
         fun findContentId(activity: Activity): String? {
             return activity.intent.getStringExtra(CONTENT_ID)
         }
+
+        fun findSessionId(activity: Activity): String? =
+            activity.intent.getStringExtra(SESSION_ID)
 
         fun findViewing(fragment: ChannelPlaybackFragment): F1TvViewing? {
             val uri = fragment.arguments?.getParcelable<Uri>(VIEWING_URI) ?: return null
@@ -73,7 +80,6 @@ class ChannelPlaybackFragment : VideoSupportFragment() {
     }
 
     @Inject internal lateinit var httpDataSourceFactory: HttpDataSource.Factory
-    @Inject internal lateinit var settingsRepository: SettingsRepository
 
     private val trackSelector: DefaultTrackSelector by lazy {
         DefaultTrackSelector(requireContext())

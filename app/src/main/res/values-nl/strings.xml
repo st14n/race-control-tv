@@ -45,4 +45,6 @@
     <string name="settings_donations_summary">Steun het project door voor de ontwikkelaar een biertje te kopen</string>
     <string name="settings_logout_title">Log uit</string>
     <string name="donations_explanation_summary">Scan de onderstaande QR-code met je telefoon, je wordt doorgestuurd naar de BuyMeACoffee-pagina waar je kunt doneren</string>
+
+    <string name="channel_selection_switch_channel">Switch channel</string>
 </resources>

@@ -22,6 +22,7 @@ import com.google.android.exoplayer2.trackselection.DefaultTrackSelector
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray
 import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.ui.channel.playback.ChannelPlaybackActivity
+import fr.groggy.racecontrol.tv.ui.channel.playback.ChannelPlaybackFragment
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -48,6 +49,12 @@ class ExoPlayerPlaybackTransportControlGlue(
         activity.getString(R.string.audio_selection_dialog_title),
         null,
         ContextCompat.getDrawable(context, R.drawable.lb_ic_search_mic_out)
+    )
+    private val switchChannelAction = Action(
+        Action.NO_ID,
+        activity.getString(R.string.channel_selection_switch_channel),
+        null,
+        ContextCompat.getDrawable(context, R.drawable.ic_switch_channel)
     )
     private val resolutionSelectionAction = Action(
         Action.NO_ID,
@@ -77,6 +84,7 @@ class ExoPlayerPlaybackTransportControlGlue(
             add(rewindAction)
             add(fastFormatAction)
             add(selectAudioAction)
+            add(switchChannelAction)
             add(resolutionSelectionAction)
             add(closedCaptionAction)
         }
@@ -90,8 +98,19 @@ class ExoPlayerPlaybackTransportControlGlue(
             selectAudioAction -> openAudioSelectionDialog()
             closedCaptionAction -> toggleClosedCaptions()
             resolutionSelectionAction -> openResolutionSelectionDialog()
+            switchChannelAction -> openChannelSwitchDialog()
             else -> super.onActionClicked(action)
         }
+    }
+
+    private fun openChannelSwitchDialog() {
+        val sessionId = ChannelPlaybackFragment.findSessionId(activity) ?: return
+        val contentId = ChannelPlaybackFragment.findContentId(activity) ?: return
+
+        ChannelSelectionDialog.newInstance(
+            sessionId,
+            contentId
+        ).show(activity.supportFragmentManager)
     }
 
     private fun openResolutionSelectionDialog() {
@@ -169,9 +188,8 @@ class ExoPlayerPlaybackTransportControlGlue(
         subtitle = listOfNotNull(videoQuality, audioLanguage).joinToString(separator = " / ")
     }
 
-}
-
-private fun PlayerAdapter.seekOffset(offset: Long) {
-    val position = max(min(currentPosition + offset, duration), 0)
-    seekTo(position)
+    private fun PlayerAdapter.seekOffset(offset: Long) {
+        val position = max(min(currentPosition + offset, duration), 0)
+        seekTo(position)
+    }
 }

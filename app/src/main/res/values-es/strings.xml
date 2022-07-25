@@ -47,4 +47,6 @@
     <string name="settings_donations_summary">Apoya al proyecto comprando una cerveza al desarrollador</string>
     <string name="settings_logout_title">Cerrar sesión</string>
     <string name="donations_explanation_summary">Escanea el siguiente código QR con tu teléfono, te redirigirá a la web BuyMeACoffee donde podrás hacer una donación</string>
+
+    <string name="channel_selection_switch_channel">Mudar canal</string>
 </resources>

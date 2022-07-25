@@ -46,4 +46,6 @@
     <string name="settings_donations_summary">Wesprzyj projekt kupując programiście piwo</string>
     <string name="settings_logout_title">Wyloguj</string>
     <string name="donations_explanation_summary">Zeskanuj poniższy kod QR telefonem, by zostać przekierowanym do serwisu BuyMyACoffee umożliwiającego przekazanie darowizny</string>
+
+    <string name="channel_selection_switch_channel">Switch channel</string>
 </resources>

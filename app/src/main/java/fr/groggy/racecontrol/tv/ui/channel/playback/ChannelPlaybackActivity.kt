@@ -15,17 +15,20 @@ import fr.groggy.racecontrol.tv.core.ViewingService
 import fr.groggy.racecontrol.tv.core.settings.Settings
 import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
 import fr.groggy.racecontrol.tv.f1tv.F1TvViewing
+import fr.groggy.racecontrol.tv.ui.player.ChannelSelectionDialog
+import fr.groggy.racecontrol.tv.ui.session.browse.Channel
 import fr.groggy.racecontrol.tv.ui.signin.SignInActivity
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playback) {
+class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playback),
+    ChannelSelectionDialog.ChannelManagerListener {
     @Inject internal lateinit var viewingService: ViewingService
     @Inject internal lateinit var settingsRepository: SettingsRepository
 
     companion object {
-        fun intent(context: Context, channelId: String?, contentId: String): Intent {
+        fun intent(context: Context, sessionId: String, channelId: String?, contentId: String): Intent {
             val intent = Intent(context, ChannelPlaybackActivity::class.java)
             ChannelPlaybackFragment.putChannelId(
                 intent,
@@ -34,6 +37,10 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
             ChannelPlaybackFragment.putContentId(
                 intent,
                 contentId
+            )
+            ChannelPlaybackFragment.putSessionId(
+                intent,
+                sessionId
             )
             return intent
         }
@@ -45,6 +52,20 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         lifecycleScope.launchWhenCreated {
             attachViewingIfNeeded(Settings.StreamType.DASH_HLS)
         }
+    }
+
+    override fun onSwitchChannel(channel: Channel) {
+        val sessionId = ChannelPlaybackFragment.findSessionId(this) ?: return
+        startActivity(
+            intent(
+                this,
+                sessionId,
+                channel.id?.value,
+                channel.contentId
+            )
+        )
+
+        finish()
     }
 
     private suspend fun attachViewingIfNeeded(streamType: Settings.StreamType) {

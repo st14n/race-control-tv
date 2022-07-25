@@ -40,7 +40,7 @@ class SessionBrowseViewModel @Inject constructor(
                 val channelList = channels(contentId).first()
                 Log.d(TAG, "Loaded channel count ${channelList.size}")
 
-                if (channelList.isNullOrEmpty()) {
+                if (channelList.isEmpty()) {
                     flowOf(
                         SingleChannelSession(
                             contentId = session.contentId,

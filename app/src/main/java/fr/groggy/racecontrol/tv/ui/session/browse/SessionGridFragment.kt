@@ -92,8 +92,11 @@ class SessionGridFragment : VerticalGridSupportFragment(), OnItemViewClickedList
         contentId: String,
         channelId: String?
     ) {
+        val sessionId = findSessionId(requireActivity()) ?: return requireActivity().finish()
+
         val intent = ChannelPlaybackActivity.intent(
             requireActivity(),
+            sessionId,
             channelId,
             contentId
         )
@@ -101,8 +104,10 @@ class SessionGridFragment : VerticalGridSupportFragment(), OnItemViewClickedList
     }
 
     override fun onItemClicked(itemViewHolder: Presenter.ViewHolder?, item: Any, rowViewHolder: RowPresenter.ViewHolder?, row: Row?) {
+        val sessionId = findSessionId(requireActivity()) ?: return requireActivity().finish()
+
         val channel = item as Channel
-        val intent = ChannelPlaybackActivity.intent(requireActivity(), channel.id?.value, channel.contentId)
+        val intent = ChannelPlaybackActivity.intent(requireActivity(), sessionId, channel.id?.value, channel.contentId)
         startActivity(intent)
     }
 
