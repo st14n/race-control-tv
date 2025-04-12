@@ -117,8 +117,19 @@ class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener 
         val events = season.events
             .filter { it.sessions.isNotEmpty() }
             .map { toListRow(it, existingListRows) }
-        eventsAdapter.setItems(events, eventListRowDiffCallback)
+        if (existingListRows.size != events.size ||
+            (0 until existingListRows.size).any { index -> !hasMatchingSessions(existingListRows[index], events[index]) }) {
+            eventsAdapter.setItems(events, eventListRowDiffCallback)
+        }
     }
+
+    private fun hasMatchingSessions(
+        existingListRow: ListRow,
+        sessionsListRow: ListRow
+    ) = (existingListRow.adapter.size() == sessionsListRow.adapter.size() // Do we have the same number of items
+            || (0 until existingListRow.adapter.size()).all { index -> // If so, do the sessions in each match in order?
+        existingListRow.adapter[index] as Session == sessionsListRow.adapter[index] as Session
+    })
 
     private fun toListRow(event: Event, existingListRows: List<ListRow>): ListRow {
         val existingListRow = existingListRows.find { it.headerItem.name == event.name }
@@ -130,7 +141,9 @@ class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener 
             val sessionsAdapter = existingListRow.adapter as ArrayObjectAdapter
             existingListRow to sessionsAdapter
         }
-        sessionsAdapter.setItems(event.sessions, Session.diffCallback)
+        if (existingListRow == null || !hasMatchingSessions(existingListRow, listRow)) {
+            sessionsAdapter.setItems(event.sessions, Session.diffCallback)
+        }
         return listRow
     }
 

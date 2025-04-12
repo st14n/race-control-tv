@@ -22,12 +22,12 @@ class SharedPreferencesF1CredentialsRepository @Inject constructor(
     override fun find(): F1Credentials? {
         val login = store.findString(LOGIN_KEY)
         val password = store.findString(PASSWORD_KEY)
-        val loginToken = store.findString(LOGIN_TOKEN)
-        return if (login != null && password != null && loginToken != null) {
+//        val loginToken = store.findString(LOGIN_TOKEN)
+        return if (login != null && password != null /*&& loginToken != null*/) {
             F1Credentials(
                 login = login,
                 password = password,
-                subToken = loginToken
+//                subToken = loginToken
             )
         } else {
             null
@@ -53,8 +53,8 @@ class SharedPreferencesF1CredentialsRepository @Inject constructor(
 
     override fun delete() =
         store.update {
-            remove(LOGIN_KEY)
-            remove(PASSWORD_KEY)
+            //remove(LOGIN_KEY)
+            //remove(PASSWORD_KEY)
             remove(LOGIN_TOKEN)
         }
 }
