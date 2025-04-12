@@ -82,13 +82,24 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
                 homeEntriesAdapter.add(sessionsListRow)
                 homeEntriesAdapter.add(archivesRow)
             } else {
-                /* Makes the adapter blink :| */
-                homeEntriesAdapter.replace(0, sessionsListRow)
+
+                /* Compare the old list to the new to see if it needs updating */
+                if (!hasMatchingSessions(existingListRow, sessionsListRow)) {
+                    homeEntriesAdapter.replace(0, sessionsListRow)
+                }
             }
         } else {
             onEmptySeason()
         }
     }
+
+    private fun hasMatchingSessions(
+        existingListRow: ListRow,
+        sessionsListRow: ListRow
+    ) = (existingListRow.adapter.size() == sessionsListRow.adapter.size() // Do we have the same number of items
+            || (0 until existingListRow.adapter.size()).all { index -> // If so, do the sessions in each match in order?
+        existingListRow.adapter[index] as Session == sessionsListRow.adapter[index] as Session
+    })
 
     private fun onEmptySeason() {
         /* Session wasn't started yet, just add the archive */
