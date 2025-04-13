@@ -152,7 +152,6 @@ class ExoPlayerPlaybackTransportControlGlue(
         super.onPlayerErrorChanged(eventTime, error)
 
         val channelActivity = activity as? ChannelPlaybackActivity
-        channelActivity?.playerError()
     }
 
     override fun onCues(eventTime: EventTime, cues: MutableList<Cue>) {
