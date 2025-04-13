@@ -1,6 +1,7 @@
 package fr.groggy.racecontrol.tv.core.credentials
 
 import com.squareup.moshi.Moshi
+import fr.groggy.racecontrol.tv.f1.F1Credentials
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.lang.Exception
@@ -23,6 +24,14 @@ class CredentialsService @Inject constructor(
     fun getToken() = f1CredentialsRepository.getToken()
 
     fun clearCredentials() = f1CredentialsRepository.delete()
+
+    suspend fun getSavedCredentials(): F1Credentials? = withContext(Dispatchers.IO) {
+        return@withContext f1CredentialsRepository.find()
+    }
+
+    suspend fun saveCredentials(credentials: F1Credentials) = withContext(Dispatchers.IO) {
+        return@withContext f1CredentialsRepository.save(credentials)
+    }
 
     fun storeToken(cookie: String?): Boolean {
         try {
