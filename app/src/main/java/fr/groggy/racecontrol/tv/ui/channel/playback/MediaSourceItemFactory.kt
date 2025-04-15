@@ -1,11 +1,11 @@
 package fr.groggy.racecontrol.tv.ui.channel.playback
 
-import android.net.Uri // Import Uri
+import android.net.Uri
 import android.util.Log
 import com.google.android.exoplayer2.C
 import com.google.android.exoplayer2.MediaItem
 import fr.groggy.racecontrol.tv.BuildConfig
-import fr.groggy.racecontrol.tv.f1.F1Client // Keep for fallback URL format
+import fr.groggy.racecontrol.tv.f1.F1Client
 import fr.groggy.racecontrol.tv.f1tv.F1TvViewing
 
 object MediaSourceItemFactory {
@@ -25,7 +25,7 @@ object MediaSourceItemFactory {
                     null // Fallback if parsing fails
                 }
             } else {
-                // Fallback: Construct URL if laURL is missing (should not happen based on logs)
+                // Fallback: Construct URL if laURL is missing
                 Log.w("MediaSourceItemFactory", "laURL missing in viewing object! Falling back to constructing license URL.")
                 try {
                     Uri.parse(
@@ -42,8 +42,8 @@ object MediaSourceItemFactory {
                 Log.i("MediaSourceItemFactory", "Configuring DRM with License URI: $licenseUri")
                 mediaItemBuilder.setDrmConfiguration(
                     MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
-                        .setLicenseUri(licenseUri) // <<< USE THE CORRECT URI
-                        .setLicenseRequestHeaders( // Ensure headers are correctly set
+                        .setLicenseUri(licenseUri)
+                        .setLicenseRequestHeaders(
                             mutableMapOf(
                                 "User-Agent" to BuildConfig.DEFAULT_USER_AGENT,
                                 "ascendontoken" to viewing.ascendontoken,

@@ -62,5 +62,12 @@ class RaceControlTvModule {
     fun httpDataSourceFactory(okHttpClient: OkHttpClient): HttpDataSource.Factory {
         return OkHttpDataSource.Factory(okHttpClient)
             .setUserAgent(BuildConfig.DEFAULT_USER_AGENT)
+            .setDefaultRequestProperties(
+                mapOf(
+                    "Origin" to "https://f1tv.formula1.com",
+                    "Referer" to "https://f1tv.formula1.com/"
+                    // Cookies are handled by OkHttp's CookieJar
+                )
+            )
     }
 }

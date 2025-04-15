@@ -32,7 +32,7 @@ class SeasonService @Inject constructor(
     }
 
     fun listArchive(): List<Archive> {
-        Log.d(TAG, "listSeasons")
+//        Log.d(TAG, "listSeasons")
         val currentYear = Year.now().value
         val archive = mutableListOf<Archive>()
         for (year in currentYear downTo F1_ARCHIVE_START_YEAR) {
@@ -42,7 +42,7 @@ class SeasonService @Inject constructor(
     }
 
     suspend fun loadSeason(archive: Archive) = withContext(Dispatchers.IO) {
-        Log.d(TAG, "loadSeason ${archive.year}")
+//        Log.d(TAG, "loadSeason ${archive.year}")
         val season = f1Tv.getSeason(archive)
         seasonRepository.save(season)
         sessionService.loadSessionsWithImages(season)
@@ -50,7 +50,7 @@ class SeasonService @Inject constructor(
 
     suspend fun season(archive: Archive): Flow<Season> =
         seasonRepository.observe(archive)
-            .onEach { Log.d(TAG, "Season changed") }
+//            .onEach { Log.d(TAG, "Season changed") }
             .filterNotNull()
             .flatMapLatest { season -> events(season.events)
                 .map { events -> Season(
@@ -59,11 +59,11 @@ class SeasonService @Inject constructor(
                 ) }
             }
             .distinctUntilChanged()
-            .onEach { Log.d(TAG, "VM season changed") }
+//            .onEach { Log.d(TAG, "VM season changed") }
 
     private fun events(ids: List<F1TvSeasonEvent>): Flow<List<Event>> =
         eventRepository.observe(ids)
-            .onEach { Log.d(TAG, "Events changed") }
+//            .onEach { Log.d(TAG, "Events changed") }
             .flatMapLatest { events -> events
                 .sortedByDescending { it.period.start }
                 .traverse { event -> sessions(listOf(event.id))
@@ -75,11 +75,11 @@ class SeasonService @Inject constructor(
                 }
             }
             .distinctUntilChanged()
-            .onEach { Log.d(TAG, "VM events changed") }
+//            .onEach { Log.d(TAG, "VM events changed") }
 
     private fun sessions(ids: List<F1TvEventId>): Flow<List<Session>> =
         sessionRepository.observe(ids)
-            .onEach { Log.d(TAG, "Sessions changed") }
+//            .onEach { Log.d(TAG, "Sessions changed") }
             .flatMapLatest { sessions -> sessions
                 .filter { it.available && it.channels.isNotEmpty() }
                 .sortedByDescending { it.period.start }
@@ -96,7 +96,7 @@ class SeasonService @Inject constructor(
                 }
             }
             .distinctUntilChanged()
-            .onEach { Log.d(TAG, "VM sessions changed") }
+//            .onEach { Log.d(TAG, "VM sessions changed") }
 
     private fun thumbnail(session: F1TvSession): Flow<Image> {
         return flowOf(
