@@ -3,6 +3,7 @@ plugins {
     kotlin("android")
     kotlin("kapt")
     id("dagger.hilt.android.plugin")
+    id("kotlin-parcelize")
 }
 
 android {
@@ -12,11 +13,13 @@ android {
     defaultConfig {
         applicationId = "com.github.leonardoxh.f1"
         minSdkVersion(21)
+        //noinspection ExpiredTargetSdkVersion
         targetSdkVersion(31)
-        versionCode = 43
-        versionName = "2.7.0"
+        versionCode = 44
+        versionName = "2.8.0"
 
-        buildConfigField("String", "DEFAULT_USER_AGENT", "\"RaceControl f1viewer\"")
+    //  buildConfigField("String", "DEFAULT_USER_AGENT", "\"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36\"")
+        buildConfigField("String", "DEFAULT_USER_AGENT", "\"Mozilla/5.0 (Apple TV; CPU OS 9_0 like Mac OS X) AppleWebKit/601.1.46 (KHTML, like Gecko) Mobile/13T534YI\"")
     }
 
     signingConfigs {
@@ -96,9 +99,12 @@ dependencies {
     kapt("com.github.bumptech.glide:compiler:$glideVersion")
 
     val exoplayerVersion = "2.17.1"
-    implementation("com.google.android.exoplayer:exoplayer:$exoplayerVersion")
-    implementation("com.google.android.exoplayer:extension-leanback:$exoplayerVersion")
+    implementation("com.google.android.exoplayer:exoplayer-core:$exoplayerVersion")
+    implementation("com.google.android.exoplayer:exoplayer-dash:$exoplayerVersion")
+    implementation("com.google.android.exoplayer:exoplayer-hls:$exoplayerVersion")
+    implementation("com.google.android.exoplayer:exoplayer-ui:$exoplayerVersion")
     implementation("com.google.android.exoplayer:extension-okhttp:$exoplayerVersion")
+    implementation("com.google.android.exoplayer:extension-leanback:$exoplayerVersion")
 
     val roomVersion = "2.2.5"
     implementation("androidx.room:room-runtime:$roomVersion")
@@ -107,6 +113,12 @@ dependencies {
 
     implementation("com.google.android.material:material:1.4.0")
     implementation("com.jakewharton.threetenabp:threetenabp:1.4.0")
+
+    implementation("com.google.code.gson:gson:2.10.1")
+
+    implementation("com.squareup.okhttp3:okhttp:4.9.3") // Use a recent OkHttp version
+    implementation("com.squareup.okhttp3:logging-interceptor:4.9.3") // For HttpLoggingInterceptor
+
 }
 
 kapt {
