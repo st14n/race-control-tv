@@ -19,14 +19,14 @@ class SessionService @Inject constructor(
     }
 
     suspend fun loadSessionsWithImages(season: F1TvSeason) {
-        Log.d(TAG, "loadSessionsWithImages")
+//        Log.d(TAG, "loadSessionsWithImages")
 
         val sessions = season.events.map { f1Tv.getSessions(it, season) }.flatten()
         repository.save(sessions)
     }
 
     suspend fun loadChannels(contentId: String) {
-        Log.d(TAG, "loadSessionWithImagesAndChannels")
+//        Log.d(TAG, "loadSessionWithImagesAndChannels")
         channelService.loadChannelsWithDrivers(contentId)
     }
 

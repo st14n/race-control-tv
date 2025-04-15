@@ -210,7 +210,7 @@ class F1TvClient @Inject constructor(
         return try {
             OffsetDateTime.parse(date).toInstant()
         } catch (e: Exception) {
-            Log.d(TAG, "Unable to parse date ${e.message}")
+//            Log.d(TAG, "Unable to parse date ${e.message}")
             archiveSortInstant //Less than ideal but at least we can see something
         }
     }
