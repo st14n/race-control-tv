@@ -1,5 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory android:title="@string/settings_category_account_title">
+
+        <EditTextPreference
+            android:key="f1_username"
+            android:title="@string/settings_f1_username_title"
+            android:inputType="textEmailAddress"
+            app:useSimpleSummaryProvider="true" />
+
+        <EditTextPreference
+            android:key="f1_password"
+            android:title="@string/settings_f1_password_title"
+            android:inputType="textPassword"
+            android:summary="●●●●●●●●" />
+
+    </PreferenceCategory>
 
     <PreferenceCategory android:title="@string/settings_category_player_title">
 
@@ -19,6 +36,29 @@
             android:summary="@string/settings_display_thumbnails_enabled_summary"
             android:defaultValue="true" />
 
+        <ListPreference
+            android:key="audio_offset_ms"
+            android:title="@string/settings_audio_offset_ms_title"
+            android:summary="%s"
+            android:entries="@array/audio_offset_entries"
+            android:entryValues="@array/audio_offset_values"
+            android:defaultValue="0" />
+
+        <ListPreference
+            android:key="custom_radio_delay_ms"
+            android:title="@string/settings_custom_radio_delay_title"
+            android:summary="%s"
+            android:entries="@array/custom_radio_delay_entries"
+            android:entryValues="@array/custom_radio_delay_values"
+            android:defaultValue="20000" />
+
+        <EditTextPreference
+            android:key="custom_radio_url"
+            android:title="@string/settings_custom_radio_url_title"
+            android:summary="@string/settings_custom_radio_url_summary"
+            android:inputType="textUri"
+            app:useSimpleSummaryProvider="true" />
+
         <Preference
             android:key="reset_settings"
             android:title="@string/settings_reset_to_default_title"/>
@@ -26,6 +66,14 @@
     </PreferenceCategory>
 
     <PreferenceCategory android:title="@string/settings_category_other_title">
+
+        <ListPreference
+            android:key="app_locale"
+            android:title="@string/settings_app_locale_title"
+            android:summary="%s"
+            android:entries="@array/app_locale_entries"
+            android:entryValues="@array/app_locale_values"
+            android:defaultValue="system" />
 
         <Preference
             android:key="donations"

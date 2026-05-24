@@ -19,3 +19,17 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# LibVLC — native JNI code calls back into these Java classes by name; R8 must not rename them
+-keep class org.videolan.libvlc.** { *; }
+
+# Glide OkHttp integration — R8 strips the no-arg constructor otherwise
+-keep public class * implements com.bumptech.glide.module.GlideModule
+-keep class com.bumptech.glide.integration.okhttp3.OkHttpGlideModule { <init>(); }
+
+# Glide generated API
+-keep public class * extends com.bumptech.glide.AppGlideModule
+-keep public enum com.bumptech.glide.load.ImageHeaderParser$** {
+  **[] $VALUES;
+  public *;
+}

@@ -80,13 +80,14 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
 
             if (existingListRow == null) {
                 homeEntriesAdapter.add(sessionsListRow)
-                homeEntriesAdapter.add(archivesRow)
+                ensureArchiveRowPresent()
             } else {
 
                 /* Compare the old list to the new to see if it needs updating */
                 if (!hasMatchingSessions(existingListRow, sessionsListRow)) {
                     homeEntriesAdapter.replace(0, sessionsListRow)
                 }
+                ensureArchiveRowPresent()
             }
         } else {
             onEmptySeason()
@@ -97,13 +98,22 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
         existingListRow: ListRow,
         sessionsListRow: ListRow
     ) = (existingListRow.adapter.size() == sessionsListRow.adapter.size() // Do we have the same number of items
-            || (0 until existingListRow.adapter.size()).all { index -> // If so, do the sessions in each match in order?
+            && (0 until existingListRow.adapter.size()).all { index -> // If so, do the sessions in each match in order?
         existingListRow.adapter[index] as Session == sessionsListRow.adapter[index] as Session
     })
 
     private fun onEmptySeason() {
         /* Session wasn't started yet, just add the archive */
-        homeEntriesAdapter.add(archivesRow)
+        ensureArchiveRowPresent()
+    }
+
+    private fun ensureArchiveRowPresent() {
+        val archive = archivesRow ?: return
+        val hasArchiveRow = homeEntriesAdapter.unmodifiableList<ListRow>()
+            .any { it.headerItem.name == archive.headerItem.name }
+        if (!hasArchiveRow) {
+            homeEntriesAdapter.add(archive)
+        }
     }
 
     private fun getLastSessionsRow(
@@ -166,6 +176,6 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
             }
             else -> null
         }
-        startActivity(activity)
+        activity?.let { startActivity(it) }
     }
 }

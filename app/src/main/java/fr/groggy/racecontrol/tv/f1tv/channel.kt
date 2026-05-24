@@ -30,29 +30,32 @@ data class F1TvChannelAdditionalStream(
     val driverLastName: String?,
     val racingNumber: Int?,
     val default: Boolean,
-    val driverImg: String?, //For some reason this is always empty
+    val driverImg: String?,
     val playbackUrl: String,
     val channelId: String,
     val teamName: String?,
     val hex: String?,
-    val type: String
+    val type: String,
+    // 'PRES' = main presentation/commentary, 'WIF' = world interface feed,
+    // 'TRACKER' = timing, 'DATA' = data, 'OBC' = onboard camera
+    val identifier: String? = null
 )
 
 class F1TvChannelId(val value: String)
 
 sealed class F1TvBasicChannelType {
-    companion object {
-        object F1Live : F1TvBasicChannelType()
-        object Wif : F1TvBasicChannelType()
-        object PitLane : F1TvBasicChannelType()
-        object Tracker : F1TvBasicChannelType()
-        object Data : F1TvBasicChannelType()
-        data class Unknown(val type: String, val name: String) : F1TvBasicChannelType()
+    object F1Live : F1TvBasicChannelType()
+    object Wif : F1TvBasicChannelType()
+    object PitLane : F1TvBasicChannelType()
+    object Tracker : F1TvBasicChannelType()
+    object Data : F1TvBasicChannelType()
+    data class Unknown(val type: String, val name: String) : F1TvBasicChannelType()
 
+    companion object {
         fun from(type: String, name: String): F1TvBasicChannelType =
             when(type) {
                 "wif" -> Wif
-                "additional" -> when(name.toLowerCase(Locale.ROOT)) {
+                "additional" -> when(name.lowercase()) {
                     "f1live" -> F1Live
                     "pit lane" -> PitLane
                     "tracker" -> Tracker

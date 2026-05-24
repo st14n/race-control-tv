@@ -4,9 +4,9 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log // Import Log
+import android.util.Log
 import androidx.annotation.StringRes
-import androidx.appcompat.app.AlertDialog // Ensure AppCompat AlertDialog
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.commit
 import androidx.lifecycle.lifecycleScope
@@ -15,6 +15,9 @@ import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.core.ViewingService
 import fr.groggy.racecontrol.tv.core.settings.Settings
 import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
+import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannel
+import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType
+import fr.groggy.racecontrol.tv.f1tv.F1TvClient
 import fr.groggy.racecontrol.tv.f1tv.F1TvViewing
 import fr.groggy.racecontrol.tv.ui.player.ChannelSelectionDialog
 import fr.groggy.racecontrol.tv.ui.session.browse.Channel
@@ -28,9 +31,7 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
 
     @Inject internal lateinit var viewingService: ViewingService
     @Inject internal lateinit var settingsRepository: SettingsRepository
-    // Injections kept for potential future use
-    // @Inject internal lateinit var okHttpClient: OkHttpClient
-    // @Inject internal lateinit var moshi: Moshi
+    @Inject internal lateinit var f1TvClient: F1TvClient
 
     companion object {
         private val TAG = ChannelPlaybackActivity::class.simpleName
@@ -47,9 +48,8 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        lifecycleScope.launchWhenCreated {
-            // We request HLS but the F1Client/API might return DASH now
-            attachViewingIfNeeded(Settings.StreamType.HLS)
+        lifecycleScope.launch {
+            attachViewingIfNeeded(Settings.StreamType.DASH)
         }
     }
 
@@ -60,32 +60,89 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
     }
 
     private suspend fun attachViewingIfNeeded(streamType: Settings.StreamType) {
-        // Check if fragment exists *before* fetching data to avoid duplicates on config change/retry
-        if (supportFragmentManager.findFragmentByTag(ChannelPlaybackFragment.TAG) == null) {
-            val contentId = ChannelPlaybackFragment.findContentId(this) ?: return finish()
-            val channelId = ChannelPlaybackFragment.findChannelId(this)
-            Log.d(TAG, "Attempting to get viewing for contentId: $contentId, channelId: $channelId")
-            try {
-                // Fetch viewing details (hoping for direct playable URL)
-                val viewing = viewingService.getViewing(channelId, contentId, streamType)
-                Log.i(TAG, "Viewing details received: URL=${viewing.url}, Type=${viewing.streamType}")
-
-                // Proceed with the received viewing object
-                onViewingCreated(viewing) // Pass the whole viewing object
-
-            } catch (e: ViewingService.TokenExpiredException) {
-                Log.e(TAG, "Token expired while getting viewing", e)
-                handleError(R.string.unable_to_play_video_session_expired) {
-                    startActivity(SignInActivity.intentClearTask(this))
-                    finish()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error getting viewing details", e)
-                handleError(R.string.unable_to_play_video_message, ::finish)
-            }
-        } else {
-            Log.d(TAG, "Playback fragment already exists, skipping viewing fetch.")
+        if (supportFragmentManager.findFragmentByTag(ChannelPlaybackFragment.TAG) != null) {
+            Log.d(TAG, "Playback fragment already exists — skipping fetch")
+            return
         }
+        val contentId = ChannelPlaybackFragment.findContentId(this) ?: return finish()
+        val channelId = resolvePreferredChannelId(
+            contentId = contentId,
+            requestedChannelId = ChannelPlaybackFragment.findChannelId(this)
+        )
+        Log.d(TAG, "Fetching viewing for contentId=$contentId channelId=$channelId")
+        try {
+            var viewing = viewingService.getViewing(channelId, contentId, streamType)
+            Log.i(TAG, "Main viewing: url=${viewing.url} type=${viewing.streamType}")
+
+            // Fetch PRES / F1Live channel for external audio if the user wants it
+            // and they are not already watching the PRES channel itself
+            val settings = settingsRepository.getCurrent()
+            if (settings.useExternalAudio) {
+                viewing = tryAttachExternalAudio(viewing, contentId, channelId, streamType)
+            }
+
+            onViewingCreated(viewing)
+        } catch (e: ViewingService.TokenExpiredException) {
+            Log.e(TAG, "Token expired", e)
+            handleError(R.string.unable_to_play_video_session_expired) {
+                startActivity(SignInActivity.intentClearTask(this))
+                finish()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching viewing", e)
+            handleError(R.string.unable_to_play_video_message, ::finish)
+        }
+    }
+
+    private suspend fun resolvePreferredChannelId(contentId: String, requestedChannelId: String?): String? {
+        if (requestedChannelId != null) {
+            return requestedChannelId
+        }
+        return runCatching {
+            f1TvClient.getChannels(contentId)
+                .filterIsInstance<F1TvBasicChannel>()
+                .firstOrNull { it.type == F1TvBasicChannelType.Wif }
+                ?.channelId
+        }.onFailure {
+            Log.w(TAG, "Failed to resolve preferred International channel: ${it.message}")
+        }.getOrNull()
+    }
+
+    /**
+     * Non-fatal: attempts to find the PRES/F1Live channel and populate [F1TvViewing]
+     * with external audio info. Returns the original [viewing] unchanged on any failure.
+     */
+    private suspend fun tryAttachExternalAudio(
+        viewing: F1TvViewing,
+        contentId: String,
+        currentChannelId: String?,
+        streamType: Settings.StreamType
+    ): F1TvViewing = try {
+        val channels = f1TvClient.getChannels(contentId)
+        val presChannel = channels
+            .filterIsInstance<F1TvBasicChannel>()
+            .firstOrNull { it.type == F1TvBasicChannelType.F1Live }
+        if (presChannel == null) {
+            Log.d(TAG, "No PRES/F1Live channel found for contentId=$contentId")
+            return viewing
+        }
+        if (presChannel.channelId == currentChannelId) {
+            Log.d(TAG, "Already watching PRES channel — skipping external audio")
+            return viewing
+        }
+        Log.i(TAG, "Fetching PRES audio from channelId=${presChannel.channelId}")
+        val presViewing = viewingService.getViewing(presChannel.channelId, presChannel.contentId, streamType)
+        viewing.copy(
+            externalAudioUri = presViewing.url,
+            externalAudioStreamType = presViewing.streamType,
+            externalAudioLaURL = presViewing.laURL,
+            externalAudioEntitlementtoken = presViewing.entitlementtoken,
+            externalAudioContentId = presViewing.contentId,
+            externalAudioChannelId = presViewing.channelId
+        )
+    } catch (e: Exception) {
+        Log.w(TAG, "Failed to fetch PRES audio (non-fatal): ${e.message}")
+        viewing
     }
 
     // Removed streamType parameter, accept the full viewing object
@@ -174,7 +231,7 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
                         Log.d(TAG, "Retrying attachViewingIfNeeded after player error.")
                         // Delay slightly before retry?
                         // kotlinx.coroutines.delay(1000)
-                        attachViewingIfNeeded(Settings.StreamType.HLS) // Or try DASH?
+                        attachViewingIfNeeded(Settings.StreamType.DASH)
                     }
                 }
             }
@@ -182,7 +239,7 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
             // Fragment already gone, maybe retry directly?
             lifecycleScope.launch {
                  Log.d(TAG, "Retrying attachViewingIfNeeded after player error (no fragment found).")
-                attachViewingIfNeeded(Settings.StreamType.HLS)
+                attachViewingIfNeeded(Settings.StreamType.DASH)
             }
         } else {
              Log.w(TAG, "Not retrying player error: fragment=$fragment, isFinishing=$isFinishing, isDestroyed=$isDestroyed")

@@ -22,10 +22,13 @@ class MainActivity : FragmentActivity() {
 
     private fun startHomeActivity() {
         lifecycleScope.launchWhenStarted {
-            val intent = if (credentialsService.hasValidF1Credentials()) {
-                HomeActivity.intent(this@MainActivity)
-            } else {
-                SignInActivity.intent(this@MainActivity)
+            val intent = when {
+                !credentialsService.hasValidF1Credentials() ->
+                    SignInActivity.intent(this@MainActivity)
+                credentialsService.shouldReLogin() ->
+                    SignInActivity.intentSilentReAuth(this@MainActivity)
+                else ->
+                    HomeActivity.intent(this@MainActivity)
             }
             startActivity(intent)
             finish()

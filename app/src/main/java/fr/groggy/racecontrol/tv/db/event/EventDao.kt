@@ -2,14 +2,14 @@ package fr.groggy.racecontrol.tv.db.event
 
 import androidx.room.Dao
 import androidx.room.Insert
-import androidx.room.OnConflictStrategy.REPLACE
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface EventDao {
 
-    @Insert(onConflict = REPLACE)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(events: List<EventEntity>)
 
     @Query("SELECT * FROM events WHERE id IN (:ids)")

@@ -15,4 +15,8 @@ interface F1CredentialsRepository {
 
     fun delete()
 
+    fun saveLastLoginTimestamp(timestampMs: Long)
+
+    fun getLastLoginTimestamp(): Long
+
 }
