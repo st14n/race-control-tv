@@ -10,12 +10,12 @@ import androidx.leanback.widget.ImageCardView.CARD_TYPE_FLAG_TITLE
 import androidx.leanback.widget.Presenter
 import com.bumptech.glide.Glide
 import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType
-import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Companion.Data
-import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Companion.F1Live
-import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Companion.PitLane
-import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Companion.Tracker
-import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Companion.Unknown
-import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Companion.Wif
+import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Data
+import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.F1Live
+import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.PitLane
+import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Tracker
+import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Unknown
+import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Wif
 
 class ChannelCardPresenter: Presenter() {
 

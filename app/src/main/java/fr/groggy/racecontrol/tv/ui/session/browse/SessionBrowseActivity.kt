@@ -49,9 +49,15 @@ class SessionBrowseActivity : FragmentActivity() {
                     finish()
                 }
                 is MultiChannelsSession -> {
-                    supportFragmentManager.beginTransaction()
-                        .replace(R.id.fragment_container, SessionGridFragment::class.java, null)
-                        .commit()
+                    Log.d("SessionBrowseActivity", "Skipping channel selection and opening playback directly")
+                    val intent = ChannelPlaybackActivity.intent(
+                        this@SessionBrowseActivity,
+                        sessionId,
+                        null,
+                        session.contentId
+                    )
+                    startActivity(intent)
+                    finish()
                 }
             }
         }

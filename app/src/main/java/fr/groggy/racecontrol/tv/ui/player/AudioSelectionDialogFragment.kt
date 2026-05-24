@@ -4,43 +4,50 @@ import android.app.AlertDialog
 import android.app.Dialog
 import android.os.Bundle
 import androidx.fragment.app.DialogFragment
-import com.google.android.exoplayer2.Format
-import com.google.android.exoplayer2.source.TrackGroupArray
+import androidx.media3.common.Format
+import androidx.media3.common.Tracks
 import fr.groggy.racecontrol.tv.R
 
 class AudioSelectionDialogFragment(
-    trackGroups: TrackGroupArray
+    private val audioGroups: List<Tracks.Group>
 ) : DialogFragment() {
 
     private var onAudioLanguageSelectedListener: ((String?) -> Unit)? = null
+    private var onGrandPrixRadioSelectedListener: (() -> Unit)? = null
 
-    private val formats by lazy {
-        val formats = mutableListOf<Format>()
-        for (i in 0 until trackGroups.length) {
-            val trackGroup = trackGroups[i]
-            for (j in 0 until trackGroup.length) {
-                formats.add(trackGroup.getFormat(j))
-            }
+    private val formats: List<Format> by lazy {
+        audioGroups.flatMap { group ->
+            (0 until group.length).map { group.getTrackFormat(it) }
         }
-        formats.toList()
     }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        val items = formats.map { it.label }.toTypedArray()
+        val items = buildList {
+            add(getString(R.string.custom_radio_audio_label))
+            addAll(formats.map { it.label ?: it.language ?: "Audio" })
+        }.toTypedArray()
 
         return AlertDialog.Builder(requireContext())
             .setTitle(R.string.audio_selection_dialog_title)
-            .setItems(items) { _, i -> selectAudio(i) }
+            .setItems(items) { _, i -> onItemSelected(i) }
+            .setNeutralButton(R.string.audio_selection_close, null)
             .create()
     }
 
-    private fun selectAudio(index: Int) {
-        val format = formats[index]
-        onAudioLanguageSelectedListener?.let { it(format.language) }
+    private fun onItemSelected(index: Int) {
+        when {
+            index == 0 -> onGrandPrixRadioSelectedListener?.invoke()
+            index - 1 in formats.indices -> onAudioLanguageSelectedListener?.invoke(formats[index - 1].language)
+        }
     }
 
-    fun onAudioLanguageSelected(listener: (String?) -> Unit) {
+    fun onAudioLanguageSelected(listener: (String?) -> Unit): AudioSelectionDialogFragment {
         onAudioLanguageSelectedListener = listener
+        return this
     }
 
+    fun onGrandPrixRadioSelected(listener: () -> Unit): AudioSelectionDialogFragment {
+        onGrandPrixRadioSelectedListener = listener
+        return this
+    }
 }

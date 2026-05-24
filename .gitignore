@@ -30,3 +30,4 @@ output.json
 # Sensitive data
 *.jks
 *.pem
+.env

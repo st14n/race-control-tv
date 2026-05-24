@@ -1,12 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical">
+    android:layout_height="match_parent">
 
     <WebView
         android:id="@+id/login_webview"
         android:layout_width="match_parent"
         android:layout_height="match_parent"/>
 
-</LinearLayout>
+    <!-- Shown only during silent background re-authentication (WebView is INVISIBLE) -->
+    <TextView
+        android:id="@+id/reauth_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:text="@string/reauth_message"
+        android:textColor="@android:color/white"
+        android:textSize="24sp"
+        android:background="@android:color/black"
+        android:visibility="gone"/>
+
+</FrameLayout>

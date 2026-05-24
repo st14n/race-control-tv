@@ -2,63 +2,107 @@ package fr.groggy.racecontrol.tv.ui.channel.playback
 
 import android.net.Uri
 import android.util.Log
-import com.google.android.exoplayer2.C
-import com.google.android.exoplayer2.MediaItem
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
 import fr.groggy.racecontrol.tv.BuildConfig
 import fr.groggy.racecontrol.tv.f1.F1Client
 import fr.groggy.racecontrol.tv.f1tv.F1TvViewing
 
 object MediaSourceItemFactory {
-    fun newMediaItem(viewing: F1TvViewing): MediaItem {
-        Log.d("MediaSourceItemFactory", "Creating MediaItem for URL: ${viewing.url}")
-        val mediaItemBuilder = MediaItem.Builder().setUri(viewing.url)
 
-        // Setup DRM only if entitlement token is present
-        if (!viewing.entitlementtoken.isNullOrBlank()) {
-            // *** USE laURL FROM VIEWING OBJECT IF AVAILABLE ***
-            val licenseUri: Uri? = if (!viewing.laURL.isNullOrBlank()) {
-                try {
-                    Log.i("MediaSourceItemFactory", "Using specific laURL from API: ${viewing.laURL}")
-                    Uri.parse(viewing.laURL)
-                } catch (e: Exception) {
-                    Log.e("MediaSourceItemFactory", "Error parsing laURL: ${viewing.laURL}", e)
-                    null // Fallback if parsing fails
+    private const val TAG = "MediaSourceItemFactory"
+
+    /** Build a DRM-enabled [MediaItem] for the main video stream. */
+    fun newMediaItem(viewing: F1TvViewing): MediaItem {
+        Log.d(TAG, "Creating MediaItem for URL: ${viewing.url}")
+        return buildMediaItem(
+            uri = viewing.url,
+            contentId = viewing.contentId,
+            channelId = viewing.channelId,
+            laURL = viewing.laURL,
+            ascendontoken = viewing.ascendontoken,
+            entitlementtoken = viewing.entitlementtoken
+        )
+    }
+
+    /**
+     * Build a DRM-enabled [MediaItem] for the external audio (PRES/F1Live) stream.
+     * Falls back to the main viewing tokens if the audio-specific ones are absent.
+     */
+    fun newExternalAudioMediaItem(viewing: F1TvViewing): MediaItem {
+        val uri = requireNotNull(viewing.externalAudioUri) { "externalAudioUri must not be null" }
+        Log.d(TAG, "Creating external audio MediaItem for URI: $uri")
+        return buildMediaItem(
+            uri = uri,
+            contentId = viewing.externalAudioContentId ?: viewing.contentId,
+            channelId = viewing.externalAudioChannelId ?: viewing.channelId,
+            laURL = viewing.externalAudioLaURL ?: viewing.laURL,
+            ascendontoken = viewing.ascendontoken,
+            entitlementtoken = viewing.externalAudioEntitlementtoken ?: viewing.entitlementtoken
+        )
+    }
+
+    private fun buildMediaItem(
+        uri: Uri,
+        contentId: String,
+        channelId: String?,
+        laURL: String?,
+        ascendontoken: String,
+        entitlementtoken: String
+    ): MediaItem {
+        val builder = MediaItem.Builder().setUri(uri)
+
+        if (entitlementtoken.isNotBlank()) {
+            val licenseUri: Uri? = when {
+                !laURL.isNullOrBlank() -> {
+                    Log.i(TAG, "Using laURL from API: $laURL")
+                    runCatching { Uri.parse(laURL) }.onFailure {
+                        Log.e(TAG, "Failed to parse laURL: $laURL", it)
+                    }.getOrNull()
                 }
-            } else {
-                // Fallback: Construct URL if laURL is missing
-                Log.w("MediaSourceItemFactory", "laURL missing in viewing object! Falling back to constructing license URL.")
-                try {
-                    Uri.parse(
-                        F1Client.DRM_URL.format(viewing.contentId) +
-                                (if (viewing.channelId != null) "&channelId=${viewing.channelId}" else "")
-                    )
-                } catch (e: Exception) {
-                    Log.e("MediaSourceItemFactory", "Error parsing fallback license URL", e)
-                    null
+                else -> {
+                    Log.w(TAG, "laURL missing, constructing fallback DRM URL for contentId=$contentId")
+                    runCatching {
+                        Uri.parse(F1Client.buildWidevineUrl(viewingPlatform(uri, laURL), contentId, channelId))
+                    }.onFailure { Log.e(TAG, "Failed to build fallback DRM URL", it) }.getOrNull()
                 }
             }
 
             if (licenseUri != null) {
-                Log.i("MediaSourceItemFactory", "Configuring DRM with License URI: $licenseUri")
-                mediaItemBuilder.setDrmConfiguration(
+                Log.i(TAG, "Configuring Widevine DRM with license URI: $licenseUri")
+                builder.setDrmConfiguration(
                     MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
                         .setLicenseUri(licenseUri)
                         .setLicenseRequestHeaders(
-                            mutableMapOf(
+                            mapOf(
+                                "apiKey" to F1Client.API_KEY,
                                 "User-Agent" to BuildConfig.DEFAULT_USER_AGENT,
-                                "ascendontoken" to viewing.ascendontoken,
-                                "entitlementtoken" to viewing.entitlementtoken
+                                "x-f1-device-info" to BuildConfig.F1_DEVICE_INFO,
+                                "ascendontoken" to ascendontoken,
+                                "entitlementtoken" to entitlementtoken
                             )
                         )
                         .setMultiSession(true)
                         .build()
                 )
             } else {
-                Log.e("MediaSourceItemFactory", "Could not determine a valid license URL. DRM will likely fail.")
+                Log.e(TAG, "No valid license URI — DRM will fail for $uri")
             }
         } else {
-            Log.w("MediaSourceItemFactory", "Entitlement token is missing for contentId: ${viewing.contentId}. DRM cannot be configured.")
+            Log.w(TAG, "No entitlement token — DRM not configured for $uri")
         }
-        return mediaItemBuilder.build()
+
+        return builder.build()
+    }
+
+    private fun viewingPlatform(uri: Uri, laURL: String?): String {
+        if (!laURL.isNullOrBlank() && laURL.contains("WEB_DASH", ignoreCase = true)) {
+            return "WEB_DASH"
+        }
+        return if (uri.toString().contains(".mpd", ignoreCase = true)) {
+            "BIG_SCREEN_DASH"
+        } else {
+            "BIG_SCREEN_HLS"
+        }
     }
 }

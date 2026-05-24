@@ -1,7 +1,7 @@
 package fr.groggy.racecontrol.tv
 
-import com.google.android.exoplayer2.ext.okhttp.OkHttpDataSource
-import com.google.android.exoplayer2.upstream.HttpDataSource
+import androidx.media3.datasource.HttpDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import com.squareup.moshi.Moshi
 import dagger.Module
 import dagger.Provides

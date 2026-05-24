@@ -40,11 +40,33 @@
     <string name="settings_open_with_external_player_title">Open in externe speler(beta)</string>
     <string name="settings_reset_to_default_title">Instellingen terugzetten naar standaard</string>
     <string name="settings_open_with_external_player_summary">Indien AAN gebruiken we een externe speler om inhoud af te spelen in plaats van de ingebouwde speler</string>
+    <string name="settings_use_external_audio_title">Externe audio (PRES-kanaal)</string>
+    <string name="settings_use_external_audio_summary">Mix internationaal commentaar met de huidige stream (vereist herstart)</string>
+    <string name="settings_audio_offset_ms_title">Audiovertraging</string>
+    <string name="settings_custom_radio_backend_title">Custom Radio-backend</string>
+    <string name="custom_radio_audio_label">Radio</string>
+    <string name="custom_radio_sync_action">Radio sync</string>
+    <string name="custom_radio_sync_title">Radio sync [%1$s vertraagd]</string>
+    <string name="custom_radio_sync_decrease">Halve seconde vooruit</string>
+    <string name="custom_radio_sync_increase">Halve seconde vertragen</string>
+    <string name="audio_selection_close">Sluiten</string>
+    <string name="custom_radio_sync_close">Sluiten</string>
+    <string name="custom_radio_waiting_message">Radio wacht %1$s seconden voor synchronisatie.</string>
     <string name="settings_category_other_title">Andere</string>
     <string name="settings_donations_title">Donaties</string>
     <string name="settings_donations_summary">Steun het project door voor de ontwikkelaar een biertje te kopen</string>
     <string name="settings_logout_title">Log uit</string>
     <string name="donations_explanation_summary">Scan de onderstaande QR-code met je telefoon, je wordt doorgestuurd naar de BuyMeACoffee-pagina waar je kunt doneren</string>
 
-    <string name="channel_selection_switch_channel">Switch channel</string>
+    <string name="channel_selection_switch_channel">Kanaal wisselen</string>
+
+    <string name="reauth_message">Opnieuw inloggen...</string>
+
+    <string name="settings_category_account_title">Account</string>
+    <string name="settings_f1_username_title">F1TV e-mailadres</string>
+    <string name="settings_f1_password_title">F1TV wachtwoord</string>
+    <string name="settings_custom_radio_delay_title">Radio synchronisatievertraging</string>
+    <string name="settings_custom_radio_url_title">Aangepaste radio URL</string>
+    <string name="settings_custom_radio_url_summary">Laat leeg om de standaardstreams te gebruiken</string>
+    <string name="settings_app_locale_title">App-taal</string>
 </resources>

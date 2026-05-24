@@ -119,10 +119,13 @@ import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
+import fr.groggy.racecontrol.tv.BuildConfig
 import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.core.credentials.CredentialsService
+import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
 import fr.groggy.racecontrol.tv.f1.F1Credentials // Ensure this is imported
 import fr.groggy.racecontrol.tv.ui.home.HomeActivity
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -131,19 +134,29 @@ class SignInActivity : ComponentActivity() {
 
     companion object {
         private val TAG = SignInActivity::class.simpleName
-        // Define the login URL constant for easy comparison
         private const val F1_LOGIN_URL = "https://account.formula1.com/#/en/login"
+        private const val EXTRA_SILENT_REAUTH = "silent_reauth"
 
         fun intent(context: Context) = Intent(context, SignInActivity::class.java)
 
         fun intentClearTask(context: Context) = intent(context).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
+
+        /** Triggered when the token is still valid but 6 hours have elapsed — re-authenticates
+         *  silently using a hidden WebView so the user stays on the home screen. */
+        fun intentSilentReAuth(context: Context) = intent(context).apply {
+            putExtra(EXTRA_SILENT_REAUTH, true)
+        }
     }
 
     @Inject lateinit var credentialsService: CredentialsService
+    @Inject lateinit var settingsRepository: SettingsRepository
 
     private val loginWebView: WebView by lazy { findViewById(R.id.login_webview) }
+    private val reauthOverlay: android.widget.TextView by lazy { findViewById(R.id.reauth_overlay) }
+
+    private var isSilentReAuth = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Log.d(TAG, "onCreate")
@@ -151,20 +164,24 @@ class SignInActivity : ComponentActivity() {
         setContentView(R.layout.activity_signin)
         window.setSoftInputMode(SOFT_INPUT_STATE_VISIBLE or SOFT_INPUT_ADJUST_PAN)
 
-        // Modified: Always go through the login process via WebView
-        alwaysLoadWebViewForLogin()
-    }
-
-    // Renamed function for clarity
-    private fun alwaysLoadWebViewForLogin() {
-        lifecycleScope.launch {
-            // Always setup the WebView, bypassing the hasValidF1Credentials check
-            Log.d(TAG, "Bypassing token check, setting up WebView for forced login.")
-            setupWebView()
+        isSilentReAuth = intent.getBooleanExtra(EXTRA_SILENT_REAUTH, false)
+        if (isSilentReAuth) {
+            // Hide the WebView; show a quiet overlay so the user sees a brief refresh screen
+            loginWebView.visibility = android.view.View.INVISIBLE
+            reauthOverlay.visibility = android.view.View.VISIBLE
+            Log.d(TAG, "Silent re-auth mode: WebView hidden.")
+            // Safety net: if auth doesn't complete within 30 s, navigate home anyway
+            lifecycleScope.launch {
+                delay(30_000)
+                if (!isFinishing) {
+                    Log.w(TAG, "Silent re-auth timed out — proceeding to home")
+                    navigateToHome()
+                }
+            }
         }
-    }
 
-    // Removed the old checkCredentialsAndNavigate function
+        lifecycleScope.launch { setupWebView() }
+    }
 
     private fun setupWebView() {
         Log.d(TAG, "Setting up WebView")
@@ -259,15 +276,42 @@ class SignInActivity : ComponentActivity() {
     }
 
 
-    // Keep autoFillCredentials using saved credentials
     private fun autoFillCredentials() {
         lifecycleScope.launch {
+            val settings = settingsRepository.getCurrent()
             val savedCredentials = credentialsService.getSavedCredentials()
-            if (savedCredentials != null) {
-                Log.d(TAG, "Saved credentials found for ${savedCredentials.login}. Injecting JS for auto-fill.")
+            val login: String
+            val password: String
+            when {
+                settings.f1Username.isNotEmpty() -> {
+                    login = settings.f1Username
+                    password = settings.f1Password
+                    Log.d(TAG, "Using credentials from Settings for auto-fill.")
+                }
+                savedCredentials != null -> {
+                    login = savedCredentials.login
+                    password = savedCredentials.password
+                    Log.d(TAG, "Saved credentials found for ${login}. Injecting JS for auto-fill.")
+                }
+                BuildConfig.F1_USERNAME.isNotEmpty() -> {
+                    login = BuildConfig.F1_USERNAME
+                    password = BuildConfig.F1_PASSWORD
+                    Log.d(TAG, "No saved credentials. Using build-time fallback credentials.")
+                    // Persist so subsequent launches use SharedPreferences (no need to re-read BuildConfig)
+                    credentialsService.saveCredentials(
+                        fr.groggy.racecontrol.tv.f1.F1Credentials(login = login, password = password)
+                    )
+                }
+                else -> {
+                    Log.d(TAG, "No saved credentials and no build-time credentials. Auto-fill skipped.")
+                    return@launch
+                }
+            }
+            // Always proceed with JS injection after resolving credentials above
+            Log.d(TAG, "Injecting JS for auto-fill.")
                 // Escape potential special characters in username/password for JS
-                val escapedLogin = savedCredentials.login.replace("'", "\\'")
-                val escapedPassword = savedCredentials.password.replace("'", "\\'")
+                val escapedLogin = login.replace("'", "\\'")
+                val escapedPassword = password.replace("'", "\\'")
 
                 val jsCode = """
                 javascript:(function() {
@@ -310,16 +354,17 @@ class SignInActivity : ComponentActivity() {
                 loginWebView.evaluateJavascript(jsCode) { result ->
                     Log.d(TAG, "AutoFill JS execution result: $result")
                 }
-            } else {
-                Log.d(TAG, "No saved credentials found. Auto-fill skipped.")
-                // Optional: You might want to ensure the keyboard is shown if no creds exist
-            }
         }
     }
 
     private fun navigateToHome() {
-        Log.d(TAG, "Navigating to HomeActivity")
-        startActivity(HomeActivity.intent(this))
-        finish() // Close SignInActivity
+        Log.d(TAG, "Navigating home (isSilentReAuth=$isSilentReAuth isTaskRoot=$isTaskRoot)")
+        if (isSilentReAuth && !isTaskRoot) {
+            // Something (e.g. HomeActivity) is behind us in the back stack — just go back
+            finish()
+        } else {
+            startActivity(HomeActivity.intent(this))
+            finish()
+        }
     }
 }

@@ -13,11 +13,11 @@ data class HomeItem(
     companion object {
         val diffCallback = object : DiffCallback<HomeItem>() {
             override fun areItemsTheSame(oldItem: HomeItem, newItem: HomeItem): Boolean {
-                return areContentsTheSame(oldItem, newItem)
+                return oldItem.type == newItem.type && oldItem.text == newItem.text
             }
 
             override fun areContentsTheSame(oldItem: HomeItem, newItem: HomeItem): Boolean {
-                return oldItem != newItem
+                return oldItem == newItem
             }
         }
     }

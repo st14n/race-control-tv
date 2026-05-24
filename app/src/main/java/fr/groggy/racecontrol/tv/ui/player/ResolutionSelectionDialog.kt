@@ -4,32 +4,30 @@ import android.app.AlertDialog
 import android.app.Dialog
 import android.os.Bundle
 import androidx.fragment.app.DialogFragment
-import com.google.android.exoplayer2.C
-import com.google.android.exoplayer2.Format
-import com.google.android.exoplayer2.trackselection.MappingTrackSelector
+import androidx.media3.common.C
+import androidx.media3.common.Format
+import androidx.media3.common.Tracks
 import fr.groggy.racecontrol.tv.R
 import kotlin.math.roundToInt
 
 class ResolutionSelectionDialog(
-    trackInfo: MappingTrackSelector.MappedTrackInfo
-): DialogFragment() {
+    private val tracks: Tracks
+) : DialogFragment() {
+
     private var onResolutionSelectedListener: ((Int, Int) -> Unit)? = null
 
     private val formats: List<Format> by lazy {
-        val trackGroups = trackInfo.getTrackGroups(C.TRACK_TYPE_DEFAULT)
-        val formats = mutableListOf<Format>()
-        for (i in 0 until trackGroups.length) {
-            val trackGroup = trackGroups[i]
-            for (j in 0 until trackGroup.length) {
-                if (trackInfo.getTrackSupport(C.TRACK_TYPE_DEFAULT, i, j) == C.FORMAT_HANDLED) {
-                    val format = trackGroup.getFormat(j)
-                    if (format.frameRate > 1F) {
-                        formats.add(format)
-                    }
+        tracks.groups
+            .filter { it.type == C.TRACK_TYPE_VIDEO }
+            .flatMap { group ->
+                (0 until group.length).mapNotNull { i ->
+                    if (group.isTrackSupported(i)) {
+                        val fmt = group.getTrackFormat(i)
+                        if (fmt.frameRate > 1F) fmt else null
+                    } else null
                 }
             }
-        }
-        formats
+            .distinctBy { Pair(it.height, it.frameRate.roundToInt()) }
     }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
@@ -43,8 +41,8 @@ class ResolutionSelectionDialog(
             .create()
     }
 
-    fun setResolutionSelectedListener(resolutionSelectedListener: (Int, Int) -> Unit): ResolutionSelectionDialog {
-        onResolutionSelectedListener = resolutionSelectedListener
+    fun setResolutionSelectedListener(listener: (Int, Int) -> Unit): ResolutionSelectionDialog {
+        onResolutionSelectedListener = listener
         return this
     }
 

@@ -36,8 +36,16 @@ data class F1TvViewing(
     val url: Uri,
     val contentId: String,
     val channelId: String?,
-    val ascendontoken: String, // Auth token (needed for DRM license request header)
-    val entitlementtoken: String, // Entitlement token (needed for DRM license request header)
-    val streamType: String?, // Actual stream type (e.g., "SDR_HD_DASHWV")
-    val laURL: String? // License Acquisition URL from API, for older content this can be null
+    val platform: String,
+    val ascendontoken: String,
+    val entitlementtoken: String,
+    val streamType: String?,
+    val laURL: String?,
+    // External audio (PRES/F1Live channel) for MergingMediaSource — populated by ChannelPlaybackActivity
+    val externalAudioUri: Uri? = null,
+    val externalAudioStreamType: String? = null,
+    val externalAudioLaURL: String? = null,
+    val externalAudioEntitlementtoken: String? = null,
+    val externalAudioContentId: String? = null,
+    val externalAudioChannelId: String? = null
 ) : Parcelable

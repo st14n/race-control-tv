@@ -41,6 +41,7 @@ class CredentialsService @Inject constructor(
                 val decodedToken = URLDecoder.decode(loginToken, "UTF-8") ?: return false
                 val token = cookieTokenAdapter.fromJson(decodedToken) ?: return false
                 f1CredentialsRepository.saveToken(token.data.subscriptionToken)
+                f1CredentialsRepository.saveLastLoginTimestamp(System.currentTimeMillis())
                 return true
             }
 
@@ -48,5 +49,11 @@ class CredentialsService @Inject constructor(
         } catch (e: Exception) {
             return false
         }
+    }
+
+    fun shouldReLogin(): Boolean {
+        val lastLogin = f1CredentialsRepository.getLastLoginTimestamp()
+        if (lastLogin == 0L) return true
+        return System.currentTimeMillis() - lastLogin >= fr.groggy.racecontrol.tv.BuildConfig.TOKEN_REFRESH_INTERVAL_MS
     }
 }

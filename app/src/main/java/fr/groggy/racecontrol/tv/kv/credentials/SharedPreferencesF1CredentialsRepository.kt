@@ -17,6 +17,7 @@ class SharedPreferencesF1CredentialsRepository @Inject constructor(
         private const val LOGIN_KEY = "F1_LOGIN"
         private const val PASSWORD_KEY = "F1_PASSWORD"
         private const val LOGIN_TOKEN = "LOGIN_TOKEN"
+        private const val LAST_LOGIN_TS = "LAST_LOGIN_TS"
     }
 
     override fun find(): F1Credentials? {
@@ -57,4 +58,10 @@ class SharedPreferencesF1CredentialsRepository @Inject constructor(
             //remove(PASSWORD_KEY)
             remove(LOGIN_TOKEN)
         }
+
+    override fun saveLastLoginTimestamp(timestampMs: Long) =
+        store.update { putLong(LAST_LOGIN_TS, timestampMs) }
+
+    override fun getLastLoginTimestamp(): Long =
+        store.findLong(LAST_LOGIN_TS)
 }
