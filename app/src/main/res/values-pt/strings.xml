@@ -45,6 +45,8 @@
     <string name="settings_donations_summary">Support the project by buying the developer a beer</string>
     <string name="settings_logout_title">Logout</string>
     <string name="donations_explanation_summary">Scan the QR code bellow with your phone, you will be redirected to the BuyMeACoffee page where you can donate</string>
+    <string name="custom_radio_audio_label">Radio</string>
+    <string name="custom_radio_overlay_label">%1$s / %2$ss atrasado</string>
 
     <string name="channel_selection_switch_channel">Trocar canal</string>
 </resources>

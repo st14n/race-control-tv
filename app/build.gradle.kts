@@ -46,7 +46,7 @@ android {
         minSdk = 28
         targetSdk = 36
         versionCode = 44
-        versionName = "3.0.0"
+        versionName = "3.1.0"
 
         buildConfigField(
             "String",
@@ -120,32 +120,53 @@ android {
         buildConfig = true   // required because you use buildConfigField
         resValues = true     // required because you use resValue() in buildTypes
     }
+
+    packaging {
+        resources {
+            excludes += "META-INF/native-image/**"
+            excludes += "lib/**/ffmpeg"
+            excludes += "lib/**/ffprobe"
+        }
+        jniLibs {
+            excludes += "**/ffmpeg"
+            excludes += "**/ffprobe"
+            excludes += "lib/**/ffmpeg"
+            excludes += "lib/**/ffprobe"
+        }
+    }
 }
 
+
 tasks.withType<org.gradle.api.tasks.compile.JavaCompile>().configureEach {
-    // Annotation processing for this module is handled by KSP.
-    if ("-proc:none" !in options.compilerArgs) {
-        options.compilerArgs.add("-proc:none")
+    if (name.startsWith("hiltJavaCompile")) {
+        val proj = project // capture at configuration time — avoids Task.project at execution time
+        doFirst {
+            val filteredProcessorPath = options.annotationProcessorPath
+                ?.files
+                .orEmpty()
+                .filterNot { it.name.startsWith("moshi-kotlin-codegen") }
+            options.annotationProcessorPath = proj.files(filteredProcessorPath)
+        }
     }
 }
 
 dependencies {
-    val kotlinCoroutinesVersion = "1.10.1"
+    val kotlinCoroutinesVersion = "1.10.2"
     implementation(kotlin("stdlib"))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlinCoroutinesVersion")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:$kotlinCoroutinesVersion")
 
-    implementation("androidx.core:core-ktx:1.15.0")
-    implementation("androidx.fragment:fragment-ktx:1.8.6")
+    implementation("androidx.core:core-ktx:1.18.0")
+    implementation("androidx.fragment:fragment-ktx:1.8.9")
     val leanbackVersion = "1.2.0"
     implementation("androidx.leanback:leanback:$leanbackVersion")
     implementation("androidx.leanback:leanback-preference:$leanbackVersion")
-    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.9.0")
+    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.10.0")
 
     val hiltVersion = "2.59.2"
     implementation("com.google.dagger:hilt-android:$hiltVersion")
     ksp("com.google.dagger:hilt-android-compiler:$hiltVersion")
-    ksp("androidx.hilt:hilt-compiler:1.2.0")
+    ksp("androidx.hilt:hilt-compiler:1.3.0")
 
     val okHttpVersion = "4.12.0"
     implementation("com.squareup.okhttp3:okhttp:$okHttpVersion")
@@ -173,14 +194,24 @@ dependencies {
     implementation("androidx.media3:media3-datasource-okhttp:$media3Version")
     implementation("androidx.media3:media3-ui-leanback:$media3Version")
     implementation("org.videolan.android:libvlc-all:3.6.2")
+    implementation("org.bytedeco:javacv:1.5.8")
+    implementation("org.bytedeco:ffmpeg:5.1.2-1.5.8")
+    implementation("org.bytedeco:ffmpeg:5.1.2-1.5.8:android-arm")
+    implementation("org.bytedeco:ffmpeg:5.1.2-1.5.8:android-arm64")
+    implementation("org.bytedeco:javacpp:1.5.8")
+    implementation("org.bytedeco:javacpp:1.5.8:android-arm")
+    implementation("org.bytedeco:javacpp:1.5.8:android-arm64")
+    implementation("org.slf4j:slf4j-nop:1.7.36")
+    debugImplementation("org.bytedeco:ffmpeg:5.1.2-1.5.8:android-x86_64")
+    debugImplementation("org.bytedeco:javacpp:1.5.8:android-x86_64")
 
-    val roomVersion = "2.7.0"
+    val roomVersion = "2.8.4"
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
 
     implementation("com.google.android.material:material:1.12.0")
-    implementation("com.jakewharton.threetenabp:threetenabp:1.4.7")
-    implementation("com.google.code.gson:gson:2.11.0")
+    implementation("com.jakewharton.threetenabp:threetenabp:1.4.9")
+    implementation("com.google.code.gson:gson:2.14.0")
 }
 

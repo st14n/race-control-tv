@@ -2,7 +2,10 @@ package fr.groggy.racecontrol.tv.ui
 
 import android.os.Bundle
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.core.credentials.CredentialsService
@@ -21,17 +24,19 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun startHomeActivity() {
-        lifecycleScope.launchWhenStarted {
-            val intent = when {
-                !credentialsService.hasValidF1Credentials() ->
-                    SignInActivity.intent(this@MainActivity)
-                credentialsService.shouldReLogin() ->
-                    SignInActivity.intentSilentReAuth(this@MainActivity)
-                else ->
-                    HomeActivity.intent(this@MainActivity)
+        lifecycleScope.launch {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                val intent = when {
+                    !credentialsService.hasValidF1Credentials() ->
+                        SignInActivity.intent(this@MainActivity)
+                    credentialsService.shouldReLogin() ->
+                        SignInActivity.intentSilentReAuth(this@MainActivity)
+                    else ->
+                        HomeActivity.intent(this@MainActivity)
+                }
+                startActivity(intent)
+                finish()
             }
-            startActivity(intent)
-            finish()
         }
     }
 }

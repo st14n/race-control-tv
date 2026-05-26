@@ -160,11 +160,12 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                 onAudioTrackSelected = ::stopCustomRadio,
                 isCustomRadioActive = { customRadioInjected },
                 currentAudioLabelOverride = {
-                    if (customRadioInjected) getString(R.string.custom_radio_audio_label) else null
+                    if (customRadioInjected) customRadioOverlayLabel() else null
                 },
                 onCustomRadioOffsetAdjust = { deltaMs ->
                     setCustomRadioOffset(customRadioOffsetMs + deltaMs)
-                }
+                },
+                onControlsInteraction = ::resetOverlayAutoCloseTimer
             )
             playbackGlue = glue
             glue.host = VideoSupportFragmentGlueHost(this)
@@ -286,10 +287,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
 
     override fun showControlsOverlay(runAnimation: Boolean) {
         super.showControlsOverlay(runAnimation)
-        view?.post {
-            view?.findViewById<android.view.View>(androidx.leanback.R.id.lb_control_play_pause)
-                ?.requestFocus()
-        }
+        resetOverlayAutoCloseTimer()
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -524,12 +522,31 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     }
 
     private fun buildCustomRadioPlan(settings: fr.groggy.racecontrol.tv.core.settings.Settings): List<CustomRadioPlanEntry> {
-        val sources: List<CustomRadioSource> = if (settings.customRadioUrl.isNotBlank()) {
-            listOf(CustomRadioSource(name = "custom", url = settings.customRadioUrl))
-        } else {
-            CustomRadioSources.rawCandidates
+        val customUrl = settings.customRadioUrl.trim()
+        if (customUrl.isNotBlank()) {
+            val isHls = customUrl.endsWith(".m3u8", ignoreCase = true)
+            return listOf(
+                CustomRadioPlanEntry(
+                    backend = if (isHls) {
+                        fr.groggy.racecontrol.tv.core.settings.Settings.CustomRadioBackend.EXOPLAYER
+                    } else {
+                        fr.groggy.racecontrol.tv.core.settings.Settings.CustomRadioBackend.LIBVLC
+                    },
+                    source = CustomRadioSource(
+                        name = if (isHls) "custom-hls" else "custom",
+                        url = customUrl,
+                        mimeType = if (isHls) androidx.media3.common.MimeTypes.APPLICATION_M3U8 else null
+                    )
+                )
+            )
         }
-        return sources.map {
+
+        return listOf(
+            CustomRadioPlanEntry(
+                fr.groggy.racecontrol.tv.core.settings.Settings.CustomRadioBackend.EXOPLAYER,
+                CustomRadioSources.normalizedGrandPrixRadio
+            )
+        ) + CustomRadioSources.rawCandidates.map {
             CustomRadioPlanEntry(fr.groggy.racecontrol.tv.core.settings.Settings.CustomRadioBackend.LIBVLC, it)
         }
     }
@@ -571,15 +588,11 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         }
         val deltaMs = clampedOffsetMs - customRadioOffsetMs
         if (deltaMs == 0L) return customRadioOffsetMs
-        if (applyCustomRadioOffsetDelta(deltaMs, clampedOffsetMs)) {
-            customRadioOffsetMs = clampedOffsetMs
-            logCustomRadioTelemetry("offset_updated", detail = "offsetMs=$customRadioOffsetMs")
-        } else {
-            logCustomRadioTelemetry(
-                "offset_update_rejected",
-                detail = "requestedOffsetMs=$clampedOffsetMs currentOffsetMs=$customRadioOffsetMs deltaMs=$deltaMs"
-            )
-        }
+        cancelCustomRadioDelayNudge(resume = false)
+        customRadioOffsetMs = clampedOffsetMs
+        customRadioPlayer?.setAudioDelay(customRadioOffsetMs)
+        playbackGlue?.refreshSubtitle()
+        logCustomRadioTelemetry("offset_updated", detail = "offsetMs=$customRadioOffsetMs deltaMs=$deltaMs")
         return customRadioOffsetMs
     }
 
@@ -670,5 +683,13 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
 
     private fun formatCustomRadioOffset(delayMs: Long): String {
         return String.format(Locale.getDefault(), "%.1f", delayMs / 1000.0)
+    }
+
+    private fun customRadioOverlayLabel(): String {
+        return getString(
+            R.string.custom_radio_overlay_label,
+            getString(R.string.custom_radio_audio_label),
+            formatCustomRadioOffset(customRadioOffsetMs)
+        )
     }
 }

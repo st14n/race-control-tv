@@ -30,7 +30,7 @@ class SessionCardPresenter @Inject constructor(
         return ViewHolder(imageCardView)
     }
 
-    override fun onBindViewHolder(viewHolder: ViewHolder, item: Any) {
+    override fun onBindViewHolder(viewHolder: ViewHolder, item: Any?) {
         val imageCardView = viewHolder.view as ImageCardView
         val session = item as SessionCard
 
@@ -38,9 +38,11 @@ class SessionCardPresenter @Inject constructor(
         imageCardView.contentText = session.contentSubtype
 
         if (settingsRepository.getCurrent().displayThumbnailsEnabled)
-            Glide.with(viewHolder.view.context)
-                .load(session.thumbnail?.url)
-                .into(imageCardView.mainImageView)
+            imageCardView.mainImageView?.let { imageView ->
+                Glide.with(viewHolder.view.context)
+                    .load(session.thumbnail?.url)
+                    .into(imageView)
+            }
         }
 
     override fun onUnbindViewHolder(viewHolder: ViewHolder) {

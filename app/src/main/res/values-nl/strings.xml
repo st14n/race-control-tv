@@ -45,6 +45,7 @@
     <string name="settings_audio_offset_ms_title">Audiovertraging</string>
     <string name="settings_custom_radio_backend_title">Custom Radio-backend</string>
     <string name="custom_radio_audio_label">Radio</string>
+    <string name="custom_radio_overlay_label">%1$s / %2$s seconden vertraagd</string>
     <string name="custom_radio_sync_action">Radio sync</string>
     <string name="custom_radio_sync_title">Radio sync [%1$s vertraagd]</string>
     <string name="custom_radio_sync_decrease">Halve seconde vooruit</string>

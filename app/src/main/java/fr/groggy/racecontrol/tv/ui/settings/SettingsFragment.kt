@@ -6,7 +6,6 @@ import android.os.LocaleList
 import android.webkit.CookieManager
 import android.widget.Toast
 import androidx.annotation.Keep
-import androidx.core.os.bundleOf
 import androidx.fragment.app.viewModels
 import androidx.preference.ListPreference
 import androidx.leanback.preference.LeanbackPreferenceFragmentCompat
@@ -45,7 +44,7 @@ class SettingsFragment: LeanbackSettingsFragmentCompat() {
 
     override fun onPreferenceStartScreen(caller: PreferenceFragmentCompat, pref: PreferenceScreen): Boolean {
         val fragment = PreferenceFragment().apply {
-            arguments = bundleOf(PreferenceFragmentCompat.ARG_PREFERENCE_ROOT to pref.key)
+            arguments = Bundle().apply { putString(PreferenceFragmentCompat.ARG_PREFERENCE_ROOT, pref.key) }
         }
         startPreferenceFragment(fragment)
 

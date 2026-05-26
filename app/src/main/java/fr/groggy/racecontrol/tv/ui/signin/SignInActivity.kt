@@ -207,6 +207,7 @@ class SignInActivity : ComponentActivity() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 Log.d(TAG, "onPageFinished: $url")
+                autoAcceptCookieDialog()
 
                 // Check if we are currently on the login page
                 if (url?.startsWith(F1_LOGIN_URL) == true) {
@@ -240,6 +241,119 @@ class SignInActivity : ComponentActivity() {
         // CookieManager.getInstance().flush()
         Log.d(TAG, "Loading login URL: $F1_LOGIN_URL")
         loginWebView.loadUrl(F1_LOGIN_URL)
+    }
+
+    private fun autoAcceptCookieDialog() {
+        val jsCode = """
+        javascript:(function() {
+            function collectInteractiveElements(root, found) {
+                if (!root) {
+                    return;
+                }
+
+                var selectors = [
+                    'button',
+                    '[role="button"]',
+                    'input[type="button"]',
+                    'input[type="submit"]',
+                    'a[role="button"]'
+                ];
+
+                selectors.forEach(function(selector) {
+                    try {
+                        root.querySelectorAll(selector).forEach(function(element) {
+                            if (found.indexOf(element) === -1) {
+                                found.push(element);
+                            }
+                        });
+                    } catch (error) {
+                        console.log('CookieConsent: selector scan failed for ' + selector + ': ' + error);
+                    }
+                });
+
+                try {
+                    root.querySelectorAll('*').forEach(function(element) {
+                        if (element.shadowRoot) {
+                            collectInteractiveElements(element.shadowRoot, found);
+                        }
+                    });
+                } catch (error) {
+                    console.log('CookieConsent: shadow DOM scan failed: ' + error);
+                }
+            }
+
+            function looksLikeAcceptAction(element) {
+                if (!element) {
+                    return false;
+                }
+
+                var text = [
+                    element.innerText,
+                    element.textContent,
+                    element.value,
+                    element.getAttribute('aria-label'),
+                    element.getAttribute('data-testid'),
+                    element.getAttribute('title'),
+                    element.id,
+                    element.className
+                ].filter(Boolean).join(' ').toLowerCase();
+
+                var includeTerms = [
+                    'accept',
+                    'agree',
+                    'allow all',
+                    'accept all',
+                    'accept cookies',
+                    'allow cookies',
+                    'consent',
+                    'got it',
+                    'ok'
+                ];
+                var excludeTerms = [
+                    'reject',
+                    'decline',
+                    'deny',
+                    'manage',
+                    'settings',
+                    'preferences',
+                    'learn more'
+                ];
+
+                return includeTerms.some(function(term) { return text.indexOf(term) !== -1; }) &&
+                    !excludeTerms.some(function(term) { return text.indexOf(term) !== -1; });
+            }
+
+            function clickConsentButton() {
+                var elements = [];
+                collectInteractiveElements(document, elements);
+                var candidate = elements.find(looksLikeAcceptAction);
+
+                if (!candidate) {
+                    console.log('CookieConsent: no matching consent button found.');
+                    return false;
+                }
+
+                console.log('CookieConsent: clicking consent button.');
+                candidate.click();
+                return true;
+            }
+
+            if (clickConsentButton()) {
+                return 'clicked-now';
+            }
+
+            [500, 1500, 3000].forEach(function(delayMs) {
+                setTimeout(function() {
+                    clickConsentButton();
+                }, delayMs);
+            });
+
+            return 'scheduled-retries';
+        })();
+        """
+        loginWebView.evaluateJavascript(jsCode) { result ->
+            Log.d(TAG, "Cookie consent JS execution result: $result")
+        }
     }
 
     // Keep captureCredentials as is - useful if auto-login fails

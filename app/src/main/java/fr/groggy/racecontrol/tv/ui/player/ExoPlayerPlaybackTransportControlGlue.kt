@@ -2,9 +2,11 @@ package fr.groggy.racecontrol.tv.ui.player
 
 import android.util.Log
 import android.view.View
+import android.view.ViewGroup
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import androidx.leanback.media.PlaybackBaseControlGlue
 import androidx.leanback.media.PlaybackTransportControlGlue
 import androidx.leanback.widget.*
 import androidx.media3.common.C
@@ -33,7 +35,8 @@ class ExoPlayerPlaybackTransportControlGlue(
     private val onAudioTrackSelected: (() -> Unit)? = null,
     private val isCustomRadioActive: (() -> Boolean)? = null,
     private val currentAudioLabelOverride: (() -> String?)? = null,
-    private val onCustomRadioOffsetAdjust: ((Long) -> Unit)? = null
+    private val onCustomRadioOffsetAdjust: ((Long) -> Unit)? = null,
+    private val onControlsInteraction: (() -> Unit)? = null
 ) : PlaybackTransportControlGlue<LeanbackPlayerAdapter>(
     activity,
     LeanbackPlayerAdapter(activity, exoPlayer, 1_000)
@@ -109,19 +112,93 @@ class ExoPlayerPlaybackTransportControlGlue(
         }
     }
 
+    override fun onCreateRowPresenter(): PlaybackRowPresenter {
+        val descriptionPresenter = object : AbstractDetailsDescriptionPresenter() {
+            override fun onBindDescription(viewHolder: ViewHolder, item: Any) {
+                val glue = item as PlaybackBaseControlGlue<*>
+                viewHolder.title.text = glue.title
+                viewHolder.subtitle.text = glue.subtitle
+            }
+        }
+
+        return object : PlaybackTransportRowPresenter() {
+            override fun onBindRowViewHolder(viewHolder: RowPresenter.ViewHolder, item: Any) {
+                super.onBindRowViewHolder(viewHolder, item)
+                viewHolder.setOnKeyListener(this@ExoPlayerPlaybackTransportControlGlue)
+                focusPrimaryControlSoon(viewHolder.view)
+            }
+
+            override fun onUnbindRowViewHolder(viewHolder: RowPresenter.ViewHolder) {
+                super.onUnbindRowViewHolder(viewHolder)
+                viewHolder.setOnKeyListener(null)
+            }
+
+            override fun onReappear(viewHolder: RowPresenter.ViewHolder) {
+                super.onReappear(viewHolder)
+                focusPrimaryControlSoon(viewHolder.view)
+            }
+
+            override fun onRowViewSelected(viewHolder: RowPresenter.ViewHolder, selected: Boolean) {
+                super.onRowViewSelected(viewHolder, selected)
+                if (selected) {
+                    focusPrimaryControlSoon(viewHolder.view)
+                }
+            }
+        }.apply {
+            setDescriptionPresenter(descriptionPresenter)
+            setOnActionClickedListener { action ->
+                this@ExoPlayerPlaybackTransportControlGlue.onActionClicked(action)
+            }
+        }
+    }
+
+    private fun focusPrimaryControlSoon(root: View) {
+        root.post { focusPrimaryControl(root) }
+        root.postDelayed({ focusPrimaryControl(root) }, 120L)
+    }
+
+    private fun focusPrimaryControl(root: View): Boolean {
+        val primaryControls = root.findViewById<ViewGroup>(androidx.leanback.R.id.controls_dock)
+        return focusFirstControlBarAction(primaryControls) || focusFirstControlBarAction(root)
+    }
+
+    private fun focusFirstControlBarAction(container: View?): Boolean {
+        val controlBar = findVisibleControlBar(container) ?: return false
+        if (controlBar.requestFocus(View.FOCUS_DOWN)) return true
+        for (index in 0 until controlBar.childCount) {
+            val child = controlBar.getChildAt(index)
+            if (child.isShown && child.isFocusable && child.requestFocus()) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun findVisibleControlBar(view: View?): ViewGroup? {
+        if (view == null || !view.isShown) return null
+        if (view.id == androidx.leanback.R.id.control_bar && view is ViewGroup) return view
+        val group = view as? ViewGroup ?: return null
+        for (index in 0 until group.childCount) {
+            val found = findVisibleControlBar(group.getChildAt(index))
+            if (found != null) return found
+        }
+        return null
+    }
+
     override fun onActionClicked(action: Action) {
         Log.d(TAG, "onActionClicked")
+        onControlsInteraction?.invoke()
         when (action) {
             rewindAction -> {
                 if (isCustomRadioActive?.invoke() == true) {
-                    onCustomRadioOffsetAdjust?.invoke(-500L)
+                    onCustomRadioOffsetAdjust?.invoke(500L)
                 } else {
                     playerAdapter.seekOffset(-DEFAULT_SEEK_OFFSET)
                 }
             }
             fastFormatAction -> {
                 if (isCustomRadioActive?.invoke() == true) {
-                    onCustomRadioOffsetAdjust?.invoke(500L)
+                    onCustomRadioOffsetAdjust?.invoke(-500L)
                 } else {
                     playerAdapter.seekOffset(DEFAULT_SEEK_OFFSET)
                 }

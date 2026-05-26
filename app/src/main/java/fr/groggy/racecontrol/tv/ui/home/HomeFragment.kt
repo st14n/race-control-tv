@@ -9,7 +9,10 @@ import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.viewModels
 import androidx.leanback.app.RowsSupportFragment
 import androidx.leanback.widget.*
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.f1tv.Archive
@@ -62,9 +65,11 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
 
         archivesRow = getArchiveRow(viewModel.listArchive())
 
-        lifecycleScope.launchWhenCreated {
-            viewModel.getCurrentSeason(Archive(currentYear))
-                .collect(::onUpdatedSeason)
+        lifecycleScope.launch {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.CREATED) {
+                viewModel.getCurrentSeason(Archive(currentYear))
+                    .collect(::onUpdatedSeason)
+            }
         }
     }
 
