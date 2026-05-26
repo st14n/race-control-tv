@@ -122,6 +122,13 @@ android {
     }
 }
 
+tasks.withType<org.gradle.api.tasks.compile.JavaCompile>().configureEach {
+    // Annotation processing for this module is handled by KSP.
+    if ("-proc:none" !in options.compilerArgs) {
+        options.compilerArgs.add("-proc:none")
+    }
+}
+
 dependencies {
     val kotlinCoroutinesVersion = "1.10.1"
     implementation(kotlin("stdlib"))
@@ -130,7 +137,7 @@ dependencies {
 
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.fragment:fragment-ktx:1.8.6")
-    val leanbackVersion = "1.2.0-alpha02"
+    val leanbackVersion = "1.2.0"
     implementation("androidx.leanback:leanback:$leanbackVersion")
     implementation("androidx.leanback:leanback-preference:$leanbackVersion")
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.9.0")
