@@ -15,12 +15,12 @@ val f1BuildPassword = envProps["F1_password"] ?: ""
 // Token refresh interval: default 6 hours; override in .env for testing (e.g. 300000 = 5 min)
 val tokenRefreshIntervalMs = envProps["TOKEN_REFRESH_INTERVAL_MS"]?.toLongOrNull()
     ?: (6L * 60 * 60 * 1000)
-// Custom Radio stream URLs. Prefer CUSTOM_RADIO_* names, but keep GP_RADIO_* as .env fallback.
-val customRadioUrlMp3 = envProps["CUSTOM_RADIO_URL_MP3"] ?: envProps["GP_RADIO_URL_MP3"]
+// Custom Radio stream URLs (set CUSTOM_RADIO_URL_* in .env to override defaults)
+val customRadioUrlMp3 = envProps["CUSTOM_RADIO_URL_MP3"]
     ?: "https://playerservices.streamtheworld.com/api/livestream-redirect/GRAND_PRIX_RADIO.mp3"
-val customRadioUrlSc  = envProps["CUSTOM_RADIO_URL_SC"] ?: envProps["GP_RADIO_URL_SC"]
+val customRadioUrlSc  = envProps["CUSTOM_RADIO_URL_SC"]
     ?: "https://playerservices.streamtheworld.com/api/livestream-redirect/GRAND_PRIX_RADIO_SC"
-val customRadioUrlAac = envProps["CUSTOM_RADIO_URL_AAC"] ?: envProps["GP_RADIO_URL_AAC"]
+val customRadioUrlAac = envProps["CUSTOM_RADIO_URL_AAC"]
     ?: "https://playerservices.streamtheworld.com/api/livestream-redirect/GRAND_PRIX_RADIOAAC.aac"
 val hasCustomReleaseSigning = listOf(
     "signing.key.store.path",

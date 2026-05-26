@@ -13,7 +13,7 @@ class AudioSelectionDialogFragment(
 ) : DialogFragment() {
 
     private var onAudioLanguageSelectedListener: ((String?) -> Unit)? = null
-    private var onGrandPrixRadioSelectedListener: (() -> Unit)? = null
+    private var onCustomRadioSelectedListener: (() -> Unit)? = null
 
     private val formats: List<Format> by lazy {
         audioGroups.flatMap { group ->
@@ -36,7 +36,7 @@ class AudioSelectionDialogFragment(
 
     private fun onItemSelected(index: Int) {
         when {
-            index == 0 -> onGrandPrixRadioSelectedListener?.invoke()
+            index == 0 -> onCustomRadioSelectedListener?.invoke()
             index - 1 in formats.indices -> onAudioLanguageSelectedListener?.invoke(formats[index - 1].language)
         }
     }
@@ -46,8 +46,8 @@ class AudioSelectionDialogFragment(
         return this
     }
 
-    fun onGrandPrixRadioSelected(listener: () -> Unit): AudioSelectionDialogFragment {
-        onGrandPrixRadioSelectedListener = listener
+    fun onCustomRadioSelected(listener: () -> Unit): AudioSelectionDialogFragment {
+        onCustomRadioSelectedListener = listener
         return this
     }
 }
