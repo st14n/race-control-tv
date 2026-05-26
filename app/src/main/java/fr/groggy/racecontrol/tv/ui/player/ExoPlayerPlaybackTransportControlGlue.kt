@@ -28,11 +28,12 @@ class ExoPlayerPlaybackTransportControlGlue(
     private val activity: FragmentActivity,
     private val exoPlayer: ExoPlayer,
     private val trackSelector: DefaultTrackSelector,
-    private val onGrandPrixRadioRequested: (() -> Unit)? = null,
+    private val onCustomRadioRequested: (() -> Unit)? = null,
     private val onCustomRadioSyncRequested: (() -> Unit)? = null,
     private val onAudioTrackSelected: (() -> Unit)? = null,
     private val isCustomRadioActive: (() -> Boolean)? = null,
-    private val currentAudioLabelOverride: (() -> String?)? = null
+    private val currentAudioLabelOverride: (() -> String?)? = null,
+    private val onCustomRadioOffsetAdjust: ((Long) -> Unit)? = null
 ) : PlaybackTransportControlGlue<LeanbackPlayerAdapter>(
     activity,
     LeanbackPlayerAdapter(activity, exoPlayer, 1_000)
@@ -111,8 +112,20 @@ class ExoPlayerPlaybackTransportControlGlue(
     override fun onActionClicked(action: Action) {
         Log.d(TAG, "onActionClicked")
         when (action) {
-            rewindAction -> playerAdapter.seekOffset(-DEFAULT_SEEK_OFFSET)
-            fastFormatAction -> playerAdapter.seekOffset(DEFAULT_SEEK_OFFSET)
+            rewindAction -> {
+                if (isCustomRadioActive?.invoke() == true) {
+                    onCustomRadioOffsetAdjust?.invoke(-500L)
+                } else {
+                    playerAdapter.seekOffset(-DEFAULT_SEEK_OFFSET)
+                }
+            }
+            fastFormatAction -> {
+                if (isCustomRadioActive?.invoke() == true) {
+                    onCustomRadioOffsetAdjust?.invoke(500L)
+                } else {
+                    playerAdapter.seekOffset(DEFAULT_SEEK_OFFSET)
+                }
+            }
             selectAudioAction -> openAudioSelectionDialog()
             customRadioSyncAction -> onCustomRadioSyncRequested?.invoke()
             closedCaptionAction -> toggleClosedCaptions()
@@ -161,8 +174,8 @@ class ExoPlayerPlaybackTransportControlGlue(
             )
             updateSubtitle()
         }
-        dialog.onGrandPrixRadioSelected {
-            onGrandPrixRadioRequested?.invoke()
+        dialog.onCustomRadioSelected {
+            onCustomRadioRequested?.invoke()
             updateSubtitle()
         }
         dialog.show(activity.supportFragmentManager, null)

@@ -12,10 +12,12 @@ import androidx.fragment.app.commit
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.R
+import fr.groggy.racecontrol.tv.core.credentials.CredentialsService
 import fr.groggy.racecontrol.tv.core.season.SeasonService
 import fr.groggy.racecontrol.tv.f1tv.Archive
 import fr.groggy.racecontrol.tv.ui.season.browse.SeasonBrowseActivity
 import fr.groggy.racecontrol.tv.ui.settings.SettingsActivity
+import fr.groggy.racecontrol.tv.ui.signin.SignInActivity
 import fr.groggy.racecontrol.tv.utils.coroutines.schedule
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -34,6 +36,7 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
     }
 
     @Inject internal lateinit var seasonService: SeasonService
+    @Inject internal lateinit var credentialsService: CredentialsService
     private var teaserImage: ImageView? = null
 
     private var syncJob: Job? = null
@@ -81,6 +84,16 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
                     }
                 }
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // If the app is brought back from the background after the token refresh interval has
+        // elapsed, MainActivity is already finished so the relogin check never runs.
+        // Re-check here so a silent re-auth is triggered without requiring a force-close.
+        if (credentialsService.shouldReLogin()) {
+            startActivity(SignInActivity.intentSilentReAuth(this))
         }
     }
 
