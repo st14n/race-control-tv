@@ -24,8 +24,8 @@ class HomeItemPresenter: Presenter() {
         view.setText(homeItem.text)
     }
 
-    override fun onUnbindViewHolder(viewHolder: ViewHolder?) {
-        val view = viewHolder?.view as HomeItemCardView
+    override fun onUnbindViewHolder(viewHolder: ViewHolder) {
+        val view = viewHolder.view as HomeItemCardView
         view.setText(null)
     }
 }

@@ -45,7 +45,7 @@ data class SessionArchiveRetrieveItemsMetadata(
 
 @JsonClass(generateAdapter = true)
 data class SessionArchiveRetrieveItemsEmfAttributes(
-    @Json(name = "MeetingKey") val meetingKey: String
+    @param:Json(name = "MeetingKey") val meetingKey: String
 )
 
 

@@ -34,7 +34,7 @@ class ChannelCardPresenter: Presenter() {
         return ViewHolder(view)
     }
 
-    override fun onBindViewHolder(viewHolder: ViewHolder, item: Any) {
+    override fun onBindViewHolder(viewHolder: ViewHolder, item: Any?) {
         val view = viewHolder.view as ImageCardView
         when(item) {
             is BasicChannelCard -> {
@@ -59,10 +59,12 @@ class ChannelCardPresenter: Presenter() {
                     view.setBackgroundColor(ContextCompat.getColor(viewHolder.view.context, android.R.color.black))
                 }
                 item.driver?.headshot?.let {
-                    Glide.with(viewHolder.view.context)
-                        .load(it.url)
-                        .centerCrop()
-                        .into(view.mainImageView)
+                    view.mainImageView?.let { imageView ->
+                        Glide.with(viewHolder.view.context)
+                            .load(it.url)
+                            .centerCrop()
+                            .into(imageView)
+                    }
                 }
             }
         }

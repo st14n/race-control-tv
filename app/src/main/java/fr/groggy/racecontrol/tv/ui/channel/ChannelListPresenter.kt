@@ -14,7 +14,7 @@ class ChannelListPresenter: Presenter() {
         return ViewHolder(view)
     }
 
-    override fun onBindViewHolder(viewHolder: ViewHolder, item: Any) {
+    override fun onBindViewHolder(viewHolder: ViewHolder, item: Any?) {
         val view = viewHolder.view.findViewById<TextView>(R.id.driverName)
         when(item) {
             is BasicChannelCard -> {
@@ -34,5 +34,5 @@ class ChannelListPresenter: Presenter() {
         }
     }
 
-    override fun onUnbindViewHolder(viewHolder: ViewHolder?) { }
+    override fun onUnbindViewHolder(viewHolder: ViewHolder) { }
 }

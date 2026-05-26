@@ -23,6 +23,26 @@
 # LibVLC — native JNI code calls back into these Java classes by name; R8 must not rename them
 -keep class org.videolan.libvlc.** { *; }
 
+# JavaCV/JavaCPP — native loaders and generated FFmpeg bindings are resolved by name.
+-keep class org.bytedeco.javacpp.** { *; }
+-keep class org.bytedeco.ffmpeg.** { *; }
+-keep class org.bytedeco.javacv.** { *; }
+-dontwarn java.lang.management.BufferPoolMXBean
+-dontwarn java.lang.management.ManagementFactory
+-dontwarn javax.management.MalformedObjectNameException
+-dontwarn javax.management.ObjectName
+-dontwarn javax.management.**
+-dontwarn com.jogamp.**
+-dontwarn java.awt.**
+-dontwarn java.beans.**
+-dontwarn javafx.**
+-dontwarn javax.imageio.**
+-dontwarn javax.swing.**
+-dontwarn org.apache.maven.**
+-dontwarn org.osgi.**
+-dontwarn org.slf4j.Logger
+-dontwarn org.slf4j.LoggerFactory
+
 # Glide OkHttp integration — R8 strips the no-arg constructor otherwise
 -keep public class * implements com.bumptech.glide.module.GlideModule
 -keep class com.bumptech.glide.integration.okhttp3.OkHttpGlideModule { <init>(); }

@@ -5,7 +5,6 @@ import android.app.Dialog
 import android.os.Bundle
 import android.widget.ArrayAdapter
 import androidx.annotation.Keep
-import androidx.core.os.bundleOf
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.viewModels
@@ -84,10 +83,10 @@ class ChannelSelectionDialog : DialogFragment() {
 
         fun newInstance(sessionId: String, contentId: String): ChannelSelectionDialog {
             return ChannelSelectionDialog().apply {
-                arguments = bundleOf(
-                    EXTRA_SESSION_ID to sessionId,
-                    EXTRA_CONTENT_ID to contentId
-                )
+                arguments = Bundle().apply {
+                    putString(EXTRA_SESSION_ID, sessionId)
+                    putString(EXTRA_CONTENT_ID, contentId)
+                }
             }
         }
     }

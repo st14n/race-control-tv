@@ -5,7 +5,10 @@ import androidx.annotation.Keep
 import androidx.fragment.app.viewModels
 import androidx.leanback.app.VerticalGridSupportFragment
 import androidx.leanback.widget.*
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.ui.channel.ChannelListPresenter
 import fr.groggy.racecontrol.tv.ui.session.browse.*
@@ -30,8 +33,10 @@ class ChannelSelectionInnerFragment: VerticalGridSupportFragment(), OnItemViewCl
         val sessionId = parentFragment?.arguments?.getString(ChannelSelectionDialog.EXTRA_SESSION_ID) ?: return
         val contentId = parentFragment?.arguments?.getString(ChannelSelectionDialog.EXTRA_CONTENT_ID) ?: return
         val viewModel: SessionBrowseViewModel by viewModels()
-        lifecycleScope.launchWhenCreated {
-            viewModel.session(sessionId, contentId).collect(::onUpdatedSession)
+        lifecycleScope.launch {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.CREATED) {
+                viewModel.session(sessionId, contentId).collect(::onUpdatedSession)
+            }
         }
     }
 
@@ -47,10 +52,10 @@ class ChannelSelectionInnerFragment: VerticalGridSupportFragment(), OnItemViewCl
     }
 
     private fun setupUIElements() {
-        gridPresenter = VerticalGridPresenter(FocusHighlight.ZOOM_FACTOR_NONE).apply {
+        setGridPresenter(VerticalGridPresenter(FocusHighlight.ZOOM_FACTOR_NONE).apply {
             numberOfColumns = 1
             shadowEnabled = false
-        }
+        })
         adapter = channelsAdapter
     }
 

@@ -7,7 +7,10 @@ import android.util.Log
 import androidx.activity.viewModels
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.commit
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.core.season.SeasonService
@@ -42,22 +45,26 @@ class SeasonBrowseActivity : FragmentActivity(R.layout.activity_season_browse) {
         super.onCreate(savedInstanceState)
 
         val viewModel: SeasonBrowseViewModel by viewModels()
-        lifecycleScope.launchWhenCreated {
-            val archive = SeasonBrowseFragment.findArchive(this@SeasonBrowseActivity)
-            viewModel.archiveLoaded(archive)
+        lifecycleScope.launch {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.CREATED) {
+                val archive = SeasonBrowseFragment.findArchive(this@SeasonBrowseActivity)
+                viewModel.archiveLoaded(archive)
+            }
         }
     }
 
     override fun onStart() {
         super.onStart()
-        lifecycleScope.launchWhenStarted {
-            val archive = SeasonBrowseFragment.findArchive(this@SeasonBrowseActivity)
-            // Only refresh the season data if it is the current year, as older content should not be changing
-            if (archive.year == Year.now().value) {
-                loadSeasonContent()
-            } else {
-                schedule(Duration.ofMinutes(1)) {
+        lifecycleScope.launch {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                val archive = SeasonBrowseFragment.findArchive(this@SeasonBrowseActivity)
+                // Only refresh the season data if it is the current year, as older content should not be changing
+                if (archive.year == Year.now().value) {
                     loadSeasonContent()
+                } else {
+                    schedule(Duration.ofMinutes(1)) {
+                        loadSeasonContent()
+                    }
                 }
             }
         }

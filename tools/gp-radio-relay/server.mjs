@@ -66,9 +66,9 @@ async function startFfmpeg() {
     '-b:a', '192k',
     '-ar', '44100',
     '-f', 'hls',
-    '-hls_time', '2',
-    '-hls_list_size', '6',
-    '-hls_delete_threshold', '1',
+    '-hls_time', '1',
+    '-hls_list_size', '60',
+    '-hls_delete_threshold', '10',
     '-hls_flags', 'delete_segments+append_list+omit_endlist+program_date_time+independent_segments',
     '-hls_segment_filename', path.join(workDir, 'segment_%05d.ts'),
     playlistPath

@@ -12,6 +12,7 @@ import fr.groggy.racecontrol.tv.ui.season.browse.Season
 import fr.groggy.racecontrol.tv.ui.season.browse.Session
 import fr.groggy.racecontrol.tv.utils.coroutines.traverse
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withContext
 import org.threeten.bp.Year
@@ -48,6 +49,7 @@ class SeasonService @Inject constructor(
         sessionService.loadSessionsWithImages(season)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     suspend fun season(archive: Archive): Flow<Season> =
         seasonRepository.observe(archive)
 //            .onEach { Log.d(TAG, "Season changed") }
@@ -61,6 +63,7 @@ class SeasonService @Inject constructor(
             .distinctUntilChanged()
 //            .onEach { Log.d(TAG, "VM season changed") }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     private fun events(ids: List<F1TvSeasonEvent>): Flow<List<Event>> =
         eventRepository.observe(ids)
 //            .onEach { Log.d(TAG, "Events changed") }
@@ -77,6 +80,7 @@ class SeasonService @Inject constructor(
             .distinctUntilChanged()
 //            .onEach { Log.d(TAG, "VM events changed") }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     private fun sessions(ids: List<F1TvEventId>): Flow<List<Session>> =
         sessionRepository.observe(ids)
 //            .onEach { Log.d(TAG, "Sessions changed") }

@@ -8,20 +8,20 @@ import com.squareup.moshi.Json
 
 @JsonClass(generateAdapter = true)
 data class F1TvViewingResponse(
-    @Json(name = "resultCode") val resultCode: String,
-    @Json(name = "message") val message: String,
-    @Json(name = "errorDescription") val errorDescription: String,
-    @Json(name = "resultObj") val resultObj: ResultObj,
-    @Json(name = "systemTime") val systemTime: Long
+    @param:Json(name = "resultCode") val resultCode: String,
+    @param:Json(name = "message") val message: String,
+    @param:Json(name = "errorDescription") val errorDescription: String,
+    @param:Json(name = "resultObj") val resultObj: ResultObj,
+    @param:Json(name = "systemTime") val systemTime: Long
 ) {
     @JsonClass(generateAdapter = true)
     data class ResultObj(
-        @Json(name = "entitlementToken") val entitlementToken: String,
-        @Json(name = "url") val url: String,
-        @Json(name = "streamType") val streamType: String? = null, // e.g., "SDR_HD_DASHWV" or "HLS"
-        @Json(name = "drmType") val drmType: String?,
-        @Json(name = "laURL") val laURL: String?, // License URL (useful for checking)
-        @Json(name = "channelId") val channelId: String? = null
+        @param:Json(name = "entitlementToken") val entitlementToken: String,
+        @param:Json(name = "url") val url: String,
+        @param:Json(name = "streamType") val streamType: String? = null, // e.g., "SDR_HD_DASHWV" or "HLS"
+        @param:Json(name = "drmType") val drmType: String?,
+        @param:Json(name = "laURL") val laURL: String?, // License URL (useful for checking)
+        @param:Json(name = "channelId") val channelId: String? = null
     )
 }
 

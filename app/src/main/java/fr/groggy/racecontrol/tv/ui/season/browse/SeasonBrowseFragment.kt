@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.Intent
 import android.graphics.drawable.Drawable
 import android.os.Bundle
-import android.util.DisplayMetrics
 import android.util.Log
 import android.view.View
 import androidx.annotation.Keep
@@ -13,8 +12,10 @@ import androidx.fragment.app.viewModels
 import androidx.leanback.app.BackgroundManager
 import androidx.leanback.app.BrowseSupportFragment
 import androidx.leanback.widget.*
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.asLiveData
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.target.CustomTarget
 import com.bumptech.glide.request.transition.Transition
@@ -48,8 +49,10 @@ class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener 
 
         val viewModel: SeasonBrowseViewModel by viewModels({ requireActivity() })
         val archive = findArchive(requireActivity())
-        lifecycleScope.launchWhenStarted {
-            viewModel.getSeason(archive).asLiveData().observe(viewLifecycleOwner, ::onUpdatedSeason)
+        lifecycleScope.launch {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.getSeason(archive).asLiveData().observe(viewLifecycleOwner, ::onUpdatedSeason)
+            }
         }
     }
 
@@ -76,8 +79,7 @@ class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener 
             attach(activity?.window)
         }
 
-        val metrics = DisplayMetrics()
-        requireActivity().windowManager.defaultDisplay.getMetrics(metrics)
+        val metrics = requireContext().resources.displayMetrics
 
         onItemViewSelectedListener = OnItemViewSelectedListener { _, item, _, _ ->
             if (item is Session) {

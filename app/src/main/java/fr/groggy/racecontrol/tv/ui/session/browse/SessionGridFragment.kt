@@ -7,7 +7,10 @@ import androidx.annotation.Keep
 import androidx.fragment.app.viewModels
 import androidx.leanback.app.VerticalGridSupportFragment
 import androidx.leanback.widget.*
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
 import fr.groggy.racecontrol.tv.ui.channel.ChannelCardPresenter
@@ -54,16 +57,18 @@ class SessionGridFragment : VerticalGridSupportFragment(), OnItemViewClickedList
         val sessionId = findSessionId(requireActivity()) ?: return requireActivity().finish()
         val contentId = findContentId(requireActivity()) ?: return requireActivity().finish()
         val viewModel: SessionBrowseViewModel by viewModels({ requireActivity() })
-        lifecycleScope.launchWhenCreated {
-            viewModel.session(sessionId, contentId).collect(::onUpdatedSession)
+        lifecycleScope.launch {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.CREATED) {
+                viewModel.session(sessionId, contentId).collect(::onUpdatedSession)
+            }
         }
     }
 
     private fun setupUIElements() {
-        gridPresenter = VerticalGridPresenter(FocusHighlight.ZOOM_FACTOR_NONE).apply {
+        setGridPresenter(VerticalGridPresenter(FocusHighlight.ZOOM_FACTOR_NONE).apply {
             numberOfColumns = COLUMNS
             shadowEnabled = false
-        }
+        })
         adapter = channelsAdapter
     }
 
