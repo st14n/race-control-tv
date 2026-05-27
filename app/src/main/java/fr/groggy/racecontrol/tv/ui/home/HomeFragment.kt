@@ -34,6 +34,7 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
     private val homeEntriesAdapter = ArrayObjectAdapter(ListRowPresenter())
     private val currentYear = Year.now().value
     private var archivesRow: ListRow? = null
+    private var hasAppliedInitialLatestEventSelection = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -94,8 +95,18 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
                 }
                 ensureArchiveRowPresent()
             }
+            maybeSelectLatestEventByDefault()
         } else {
             onEmptySeason()
+        }
+    }
+
+    private fun maybeSelectLatestEventByDefault() {
+        if (hasAppliedInitialLatestEventSelection) return
+        hasAppliedInitialLatestEventSelection = true
+        view?.post {
+            setSelectedPosition(0, false)
+            view?.requestFocus()
         }
     }
 

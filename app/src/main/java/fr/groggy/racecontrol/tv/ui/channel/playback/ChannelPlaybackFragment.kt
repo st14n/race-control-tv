@@ -6,11 +6,11 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
 import android.widget.Toast
 import androidx.annotation.Keep
-import androidx.core.os.bundleOf
 import androidx.fragment.app.DialogFragment
 import androidx.leanback.app.VideoSupportFragment
 import androidx.leanback.app.VideoSupportFragmentGlueHost
@@ -80,7 +80,9 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         }
 
         fun newInstance(viewing: F1TvViewing) = ChannelPlaybackFragment().apply {
-            arguments = bundleOf(ARG_VIEWING to viewing)
+            arguments = Bundle().apply {
+                putParcelable(ARG_VIEWING, viewing)
+            }
         }
     }
 
@@ -99,6 +101,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     private var customRadioStartedAtElapsedMs: Long = 0L
     private var playbackGlue: ExoPlayerPlaybackTransportControlGlue? = null
     private var customRadioDelayNudgeRunnable: Runnable? = null
+    private var suppressOverlayReopenUntilElapsedMs: Long = 0L
     private val overlayAutoCloseHandler = Handler(Looper.getMainLooper())
     private val overlayAutoCloseRunnable = Runnable {
         if (!isAdded) return@Runnable
@@ -109,7 +112,15 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     }
 
     private val trackSelector: DefaultTrackSelector by lazy {
-        DefaultTrackSelector(requireContext())
+        DefaultTrackSelector(requireContext()).apply {
+            // Remove the default viewport/display-size cap so 4K tracks are eligible
+            // for auto-selection on a 4K display without extra configuration.
+            setParameters(
+                buildUponParameters()
+                    .setMaxVideoSize(Int.MAX_VALUE, Int.MAX_VALUE)
+                    .setMaxVideoBitrate(Int.MAX_VALUE)
+            )
+        }
     }
 
     private val player: ExoPlayer by lazy {
@@ -142,6 +153,9 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate")
         setOnKeyInterceptListener { _, _, event ->
+            if (shouldConsumeMenuDismissKey(event)) {
+                return@setOnKeyInterceptListener true
+            }
             if (event.action == KeyEvent.ACTION_DOWN) {
                 view?.post { resetOverlayAutoCloseTimer() }
             }
@@ -165,7 +179,8 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                 onCustomRadioOffsetAdjust = { deltaMs ->
                     setCustomRadioOffset(customRadioOffsetMs + deltaMs)
                 },
-                onControlsInteraction = ::resetOverlayAutoCloseTimer
+                onControlsInteraction = ::resetOverlayAutoCloseTimer,
+                onPlayerMenuDismissed = ::hidePlayerMenusAndControls
             )
             playbackGlue = glue
             glue.host = VideoSupportFragmentGlueHost(this)
@@ -202,14 +217,13 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                 val offsetMs = settings.audioOffsetMs
                 val finalAudioSource = if (offsetMs != 0L) {
                     Log.i(TAG, "Applying audioOffsetMs=$offsetMs to audio source")
-                    androidx.media3.exoplayer.source.ClippingMediaSource(
-                        audioSource,
-                        /* startPositionUs = */ if (offsetMs > 0) offsetMs * 1000L else 0L,
-                        /* endPositionUs = */ androidx.media3.common.C.TIME_END_OF_SOURCE,
-                        /* enableInitialDiscontinuity = */ false,
-                        /* allowDynamicClippingUpdates = */ true,
-                        /* relativeToDefaultPosition = */ false
-                    )
+                    ClippingMediaSource.Builder(audioSource)
+                        .setStartPositionUs(if (offsetMs > 0) offsetMs * 1000L else 0L)
+                        .setEndPositionUs(C.TIME_END_OF_SOURCE)
+                        .setEnableInitialDiscontinuity(false)
+                        .setAllowDynamicClippingUpdates(true)
+                        .setRelativeToDefaultPosition(false)
+                        .build()
                 } else audioSource
                 MergingMediaSource(false, false, mainSource, finalAudioSource)
             } else {
@@ -264,7 +278,10 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         Log.d(TAG, "Playback state → $state")
         if (playbackState == Player.STATE_READY && !hasAutoInjectedCustomRadio) {
             hasAutoInjectedCustomRadio = true
-            injectCustomRadio()
+            val settings = settingsRepository.getCurrent()
+            if (settings.autoSelectCustomRadio && buildCustomRadioPlan(settings).isNotEmpty()) {
+                injectCustomRadio()
+            }
         }
     }
 
@@ -286,6 +303,9 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     // ── Overlay ───────────────────────────────────────────────────────────────
 
     override fun showControlsOverlay(runAnimation: Boolean) {
+        // Block Leanback's automatic re-show that fires when a dialog dismisses
+        // and focus returns to the transport row — for the duration of the suppress window.
+        if (SystemClock.elapsedRealtime() < suppressOverlayReopenUntilElapsedMs) return
         super.showControlsOverlay(runAnimation)
         resetOverlayAutoCloseTimer()
     }
@@ -393,12 +413,39 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     }
 
     internal fun showCustomRadioSyncDialog() {
-        CustomRadioSyncDialog(
-            currentOffsetMs = customRadioOffsetMs,
-            onOffsetSelected = { offsetMs -> setCustomRadioOffset(offsetMs) },
-            onUserInteraction = ::resetOverlayAutoCloseTimer
-        ).show(childFragmentManager, CUSTOM_RADIO_SYNC_DIALOG_TAG)
+        view?.post {
+            CustomRadioSyncDialog(
+                currentOffsetMs = customRadioOffsetMs,
+                onOffsetSelected = { offsetMs -> setCustomRadioOffset(offsetMs) },
+                onUserInteraction = ::resetOverlayAutoCloseTimer,
+                onDialogDismissed = ::hidePlayerMenusAndControls
+            ).show(childFragmentManager, CUSTOM_RADIO_SYNC_DIALOG_TAG)
+        }
         resetOverlayAutoCloseTimer()
+    }
+
+    private fun hidePlayerMenusAndControls() {
+        suppressOverlayReopenUntilElapsedMs = SystemClock.elapsedRealtime() + 350L
+        view?.post { hideControlsOverlay(true) }
+        view?.postDelayed({ hideControlsOverlay(false) }, 120L)
+    }
+
+    private fun shouldConsumeMenuDismissKey(event: KeyEvent): Boolean {
+        val suppressUntil = suppressOverlayReopenUntilElapsedMs
+        if (suppressUntil == 0L) return false
+        if (SystemClock.elapsedRealtime() > suppressUntil) {
+            suppressOverlayReopenUntilElapsedMs = 0L
+            return false
+        }
+
+        return when (event.keyCode) {
+            KeyEvent.KEYCODE_BACK,
+            KeyEvent.KEYCODE_ESCAPE,
+            KeyEvent.KEYCODE_DPAD_CENTER,
+            KeyEvent.KEYCODE_ENTER,
+            KeyEvent.KEYCODE_NUMPAD_ENTER -> true
+            else -> false
+        }
     }
 
     private fun startCustomRadioPlayer() {
@@ -524,31 +571,36 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     private fun buildCustomRadioPlan(settings: fr.groggy.racecontrol.tv.core.settings.Settings): List<CustomRadioPlanEntry> {
         val customUrl = settings.customRadioUrl.trim()
         if (customUrl.isNotBlank()) {
-            val isHls = customUrl.endsWith(".m3u8", ignoreCase = true)
+            if (!isSupportedCustomRadioUrl(customUrl)) {
+                Log.w(TAG, "Ignoring invalid custom radio URL: $customUrl")
+                return emptyList()
+            }
             return listOf(
                 CustomRadioPlanEntry(
-                    backend = if (isHls) {
-                        fr.groggy.racecontrol.tv.core.settings.Settings.CustomRadioBackend.EXOPLAYER
-                    } else {
-                        fr.groggy.racecontrol.tv.core.settings.Settings.CustomRadioBackend.LIBVLC
-                    },
+                    backend = fr.groggy.racecontrol.tv.core.settings.Settings.CustomRadioBackend.EXOPLAYER,
                     source = CustomRadioSource(
-                        name = if (isHls) "custom-hls" else "custom",
+                        name = "custom",
                         url = customUrl,
-                        mimeType = if (isHls) androidx.media3.common.MimeTypes.APPLICATION_M3U8 else null
+                        normalizeWithInAppHls = true
                     )
                 )
             )
         }
 
-        return listOf(
-            CustomRadioPlanEntry(
-                fr.groggy.racecontrol.tv.core.settings.Settings.CustomRadioBackend.EXOPLAYER,
-                CustomRadioSources.normalizedGrandPrixRadio
+        return CustomRadioSources.defaultCandidate?.let {
+            listOf(
+                CustomRadioPlanEntry(
+                    fr.groggy.racecontrol.tv.core.settings.Settings.CustomRadioBackend.EXOPLAYER,
+                    it
+                )
             )
-        ) + CustomRadioSources.rawCandidates.map {
-            CustomRadioPlanEntry(fr.groggy.racecontrol.tv.core.settings.Settings.CustomRadioBackend.LIBVLC, it)
-        }
+        } ?: emptyList()
+    }
+
+    private fun isSupportedCustomRadioUrl(url: String): Boolean {
+        val uri = android.net.Uri.parse(url)
+        val scheme = uri.scheme?.lowercase(Locale.ROOT) ?: return false
+        return scheme in setOf("http", "https") && !uri.host.isNullOrBlank()
     }
 
     private fun logCustomRadioTelemetry(

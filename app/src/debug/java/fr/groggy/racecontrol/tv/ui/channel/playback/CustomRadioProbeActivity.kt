@@ -7,7 +7,6 @@ import android.os.Looper
 import android.util.Log
 import android.view.WindowManager
 import android.widget.TextView
-import androidx.media3.common.MimeTypes
 import fr.groggy.racecontrol.tv.BuildConfig
 import fr.groggy.racecontrol.tv.core.settings.Settings
 
@@ -30,47 +29,31 @@ class CustomRadioProbeActivity : Activity() {
             "url" -> CustomRadioSource(
                 name = "probe-url",
                 url = customUrl.orEmpty(),
-                mimeType = if (customUrl?.endsWith(".m3u8", ignoreCase = true) == true) {
-                    MimeTypes.APPLICATION_M3U8
-                } else {
-                    null
-                }
+                normalizeWithInAppHls = true
             )
-            "normalized" -> CustomRadioSources.normalizedGrandPrixRadio
-            "aac" -> CustomRadioSource(
-                name = "probe-aac",
-                url = BuildConfig.CUSTOM_RADIO_URL_AAC,
-                mimeType = MimeTypes.AUDIO_AAC,
-                disableIcyMetadata = true
-            )
-            "sc" -> CustomRadioSource(
-                name = "probe-sc",
-                url = BuildConfig.CUSTOM_RADIO_URL_SC,
-                mimeType = MimeTypes.AUDIO_MPEG
-            )
+            "normalized" -> CustomRadioSources.defaultCandidate
+                ?: CustomRadioSource(
+                    name = "probe-configured",
+                    url = BuildConfig.CUSTOM_RADIO_URL,
+                    normalizeWithInAppHls = true
+                )
             else -> CustomRadioSource(
-                name = "probe-mp3",
-                url = BuildConfig.CUSTOM_RADIO_URL_MP3,
-                mimeType = MimeTypes.AUDIO_MPEG
+                name = "probe-configured",
+                url = BuildConfig.CUSTOM_RADIO_URL,
+                normalizeWithInAppHls = true
             )
         }
         val initialDelayMs = intent.getLongExtra("delayMs", 20_000L)
-        val useProxy = intent.getBooleanExtra("proxy", false)
-        Log.i(TAG, "starting source=${source.name} delayMs=$initialDelayMs proxy=$useProxy url=${source.url}")
+        Log.i(TAG, "starting source=${source.name} delayMs=$initialDelayMs url=${source.url}")
         engine = createCustomRadioEngine(
             context = this,
             planEntry = CustomRadioPlanEntry(
-                if (source.normalizeWithInAppHls || source.mimeType == MimeTypes.APPLICATION_M3U8) {
-                    Settings.CustomRadioBackend.EXOPLAYER
-                } else {
-                    Settings.CustomRadioBackend.LIBVLC
-                },
+                Settings.CustomRadioBackend.EXOPLAYER,
                 source
             ),
             userAgent = BuildConfig.DEFAULT_USER_AGENT,
             initialAudioDelayMs = initialDelayMs,
             initialVolume = 100,
-            useProxy = useProxy,
             onStarted = {
                 Log.i(TAG, "engine started")
                 if (intent.getBooleanExtra("script", false)) {

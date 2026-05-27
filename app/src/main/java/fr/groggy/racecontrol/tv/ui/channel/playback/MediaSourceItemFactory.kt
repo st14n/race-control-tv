@@ -7,6 +7,7 @@ import androidx.media3.common.MediaItem
 import fr.groggy.racecontrol.tv.BuildConfig
 import fr.groggy.racecontrol.tv.f1.F1Client
 import fr.groggy.racecontrol.tv.f1tv.F1TvViewing
+import fr.groggy.racecontrol.tv.utils.DeviceInfo
 
 object MediaSourceItemFactory {
 
@@ -19,6 +20,8 @@ object MediaSourceItemFactory {
             uri = viewing.url,
             contentId = viewing.contentId,
             channelId = viewing.channelId,
+            playApiVersion = viewing.playApiVersion,
+            streamType = viewing.streamType,
             laURL = viewing.laURL,
             ascendontoken = viewing.ascendontoken,
             entitlementtoken = viewing.entitlementtoken
@@ -36,6 +39,8 @@ object MediaSourceItemFactory {
             uri = uri,
             contentId = viewing.externalAudioContentId ?: viewing.contentId,
             channelId = viewing.externalAudioChannelId ?: viewing.channelId,
+            playApiVersion = viewing.externalAudioPlayApiVersion ?: viewing.playApiVersion,
+            streamType = viewing.externalAudioStreamType ?: viewing.streamType,
             laURL = viewing.externalAudioLaURL ?: viewing.laURL,
             ascendontoken = viewing.ascendontoken,
             entitlementtoken = viewing.externalAudioEntitlementtoken ?: viewing.entitlementtoken
@@ -46,11 +51,14 @@ object MediaSourceItemFactory {
         uri: Uri,
         contentId: String,
         channelId: String?,
+        playApiVersion: String,
+        streamType: String?,
         laURL: String?,
         ascendontoken: String,
         entitlementtoken: String
     ): MediaItem {
         val builder = MediaItem.Builder().setUri(uri)
+        val isDash = streamType?.contains("DASH", ignoreCase = true) == true || uri.toString().endsWith(".mpd", ignoreCase = true)
 
         if (entitlementtoken.isNotBlank()) {
             val licenseUri: Uri? = when {
@@ -60,11 +68,22 @@ object MediaSourceItemFactory {
                         Log.e(TAG, "Failed to parse laURL: $laURL", it)
                     }.getOrNull()
                 }
-                else -> {
+                isDash -> {
                     Log.w(TAG, "laURL missing, constructing fallback DRM URL for contentId=$contentId")
                     runCatching {
-                        Uri.parse(F1Client.buildWidevineUrl(viewingPlatform(uri, laURL), contentId, channelId))
+                        Uri.parse(
+                            F1Client.buildWidevineUrl(
+                                playApiVersion = playApiVersion,
+                                platform = viewingPlatform(uri, laURL),
+                                contentId = contentId,
+                                channelId = channelId
+                            )
+                        )
                     }.onFailure { Log.e(TAG, "Failed to build fallback DRM URL", it) }.getOrNull()
+                }
+                else -> {
+                    Log.i(TAG, "Skipping DRM configuration for non-DASH stream without laURL: $uri")
+                    null
                 }
             }
 
@@ -76,8 +95,8 @@ object MediaSourceItemFactory {
                         .setLicenseRequestHeaders(
                             mapOf(
                                 "apiKey" to F1Client.API_KEY,
-                                "User-Agent" to BuildConfig.DEFAULT_USER_AGENT,
-                                "x-f1-device-info" to BuildConfig.F1_DEVICE_INFO,
+                                "User-Agent" to DeviceInfo.userAgent,
+                                "x-f1-device-info" to DeviceInfo.f1DeviceInfo,
                                 "ascendontoken" to ascendontoken,
                                 "entitlementtoken" to entitlementtoken
                             )
@@ -85,7 +104,7 @@ object MediaSourceItemFactory {
                         .setMultiSession(true)
                         .build()
                 )
-            } else {
+            } else if (isDash) {
                 Log.e(TAG, "No valid license URI — DRM will fail for $uri")
             }
         } else {

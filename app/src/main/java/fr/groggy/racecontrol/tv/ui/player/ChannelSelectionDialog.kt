@@ -2,7 +2,9 @@ package fr.groggy.racecontrol.tv.ui.player
 
 import android.app.AlertDialog
 import android.app.Dialog
+import android.content.DialogInterface
 import android.os.Bundle
+import android.view.KeyEvent
 import android.widget.ArrayAdapter
 import androidx.annotation.Keep
 import androidx.fragment.app.DialogFragment
@@ -23,6 +25,7 @@ class ChannelSelectionDialog : DialogFragment() {
     private val viewModel: SessionBrowseViewModel by viewModels()
     private var channels = emptyList<Channel>()
     private var listAdapter: ArrayAdapter<String>? = null
+    private var onDialogDismissed: (() -> Unit)? = null
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         listAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1)
@@ -33,7 +36,29 @@ class ChannelSelectionDialog : DialogFragment() {
                 (activity as? ChannelManagerListener)?.onSwitchChannel(channel)
                 dismiss()
             }
-            .create()
+            .create().apply {
+                setOnShowListener {
+                    listView?.post {
+                        val list = listView ?: return@post
+                        if (list.count > 0) {
+                            list.setSelection(0)
+                            (list.getChildAt(0) ?: list).requestFocus()
+                        } else {
+                            list.requestFocus()
+                        }
+                    }
+                }
+                setOnKeyListener { _, keyCode, event ->
+                    if (event.action == KeyEvent.ACTION_UP &&
+                        (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE)
+                    ) {
+                        dismiss()
+                        true
+                    } else {
+                        false
+                    }
+                }
+            }
     }
 
     override fun onStart() {
@@ -47,6 +72,14 @@ class ChannelSelectionDialog : DialogFragment() {
                     listAdapter?.run {
                         clear()
                         addAll(session.channels.map { channelDisplayName(it) })
+                    }
+                    (dialog as? AlertDialog)?.listView?.let { list ->
+                        if (list.count > 0) {
+                            list.post {
+                                list.setSelection(0)
+                                (list.getChildAt(0) ?: list).requestFocus()
+                            }
+                        }
                     }
                 }
             }
@@ -70,6 +103,16 @@ class ChannelSelectionDialog : DialogFragment() {
 
     fun show(fragmentManager: FragmentManager) {
         show(fragmentManager, TAG)
+    }
+
+    override fun onDismiss(dialog: DialogInterface) {
+        super.onDismiss(dialog)
+        onDialogDismissed?.invoke()
+    }
+
+    fun onDialogDismissed(listener: () -> Unit): ChannelSelectionDialog {
+        onDialogDismissed = listener
+        return this
     }
 
     interface ChannelManagerListener {

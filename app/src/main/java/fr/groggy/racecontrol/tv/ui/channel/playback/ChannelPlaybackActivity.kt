@@ -15,6 +15,7 @@ import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.core.ViewingService
 import fr.groggy.racecontrol.tv.core.settings.Settings
 import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
+import fr.groggy.racecontrol.tv.f1.F1Client
 import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannel
 import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType
 import fr.groggy.racecontrol.tv.f1tv.F1TvClient
@@ -33,6 +34,9 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
     @Inject internal lateinit var settingsRepository: SettingsRepository
     @Inject internal lateinit var f1TvClient: F1TvClient
 
+    /** The [F1TvViewing] currently loaded into the player, used for 4K fallback detection. */
+    private var currentViewing: F1TvViewing? = null
+
     companion object {
         private val TAG = ChannelPlaybackActivity::class.simpleName
 
@@ -49,7 +53,7 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         lifecycleScope.launch {
-            attachViewingIfNeeded(Settings.StreamType.DASH)
+            attachViewingIfNeeded(Settings.StreamType.DASH, preferHdrManifest = true)
         }
     }
 
@@ -59,7 +63,10 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         finish()
     }
 
-    private suspend fun attachViewingIfNeeded(streamType: Settings.StreamType) {
+    private suspend fun attachViewingIfNeeded(
+        streamType: Settings.StreamType,
+        preferHdrManifest: Boolean = true
+    ) {
         if (supportFragmentManager.findFragmentByTag(ChannelPlaybackFragment.TAG) != null) {
             Log.d(TAG, "Playback fragment already exists — skipping fetch")
             return
@@ -69,10 +76,10 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
             contentId = contentId,
             requestedChannelId = ChannelPlaybackFragment.findChannelId(this)
         )
-        Log.d(TAG, "Fetching viewing for contentId=$contentId channelId=$channelId")
+        Log.d(TAG, "Fetching viewing for contentId=$contentId channelId=$channelId preferHdrManifest=$preferHdrManifest")
         try {
-            var viewing = viewingService.getViewing(channelId, contentId, streamType)
-            Log.i(TAG, "Main viewing: url=${viewing.url} type=${viewing.streamType}")
+            var viewing = viewingService.getViewing(channelId, contentId, streamType, preferHdrManifest)
+            Log.i(TAG, "Main viewing: url=${viewing.url} platform=${viewing.platform} type=${viewing.streamType}")
 
             // Fetch PRES / F1Live channel for external audio if the user wants it
             // and they are not already watching the PRES channel itself
@@ -136,6 +143,7 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
             externalAudioUri = presViewing.url,
             externalAudioStreamType = presViewing.streamType,
             externalAudioLaURL = presViewing.laURL,
+            externalAudioPlayApiVersion = presViewing.playApiVersion,
             externalAudioEntitlementtoken = presViewing.entitlementtoken,
             externalAudioContentId = presViewing.contentId,
             externalAudioChannelId = presViewing.channelId
@@ -145,8 +153,8 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         viewing
     }
 
-    // Removed streamType parameter, accept the full viewing object
     private fun onViewingCreated(viewing: F1TvViewing) {
+        currentViewing = viewing
         Log.d(TAG, "Proceeding to create player with viewing: $viewing")
         if (settingsRepository.getCurrent().openWithExternalPlayer) {
             Log.d(TAG, "Opening with external player.")
@@ -213,39 +221,35 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         }
     }
 
-    // Method called by fragment on player error
+    /**
+     * Called by [ChannelPlaybackFragment] when ExoPlayer reports an unrecoverable error.
+     */
     fun playerError() {
-        Log.e(TAG, "Player reported an error. Finishing activity.")
-        // Simple strategy: Show error and finish. Retrying might loop if the URL is bad.
-        handleError(R.string.unable_to_play_video_message, ::finish)
+        val failedViewing = currentViewing
+        val triedHdrManifest =
+            failedViewing?.playApiVersion == F1Client.PLAY_API_V3 &&
+            failedViewing.platform == "WEB_HLS" &&
+            failedViewing.streamType?.contains("HDR_UHD_CMAF", ignoreCase = true) == true
 
-        // --- Alternative Retry Logic (use with caution) ---
-        /*
-        Log.e(TAG, "Player reported an error. Attempting to remove fragment and retry.")
-        val fragment = supportFragmentManager.findFragmentByTag(ChannelPlaybackFragment.TAG)
-        if (fragment != null && !isFinishing && !isDestroyed) {
-            supportFragmentManager.commit {
-                remove(fragment)
-                runOnCommit { // Ensure fragment is removed before trying again
-                    lifecycleScope.launch {
-                        Log.d(TAG, "Retrying attachViewingIfNeeded after player error.")
-                        // Delay slightly before retry?
-                        // kotlinx.coroutines.delay(1000)
-                        attachViewingIfNeeded(Settings.StreamType.DASH)
+        Log.e(TAG, "Player error. platform=${failedViewing?.platform} streamType=${failedViewing?.streamType} triedHdrManifest=$triedHdrManifest")
+        currentViewing = null
+
+        if (triedHdrManifest && !isFinishing && !isDestroyed) {
+            Log.i(TAG, "HDR tvOS manifest failed — retrying with standard Android TV stream")
+            val fragment = supportFragmentManager.findFragmentByTag(ChannelPlaybackFragment.TAG)
+            if (fragment != null) {
+                supportFragmentManager.commit {
+                    remove(fragment)
+                    runOnCommit {
+                        lifecycleScope.launch {
+                            attachViewingIfNeeded(Settings.StreamType.DASH, preferHdrManifest = false)
+                        }
                     }
                 }
+                return
             }
-        } else if (fragment == null && !isFinishing && !isDestroyed) {
-            // Fragment already gone, maybe retry directly?
-            lifecycleScope.launch {
-                 Log.d(TAG, "Retrying attachViewingIfNeeded after player error (no fragment found).")
-                attachViewingIfNeeded(Settings.StreamType.DASH)
-            }
-        } else {
-             Log.w(TAG, "Not retrying player error: fragment=$fragment, isFinishing=$isFinishing, isDestroyed=$isDestroyed")
-             // If retry logic fails, ensure we still show error/finish
-             handleError(R.string.unable_to_play_video_message, ::finish)
         }
-        */
+
+        handleError(R.string.unable_to_play_video_message, ::finish)
     }
 }

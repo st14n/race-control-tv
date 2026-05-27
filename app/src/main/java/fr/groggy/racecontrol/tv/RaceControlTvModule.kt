@@ -7,6 +7,7 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import fr.groggy.racecontrol.tv.utils.DeviceInfo
 import okhttp3.JavaNetCookieJar
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -35,7 +36,7 @@ class RaceControlTvModule {
     @Provides
     fun loggingInterceptor(): HttpLoggingInterceptor {
         return if (BuildConfig.DEBUG) {
-            HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY)
+            HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BASIC)
         } else {
             HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.NONE)
         }
@@ -61,7 +62,7 @@ class RaceControlTvModule {
     @Singleton
     fun httpDataSourceFactory(okHttpClient: OkHttpClient): HttpDataSource.Factory {
         return OkHttpDataSource.Factory(okHttpClient)
-            .setUserAgent(BuildConfig.DEFAULT_USER_AGENT)
+            .setUserAgent(DeviceInfo.userAgent)
             .setDefaultRequestProperties(
                 mapOf(
                     "Origin" to "https://f1tv.formula1.com",

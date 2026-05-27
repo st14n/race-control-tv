@@ -29,6 +29,29 @@ class SettingsRepository(
         currentSettings = getFromStorage()
     }
 
+    fun clearAccountCredentials() {
+        preferences.edit {
+            remove(Settings.KEY_F1_USERNAME)
+            remove(Settings.KEY_F1_PASSWORD)
+        }
+
+        applySettings()
+    }
+
+    fun updateSignInDefaults(
+        username: String,
+        password: String,
+        customRadioUrl: String
+    ) {
+        preferences.edit {
+            putString(Settings.KEY_F1_USERNAME, username)
+            putString(Settings.KEY_F1_PASSWORD, password)
+            putString(Settings.KEY_CUSTOM_RADIO_URL, customRadioUrl)
+        }
+
+        applySettings()
+    }
+
     private fun getFromStorage(): Settings {
         return with(preferences) {
             Settings(
@@ -44,6 +67,10 @@ class SettingsRepository(
                 customRadioUrl = getString(Settings.KEY_CUSTOM_RADIO_URL, null)
                     ?: getString(Settings.KEY_OLD_CUSTOM_RADIO_URL, null)
                     ?: "",
+                autoSelectCustomRadio = getBoolean(
+                    Settings.KEY_AUTO_SELECT_CUSTOM_RADIO,
+                    Settings.DEFAULT.autoSelectCustomRadio
+                ),
                 f1Username = getString(Settings.KEY_F1_USERNAME, "") ?: "",
                 f1Password = getString(Settings.KEY_F1_PASSWORD, "") ?: ""
             )

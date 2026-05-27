@@ -12,6 +12,8 @@ data class Settings(
     val customRadioDelayMs: Long,
     /** Optional custom radio stream URL. Empty string = use default candidates. */
     val customRadioUrl: String,
+    /** Auto-switch to custom radio when a built-in or saved custom stream is available. */
+    val autoSelectCustomRadio: Boolean,
     /** F1TV account email (stored locally for auto-fill). */
     val f1Username: String,
     /** F1TV account password (stored locally for auto-fill). */
@@ -21,20 +23,9 @@ data class Settings(
         HLS("HLS"), DASH("DASH"), DASH_HLS("HLS")
     }
 
-    /** Kept for use by CustomRadioPlanEntry; no longer a user-visible setting. */
+    /** Kept for telemetry emitted by the custom radio player. */
     enum class CustomRadioBackend(val preferenceValue: String) {
-        AUTO("auto"),
-        EXOPLAYER("exoplayer"),
-        LIBVLC("libvlc");
-
-        companion object {
-            fun fromPreference(value: String?): CustomRadioBackend {
-                if (value == "relay") {
-                    return LIBVLC
-                }
-                return entries.firstOrNull { it.preferenceValue == value } ?: LIBVLC
-            }
-        }
+        EXOPLAYER("exoplayer")
     }
 
     companion object {
@@ -46,6 +37,7 @@ data class Settings(
             audioOffsetMs = 0L,
             customRadioDelayMs = 20_000L,
             customRadioUrl = "",
+            autoSelectCustomRadio = true,
             f1Username = "",
             f1Password = ""
         )
@@ -57,6 +49,7 @@ data class Settings(
         const val KEY_AUDIO_OFFSET_MS = "audio_offset_ms"
         const val KEY_CUSTOM_RADIO_DELAY_MS = "custom_radio_delay_ms"
         const val KEY_CUSTOM_RADIO_URL = "custom_radio_url"
+        const val KEY_AUTO_SELECT_CUSTOM_RADIO = "auto_select_custom_radio"
         const val KEY_OLD_CUSTOM_RADIO_DELAY_MS = "gp_radio_delay_ms"
         const val KEY_OLD_CUSTOM_RADIO_URL = "gp_radio_custom_url"
         const val KEY_F1_USERNAME = "f1_username"

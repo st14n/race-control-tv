@@ -4,6 +4,12 @@
 
     <PreferenceCategory android:title="@string/settings_category_account_title">
 
+        <Preference
+            android:key="current_account"
+            android:title="@string/settings_current_account_title"
+            android:summary="@string/settings_current_account_none_summary"
+            android:selectable="false" />
+
         <EditTextPreference
             android:key="f1_username"
             android:title="@string/settings_f1_username_title"
@@ -58,6 +64,12 @@
             android:summary="@string/settings_custom_radio_url_summary"
             android:inputType="textUri"
             app:useSimpleSummaryProvider="true" />
+
+        <SwitchPreference
+            android:key="auto_select_custom_radio"
+            android:title="@string/settings_auto_select_custom_radio_title"
+            android:summary="@string/settings_auto_select_custom_radio_summary"
+            android:defaultValue="true" />
 
         <Preference
             android:key="reset_settings"

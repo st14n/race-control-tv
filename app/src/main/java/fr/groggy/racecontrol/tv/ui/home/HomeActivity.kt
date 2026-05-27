@@ -64,8 +64,6 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
         Log.d(TAG, "onStart")
         super.onStart()
 
-        teaserImage?.requestFocus()
-
         syncJob = lifecycleScope.launch {
             schedule(Duration.ofMinutes(1)) {
                 Log.d("Fetching new data", "Lifecycle state is ${lifecycle.currentState}")
