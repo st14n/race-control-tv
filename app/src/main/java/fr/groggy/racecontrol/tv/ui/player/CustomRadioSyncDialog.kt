@@ -39,18 +39,20 @@ class CustomRadioSyncDialog(
                 dialog.setTitle(getString(R.string.custom_radio_sync_title, formatOffset(dialogOffsetMs)))
             }
         }
-        dialog.setOnKeyListener { _, _, event ->
+        dialog.setOnKeyListener { _, keyCode, event ->
+            val isDismissKey = keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE
+            if (!isDismissKey) {
+                if (event.action == KeyEvent.ACTION_DOWN) {
+                    onUserInteraction?.invoke()
+                }
+                return@setOnKeyListener false
+            }
+
             if (event.action == KeyEvent.ACTION_DOWN) {
                 onUserInteraction?.invoke()
-            }
-            if (event.action == KeyEvent.ACTION_UP &&
-                (event.keyCode == KeyEvent.KEYCODE_BACK || event.keyCode == KeyEvent.KEYCODE_ESCAPE)
-            ) {
                 dismiss()
-                true
-            } else {
-                false
             }
+            true
         }
 
         return dialog

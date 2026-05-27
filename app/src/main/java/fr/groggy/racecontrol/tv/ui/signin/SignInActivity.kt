@@ -135,6 +135,7 @@ import fr.groggy.racecontrol.tv.core.credentials.CredentialsService
 import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
 import fr.groggy.racecontrol.tv.f1.F1Credentials // Ensure this is imported
 import fr.groggy.racecontrol.tv.ui.home.HomeActivity
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -146,6 +147,8 @@ class SignInActivity : ComponentActivity() {
         private val TAG = SignInActivity::class.simpleName
         private const val F1_LOGIN_URL = "https://account.formula1.com/#/en/login"
         private const val EXTRA_SILENT_REAUTH = "silent_reauth"
+        private const val AUTO_FILL_RETRY_DELAY_MS = 2_000L
+        private const val AUTO_FILL_RETRY_ATTEMPTS = 8
 
         fun intent(context: Context) = Intent(context, SignInActivity::class.java)
 
@@ -168,6 +171,7 @@ class SignInActivity : ComponentActivity() {
 
     private var isSilentReAuth = false
     private var hasShownInitialSetupPrompt = false
+    private var pendingAutoFillRetry: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Log.d(TAG, "onCreate")
@@ -225,6 +229,13 @@ class SignInActivity : ComponentActivity() {
                 Log.d(TAG, "onPageFinished: $url")
                 autoAcceptCookieDialog()
 
+                val cookies = CookieManager.getInstance().getCookie(url)
+                if (credentialsService.storeToken(cookies)) {
+                    Log.d(TAG, "Session token found and stored. Navigating home.")
+                    navigateToHome()
+                    return
+                }
+
                 // Check if we are currently on the login page
                 if (url?.startsWith(F1_LOGIN_URL) == true) {
                     // We are on the login page. Attempt auto-fill.
@@ -233,21 +244,9 @@ class SignInActivity : ComponentActivity() {
                     captureCredentials()
                     autoFillCredentials() // This will use saved credentials
                 } else {
-                    // We are on a *different* page (likely after a successful login)
-                    // Now check for the session cookie to confirm login and get the token
-                    Log.d(TAG, "Page loaded is not the login page. Checking for session cookie...")
-                    val cookies = CookieManager.getInstance().getCookie(url)
-                    if (credentialsService.storeToken(cookies)) {
-                        // Login successful (manual or auto), token stored. Navigate home.
-                        Log.d(TAG, "Session token found and stored. Navigating home.")
-                        navigateToHome()
-                    } else {
-                        // Landed on a non-login page, but couldn't find/store token.
-                        // This might indicate a problem or an unexpected page.
-                        Log.w(TAG, "Not on login page, but failed to store token from cookies. Current URL: $url")
-                        // Optional: You could force navigation back to login here if needed
-                        // view?.loadUrl(F1_LOGIN_URL)
-                    }
+                    // Landed on a non-login page, but couldn't find/store token.
+                    // This might indicate a problem or an unexpected page.
+                    Log.w(TAG, "Not on login page, but failed to store token from cookies. Current URL: $url")
                 }
             }
         }
@@ -475,6 +474,28 @@ class SignInActivity : ComponentActivity() {
                 password = resolvedCredentials.password,
                 autoSubmit = true
             )
+
+            pendingAutoFillRetry?.cancel()
+            pendingAutoFillRetry = lifecycleScope.launch {
+                repeat(AUTO_FILL_RETRY_ATTEMPTS) { attempt ->
+                    delay(AUTO_FILL_RETRY_DELAY_MS)
+                    if (isFinishing) {
+                        return@launch
+                    }
+                    if (!loginWebView.url.orEmpty().startsWith(F1_LOGIN_URL)) {
+                        return@launch
+                    }
+                    if (credentialsService.hasValidF1Credentials()) {
+                        return@launch
+                    }
+                    Log.d(TAG, "Retrying auto-fill after consent popup / login page settle. attempt=${attempt + 1}")
+                    fillLoginForm(
+                        login = resolvedCredentials.login,
+                        password = resolvedCredentials.password,
+                        autoSubmit = true
+                    )
+                }
+            }
         }
     }
 
@@ -724,6 +745,7 @@ class SignInActivity : ComponentActivity() {
     }
 
     private fun navigateToHome() {
+        pendingAutoFillRetry?.cancel()
         Log.d(TAG, "Navigating home (isSilentReAuth=$isSilentReAuth isTaskRoot=$isTaskRoot)")
         if (isSilentReAuth && !isTaskRoot) {
             // Something (e.g. HomeActivity) is behind us in the back stack — just go back

@@ -46,6 +46,8 @@ class ExoPlayerPlaybackTransportControlGlue(
     companion object {
         private val TAG = ExoPlayerPlaybackTransportControlGlue::class.simpleName
         private const val DEFAULT_SEEK_OFFSET = 15_000L
+        // for some reason, have to divide 500 ms seek by 2 for it to work properly??
+        private const val CUSTOM_RADIO_OVERLAY_OFFSET_STEP_MS = 250L
     }
 
     private val rewindAction = PlaybackControlsRow.RewindAction(activity)
@@ -98,6 +100,10 @@ class ExoPlayerPlaybackTransportControlGlue(
     private fun onMenuDismissed() {
         menuCurrentlyOpen = false
         onPlayerMenuDismissed?.invoke()
+    }
+
+    fun notifyMenuDismissed() {
+        onMenuDismissed()
     }
 
     init {
@@ -211,20 +217,20 @@ class ExoPlayerPlaybackTransportControlGlue(
         when (action) {
             rewindAction -> {
                 if (isCustomRadioActive?.invoke() == true) {
-                    onCustomRadioOffsetAdjust?.invoke(500L)
+                    onCustomRadioOffsetAdjust?.invoke(CUSTOM_RADIO_OVERLAY_OFFSET_STEP_MS)
                 } else {
                     playerAdapter.seekOffset(-DEFAULT_SEEK_OFFSET)
                 }
             }
             fastFormatAction -> {
                 if (isCustomRadioActive?.invoke() == true) {
-                    onCustomRadioOffsetAdjust?.invoke(-500L)
+                    onCustomRadioOffsetAdjust?.invoke(-CUSTOM_RADIO_OVERLAY_OFFSET_STEP_MS)
                 } else {
                     playerAdapter.seekOffset(DEFAULT_SEEK_OFFSET)
                 }
             }
             selectAudioAction -> openMenuOnce { openAudioSelectionDialog() }
-            customRadioSyncAction -> onCustomRadioSyncRequested?.invoke()
+            customRadioSyncAction -> openMenuOnce { onCustomRadioSyncRequested?.invoke() }
             closedCaptionAction -> toggleClosedCaptions()
             resolutionSelectionAction -> openMenuOnce { openResolutionSelectionDialog() }
             switchChannelAction -> openMenuOnce { openChannelSwitchDialog() }
