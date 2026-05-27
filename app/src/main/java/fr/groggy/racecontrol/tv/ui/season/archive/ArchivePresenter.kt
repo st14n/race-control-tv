@@ -19,14 +19,14 @@ class ArchivePresenter: Presenter() {
         return ViewHolder(view)
     }
 
-    override fun onBindViewHolder(viewHolder: ViewHolder?, item: Any?) {
-        val view = viewHolder?.view as TextCardView
+    override fun onBindViewHolder(viewHolder: ViewHolder, item: Any?) {
+        val view = viewHolder.view as TextCardView
         val archiveItem = item as Archive
         view.setText(archiveItem.year.toString())
     }
 
-    override fun onUnbindViewHolder(viewHolder: ViewHolder?) {
-        val view = viewHolder?.view as TextCardView
+    override fun onUnbindViewHolder(viewHolder: ViewHolder) {
+        val view = viewHolder.view as TextCardView
         view.setText(null)
     }
 }

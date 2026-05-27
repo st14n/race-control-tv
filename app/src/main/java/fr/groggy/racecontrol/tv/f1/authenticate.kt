@@ -6,8 +6,8 @@ import com.squareup.moshi.JsonClass
 
 @JsonClass(generateAdapter = true)
 data class F1AuthenticateRequest(
-    @Json(name = "Login") val login: String,
-    @Json(name = "Password") val password: String)
+    @param:Json(name = "Login") val login: String,
+    @param:Json(name = "Password") val password: String)
 
 @JsonClass(generateAdapter = true)
 data class F1AuthenticateResponse(val data: Data) {

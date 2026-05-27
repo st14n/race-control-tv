@@ -14,18 +14,18 @@ class ChannelListPresenter: Presenter() {
         return ViewHolder(view)
     }
 
-    override fun onBindViewHolder(viewHolder: ViewHolder, item: Any) {
+    override fun onBindViewHolder(viewHolder: ViewHolder, item: Any?) {
         val view = viewHolder.view.findViewById<TextView>(R.id.driverName)
         when(item) {
             is BasicChannelCard -> {
                 val type = item.type
                 view.text = when(type) {
-                    F1TvBasicChannelType.Companion.Wif -> "International"
-                    F1TvBasicChannelType.Companion.F1Live -> "F1 Live"
-                    F1TvBasicChannelType.Companion.PitLane -> "Pit Lane"
-                    F1TvBasicChannelType.Companion.Tracker -> "Tracker"
-                    F1TvBasicChannelType.Companion.Data -> "Data"
-                    is F1TvBasicChannelType.Companion.Unknown -> type.name
+                    F1TvBasicChannelType.Wif -> "International"
+                    F1TvBasicChannelType.F1Live -> "F1 Live"
+                    F1TvBasicChannelType.PitLane -> "Pit Lane"
+                    F1TvBasicChannelType.Tracker -> "Tracker"
+                    F1TvBasicChannelType.Data -> "Data"
+                    is F1TvBasicChannelType.Unknown -> type.name
                 }
             }
             is OnboardChannelCard -> {
@@ -34,5 +34,5 @@ class ChannelListPresenter: Presenter() {
         }
     }
 
-    override fun onUnbindViewHolder(viewHolder: ViewHolder?) { }
+    override fun onUnbindViewHolder(viewHolder: ViewHolder) { }
 }

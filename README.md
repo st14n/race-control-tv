@@ -1,55 +1,104 @@
-# F1 TV Viewer
+# Race Control TV
 
-Android TV application to watch content from [F1 TV](https://f1tv.formula1.com).
+Android TV client for watching F1 TV content with a remote-friendly Leanback UI.
 
-At this time, content from the current session and old sessions are available, including F1, F2, F3...
-Onboard channels when available are supported, as well as technical channels like the tracker channel,
-and on future I will bring documentaries (I hope).
+This repository is an updated fork focused on current Android TV devices, local sideload installs, and up-to-date playback behavior. It is not affiliated with Formula 1 or F1 TV.
 
-This app currently use the F1TV 3.0 APIs and support stream content of 1080p at 50FPS
+## What It Does
 
-Audio selection (language or no commentary) is supported.
+- Browse current and archived sessions.
+- Play main feeds, onboard cameras, tracker/data channels, and other multi-channel session feeds when F1 TV exposes them.
+- Support multiple audio tracks, including commentary-free feeds when available.
+- Show and switch video quality from the player controls.
+- Display the active video quality and audio language in the playback overlay.
+- Support subtitles/closed captions when provided by the upstream stream.
+- Support custom radio audio injection with adjustable sync delay.
+- Use a TV-first sign-in flow instead of requiring a browser on another device.
 
-Resolution selection (from 270p to 1080p) is available, however the app knows based on bandwidth what
-is the best resolution to pickup, this is built in with ExoPlayer.
+## Playback Notes
 
-Closed captions supported in English, Spanish, Dutch and German.
+- Playback capability depends on what F1 TV returns for a given session, region, account tier, and device path.
+- The app can use higher-quality streams, including 50 fps content and 4k HDR variants, when your subscription is eligible and the device can decode them.
+- If a preferred playback path fails, the app falls back to more widely compatible stream variants automatically.
 
-Application is available in English, Dutch, German, French, Portuguese, Russian and Spanish.
-Feel free to translate it and open a PR :D, also to update some translations that are not fully ready.
+## Requirements
 
-## Install (as of 15 Feb 2022)
+- An Android TV or Google TV device running Android 9+.
+- A valid F1 TV subscription with access to the content you want to watch.
+- Sideloading enabled if you are installing the APK manually.
 
-F1 has "requested" me to remove the app from Google Playstore, so that means that the only way to install the app now is sideloading the APK.
-For the users that already have the app installed nothing changes, but you wont get updates via Google Play anymore.
+## Install
 
-## Fire Sticks / TVS
+This project is distributed as a sideloaded APK. It is not maintained through the Play Store.
 
-The app is supported on fire sticks / tvs, however due some technicalities I can't offer
-the app directly on Amazon store please refer to the [releases page](https://github.com/leonardoxh/race-control-tv/releases)
-to download the latest apk and side load it.
+### Prebuilt APK
 
-## Open beta testing
-The app itself is always sort of "beta", however you can join the public app beta (on playstore) by clicking
-on the following link (on your web browser) https://play.google.com/apps/testing/com.github.leonardoxh.f1
-by joining the beta you'll receive the features before anyone else, but it might mean that the app is uninstable.
+Download a release APK from your distribution point of choice and sideload it with ADB or your preferred TV installer.
 
-## New features PR
+### Build And Install From Source
 
-I normally accept new features in PRs that bring improvements to the app, however, due some last recent
-bugs introduced in some PRs where I had to revert literally the whole PR for new features please create a github issue
-first before any code change and try to describe what you want to do as detailed as possible so we can chat on the issue
-and see if this is something we want to onboard or not, be in mind also that we do not work in this app full time, so
-the features have to be very well tested, so everyone can enjoy the races.
+1. Install JDK 21.
+2. Install the Android SDK and platform tools.
+3. Clone the repository.
+4. Optionally create a `.env` file in the project root for build-time defaults (see below).
+5. Use one of the Gradle install tasks below.
 
-Also be in mind that the code of the app needs an extensive refactor.
+```powershell
+.\gradlew.bat :app:installDebug
+.\gradlew.bat :app:installRelease
+```
 
-## App is buffering all the time, can't get content at 1080p
+If no custom release signing properties are configured, the release build falls back to the debug keystore so it remains installable for local testing.
 
-Normally that is not an app issue, as you might know we simply use the content that is available on F1TvPro, most of the cases
-I'd say 99.99% of the cases this is **related to problems on the API that we cannot fix**, unless it is a major outage that is happening to 
-everyone using the app, there is simply nothing I can do. As a workaround try to enable the option to play with external players and use a
-external player like VLC. Issues that are open with these subjects will be closed.
+## Optional `.env` Values
+
+The app can read a few build-time defaults from a root `.env` file:
+
+```dotenv
+F1_username=
+F1_password=
+TOKEN_REFRESH_INTERVAL_MS=
+CUSTOM_RADIO_URL=
+```
+
+These are optional. The normal flow is still signing in on device and changing settings from the app UI.
+
+## Development
+
+### Toolchain
+
+- Android Gradle Plugin based project with Kotlin DSL.
+- Kotlin + Coroutines.
+- Hilt for dependency injection.
+- Moshi for JSON.
+- Room for local persistence.
+- Media3 / ExoPlayer for playback.
+- JavaCV / FFmpeg for in-app custom radio normalization.
+
+### Useful Commands
+
+```powershell
+.\gradlew.bat :app:assembleDebug
+.\gradlew.bat :app:assembleRelease
+.\gradlew.bat :app:compileDebugKotlin
+.\gradlew.bat :app:installDebug
+.\gradlew.bat :app:installRelease
+```
+
+## Current App Features
+
+- TV-native sign-in screen with saved credentials.
+- Home screen focused on current season and available sessions.
+- Session screen with per-channel browsing for onboard and data feeds.
+- Playback controls for seek, audio track selection, channel switching, quality selection, subtitles, and custom radio sync.
+- App language options for English, German, Spanish, French, Dutch, Polish, Portuguese, Russian, or system default.
+
+## Limitations
+
+- This app only plays streams and metadata that F1 TV currently exposes to the authenticated account.
+- Availability of subtitles, alternate audio, onboard feeds, HDR, or higher resolutions varies by session, subscription and device.
+- Buffering or stream-rule failures are often upstream service issues rather than local player bugs.
+- Changes on the F1 TV side can break playback without warning.
 
 ## Screenshots
 
@@ -63,23 +112,14 @@ external player like VLC. Issues that are open with these subjects will be close
 
 ![Channel audio selection](/screenshots/channel_audio_selection.png)
 
-## Disclaimer
-
-I have created this app because the official [F1 TV app](https://play.google.com/store/apps/details?id=com.formulaone.production)
-does not officially support Android TV and even after sideloading it, it's not usable with a remote.
-The official website is also not easily usable with a remote. If in the future an official application
-would be available, I will happily abandon this one.
-
-This will always be a free and open source app.
-
 ## Credits
 
-First of all thank you [Groggy](https://github.com/Groggy) the original creator of this project that I forked without you this would never be possible.
+Thanks to [Groggy](https://github.com/Groggy), the original creator of the project this fork builds on.
 
-Thanks to all contributors of [f1viewer](https://github.com/SoMuchForSubtlety/f1viewer) for their work on how to use the F1 TV API.
+Thanks to the contributors to [f1viewer](https://github.com/SoMuchForSubtlety/f1viewer) for the public groundwork around F1 TV API behavior.
 
-Thanks to my friend [Thiago Andrade](https://github.com/ttandrade) for the exclusive icons and color guidelines.
+Thanks to [Thiago Andrade](https://github.com/ttandrade) for the icon and visual design work carried forward in the project.
 
-## Donations
+Thanks to [Leonardo Rossetto](https://github.com/leonardoxh) for his earlier work this fork was built on.
 
-[![Donations](https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png)](https://www.buymeacoffee.com/lrossett)
+Thanks to [LoVega1337](https://github.com/LoVega1337) and [Loïc Yhuel](https://github.com/hwti) for their knowledge about the 4K/HDR manifest. 

@@ -18,6 +18,9 @@ class SharedPreferencesStore @Inject constructor(
     fun findString(key: String): String? =
         sharedPreferences.getString(key, null)
 
+    fun findLong(key: String, defaultValue: Long = 0L): Long =
+        sharedPreferences.getLong(key, defaultValue)
+
     fun update(f: SharedPreferences.Editor.() -> Unit): Unit =
         with(sharedPreferences.edit()) {
             f()

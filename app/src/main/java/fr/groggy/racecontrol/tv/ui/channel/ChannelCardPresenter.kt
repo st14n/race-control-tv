@@ -10,12 +10,12 @@ import androidx.leanback.widget.ImageCardView.CARD_TYPE_FLAG_TITLE
 import androidx.leanback.widget.Presenter
 import com.bumptech.glide.Glide
 import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType
-import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Companion.Data
-import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Companion.F1Live
-import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Companion.PitLane
-import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Companion.Tracker
-import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Companion.Unknown
-import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Companion.Wif
+import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Data
+import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.F1Live
+import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.PitLane
+import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Tracker
+import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Unknown
+import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType.Wif
 
 class ChannelCardPresenter: Presenter() {
 
@@ -34,7 +34,7 @@ class ChannelCardPresenter: Presenter() {
         return ViewHolder(view)
     }
 
-    override fun onBindViewHolder(viewHolder: ViewHolder, item: Any) {
+    override fun onBindViewHolder(viewHolder: ViewHolder, item: Any?) {
         val view = viewHolder.view as ImageCardView
         when(item) {
             is BasicChannelCard -> {
@@ -59,10 +59,12 @@ class ChannelCardPresenter: Presenter() {
                     view.setBackgroundColor(ContextCompat.getColor(viewHolder.view.context, android.R.color.black))
                 }
                 item.driver?.headshot?.let {
-                    Glide.with(viewHolder.view.context)
-                        .load(it.url)
-                        .centerCrop()
-                        .into(view.mainImageView)
+                    view.mainImageView?.let { imageView ->
+                        Glide.with(viewHolder.view.context)
+                            .load(it.url)
+                            .centerCrop()
+                            .into(imageView)
+                    }
                 }
             }
         }

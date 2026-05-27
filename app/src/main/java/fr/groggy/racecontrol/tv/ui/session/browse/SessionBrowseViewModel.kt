@@ -13,6 +13,7 @@ import fr.groggy.racecontrol.tv.ui.channel.BasicChannelCard
 import fr.groggy.racecontrol.tv.ui.channel.OnboardChannelCard
 import fr.groggy.racecontrol.tv.utils.coroutines.traverse
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -33,6 +34,7 @@ class SessionBrowseViewModel @Inject constructor(
         return@withContext session(sessionId, contentId).first()
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun session(sessionId: String, contentId: String): Flow<Session> {
         return sessionRepository.observeById(sessionId)
             .onEach { Log.d(TAG, "Session changed") }
@@ -61,6 +63,7 @@ class SessionBrowseViewModel @Inject constructor(
             .onEach { Log.d(TAG, "VM session changed") }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     private fun channels(contentId: String): Flow<List<Channel>> {
         return channelRepository.observe(contentId)
             .onEach { Log.d(TAG, "Channels changed") }

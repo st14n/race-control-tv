@@ -5,10 +5,10 @@ import com.squareup.moshi.JsonClass
 
 @JsonClass(generateAdapter = true)
 data class F1LoginToken(
-    @Json(name = "data") val data: F1TokenData
+    @param:Json(name = "data") val data: F1TokenData
 )
 
 @JsonClass(generateAdapter = true)
 data class F1TokenData(
-    @Json(name = "subscriptionToken") val subscriptionToken: String
+    @param:Json(name = "subscriptionToken") val subscriptionToken: String
 )
