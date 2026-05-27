@@ -9,7 +9,10 @@ import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.viewModels
 import androidx.leanback.app.RowsSupportFragment
 import androidx.leanback.widget.*
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.f1tv.Archive
@@ -31,6 +34,7 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
     private val homeEntriesAdapter = ArrayObjectAdapter(ListRowPresenter())
     private val currentYear = Year.now().value
     private var archivesRow: ListRow? = null
+    private var hasAppliedInitialLatestEventSelection = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,9 +66,11 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
 
         archivesRow = getArchiveRow(viewModel.listArchive())
 
-        lifecycleScope.launchWhenCreated {
-            viewModel.getCurrentSeason(Archive(currentYear))
-                .collect(::onUpdatedSeason)
+        lifecycleScope.launch {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.CREATED) {
+                viewModel.getCurrentSeason(Archive(currentYear))
+                    .collect(::onUpdatedSeason)
+            }
         }
     }
 
@@ -80,19 +86,50 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
 
             if (existingListRow == null) {
                 homeEntriesAdapter.add(sessionsListRow)
-                homeEntriesAdapter.add(archivesRow)
+                ensureArchiveRowPresent()
             } else {
-                /* Makes the adapter blink :| */
-                homeEntriesAdapter.replace(0, sessionsListRow)
+
+                /* Compare the old list to the new to see if it needs updating */
+                if (!hasMatchingSessions(existingListRow, sessionsListRow)) {
+                    homeEntriesAdapter.replace(0, sessionsListRow)
+                }
+                ensureArchiveRowPresent()
             }
+            maybeSelectLatestEventByDefault()
         } else {
             onEmptySeason()
         }
     }
 
+    private fun maybeSelectLatestEventByDefault() {
+        if (hasAppliedInitialLatestEventSelection) return
+        hasAppliedInitialLatestEventSelection = true
+        view?.post {
+            setSelectedPosition(0, false)
+            view?.requestFocus()
+        }
+    }
+
+    private fun hasMatchingSessions(
+        existingListRow: ListRow,
+        sessionsListRow: ListRow
+    ) = (existingListRow.adapter.size() == sessionsListRow.adapter.size() // Do we have the same number of items
+            && (0 until existingListRow.adapter.size()).all { index -> // If so, do the sessions in each match in order?
+        existingListRow.adapter[index] as Session == sessionsListRow.adapter[index] as Session
+    })
+
     private fun onEmptySeason() {
         /* Session wasn't started yet, just add the archive */
-        homeEntriesAdapter.add(archivesRow)
+        ensureArchiveRowPresent()
+    }
+
+    private fun ensureArchiveRowPresent() {
+        val archive = archivesRow ?: return
+        val hasArchiveRow = homeEntriesAdapter.unmodifiableList<ListRow>()
+            .any { it.headerItem.name == archive.headerItem.name }
+        if (!hasArchiveRow) {
+            homeEntriesAdapter.add(archive)
+        }
     }
 
     private fun getLastSessionsRow(
@@ -155,6 +192,6 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
             }
             else -> null
         }
-        startActivity(activity)
+        activity?.let { startActivity(it) }
     }
 }

@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Display labels for the audio sync offset ListPreference -->
+    <string-array name="audio_offset_entries">
+        <item>-1000 ms (audio 1s behind)</item>
+        <item>-500 ms</item>
+        <item>-250 ms</item>
+        <item>0 ms (no offset)</item>
+        <item>+250 ms</item>
+        <item>+500 ms</item>
+        <item>+1000 ms (audio 1s ahead)</item>
+    </string-array>
+
+    <!-- Stored values (milliseconds as strings — parsed to Long in SettingsRepository) -->
+    <string-array name="audio_offset_values">
+        <item>-1000</item>
+        <item>-500</item>
+        <item>-250</item>
+        <item>0</item>
+        <item>250</item>
+        <item>500</item>
+        <item>1000</item>
+    </string-array>
+
+    <!-- Custom radio sync delay options (values stored as milliseconds) -->
+    <string-array name="custom_radio_delay_entries">
+        <item>1 s</item>
+        <item>2 s</item>
+        <item>3 s</item>
+        <item>4 s</item>
+        <item>5 s</item>
+        <item>6 s</item>
+        <item>7 s</item>
+        <item>8 s</item>
+        <item>9 s</item>
+        <item>10 s</item>
+        <item>11 s</item>
+        <item>12 s</item>
+        <item>13 s</item>
+        <item>14 s</item>
+        <item>15 s</item>
+        <item>16 s</item>
+        <item>17 s</item>
+        <item>18 s</item>
+        <item>19 s</item>
+        <item>20 s (default)</item>
+        <item>21 s</item>
+        <item>22 s</item>
+        <item>23 s</item>
+        <item>24 s</item>
+        <item>25 s</item>
+        <item>26 s</item>
+        <item>27 s</item>
+        <item>28 s</item>
+        <item>29 s</item>
+        <item>30 s</item>
+        <item>31 s</item>
+        <item>32 s</item>
+        <item>33 s</item>
+        <item>34 s</item>
+        <item>35 s</item>
+        <item>36 s</item>
+        <item>37 s</item>
+        <item>38 s</item>
+        <item>39 s</item>
+        <item>40 s</item>
+        <item>41 s</item>
+        <item>42 s</item>
+        <item>43 s</item>
+        <item>44 s</item>
+        <item>45 s</item>
+        <item>46 s</item>
+        <item>47 s</item>
+        <item>48 s</item>
+        <item>49 s</item>
+        <item>50 s</item>
+        <item>51 s</item>
+        <item>52 s</item>
+        <item>53 s</item>
+        <item>54 s</item>
+        <item>55 s</item>
+        <item>56 s</item>
+        <item>57 s</item>
+        <item>58 s</item>
+        <item>59 s</item>
+        <item>60 s</item>
+    </string-array>
+
+    <string-array name="custom_radio_delay_values">
+        <item>1000</item>
+        <item>2000</item>
+        <item>3000</item>
+        <item>4000</item>
+        <item>5000</item>
+        <item>6000</item>
+        <item>7000</item>
+        <item>8000</item>
+        <item>9000</item>
+        <item>10000</item>
+        <item>11000</item>
+        <item>12000</item>
+        <item>13000</item>
+        <item>14000</item>
+        <item>15000</item>
+        <item>16000</item>
+        <item>17000</item>
+        <item>18000</item>
+        <item>19000</item>
+        <item>20000</item>
+        <item>21000</item>
+        <item>22000</item>
+        <item>23000</item>
+        <item>24000</item>
+        <item>25000</item>
+        <item>26000</item>
+        <item>27000</item>
+        <item>28000</item>
+        <item>29000</item>
+        <item>30000</item>
+        <item>31000</item>
+        <item>32000</item>
+        <item>33000</item>
+        <item>34000</item>
+        <item>35000</item>
+        <item>36000</item>
+        <item>37000</item>
+        <item>38000</item>
+        <item>39000</item>
+        <item>40000</item>
+        <item>41000</item>
+        <item>42000</item>
+        <item>43000</item>
+        <item>44000</item>
+        <item>45000</item>
+        <item>46000</item>
+        <item>47000</item>
+        <item>48000</item>
+        <item>49000</item>
+        <item>50000</item>
+        <item>51000</item>
+        <item>52000</item>
+        <item>53000</item>
+        <item>54000</item>
+        <item>55000</item>
+        <item>56000</item>
+        <item>57000</item>
+        <item>58000</item>
+        <item>59000</item>
+        <item>60000</item>
+    </string-array>
+
+    <!-- App language options -->
+    <string-array name="app_locale_entries">
+        <item>System default</item>
+        <item>English</item>
+        <item>Deutsch</item>
+        <item>Español</item>
+        <item>Français</item>
+        <item>Nederlands</item>
+        <item>Polski</item>
+        <item>Português</item>
+        <item>Русский</item>
+    </string-array>
+
+    <string-array name="app_locale_values">
+        <item>system</item>
+        <item>en</item>
+        <item>de</item>
+        <item>es</item>
+        <item>fr</item>
+        <item>nl</item>
+        <item>pl</item>
+        <item>pt</item>
+        <item>ru</item>
+    </string-array>
+</resources>

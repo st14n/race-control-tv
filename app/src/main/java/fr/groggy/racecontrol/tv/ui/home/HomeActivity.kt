@@ -12,11 +12,15 @@ import androidx.fragment.app.commit
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.R
+import fr.groggy.racecontrol.tv.core.credentials.CredentialsService
 import fr.groggy.racecontrol.tv.core.season.SeasonService
 import fr.groggy.racecontrol.tv.f1tv.Archive
 import fr.groggy.racecontrol.tv.ui.season.browse.SeasonBrowseActivity
 import fr.groggy.racecontrol.tv.ui.settings.SettingsActivity
+import fr.groggy.racecontrol.tv.ui.signin.SignInActivity
 import fr.groggy.racecontrol.tv.utils.coroutines.schedule
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import org.threeten.bp.Duration
 import org.threeten.bp.Year
 import javax.inject.Inject
@@ -32,7 +36,10 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
     }
 
     @Inject internal lateinit var seasonService: SeasonService
+    @Inject internal lateinit var credentialsService: CredentialsService
     private var teaserImage: ImageView? = null
+
+    private var syncJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,15 +57,14 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
         findViewById<View>(R.id.settings).setOnClickListener {
             startActivity(SettingsActivity.intent(this))
         }
+
     }
 
     override fun onStart() {
         Log.d(TAG, "onStart")
         super.onStart()
 
-        teaserImage?.requestFocus()
-
-        lifecycleScope.launchWhenStarted {
+        syncJob = lifecycleScope.launch {
             schedule(Duration.ofMinutes(1)) {
                 Log.d("Fetching new data", "Lifecycle state is ${lifecycle.currentState}")
                 try {
@@ -72,10 +78,26 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
 
                 if (supportFragmentManager.findFragmentByTag(TAG) !is HomeFragment) {
                     supportFragmentManager.commit {
-                        replace(R.id.fragment_container, HomeFragment())
+                        replace(R.id.fragment_container, HomeFragment(), TAG)
                     }
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // If the app is brought back from the background after the token refresh interval has
+        // elapsed, MainActivity is already finished so the relogin check never runs.
+        // Re-check here so a silent re-auth is triggered without requiring a force-close.
+        if (credentialsService.shouldReLogin()) {
+            startActivity(SignInActivity.intentSilentReAuth(this))
+        }
+    }
+
+    override fun onPause() {
+        syncJob?.cancel()
+        syncJob = null
+        super.onPause()
     }
 }

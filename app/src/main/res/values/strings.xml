@@ -41,6 +41,18 @@
     <string name="settings_open_with_external_player_title">Open with external player (beta)</string>
     <string name="settings_reset_to_default_title">Reset settings to default</string>
     <string name="settings_open_with_external_player_summary">If ON we will use an external player to play content instead the built in player</string>
+    <string name="settings_use_external_audio_title">External audio (PRES channel)</string>
+    <string name="settings_use_external_audio_summary">Mix international commentary audio with the current stream (requires restart)</string>
+    <string name="settings_audio_offset_ms_title">Audio sync offset</string>
+    <string name="custom_radio_audio_label">Custom Radio</string>
+    <string name="custom_radio_overlay_label">%1$s / %2$s seconds delayed</string>
+    <string name="custom_radio_sync_action">Radio sync</string>
+    <string name="custom_radio_sync_title">Radio sync [%1$s delayed]</string>
+    <string name="custom_radio_sync_decrease">0.5s forwards</string>
+    <string name="custom_radio_sync_increase">0.5s backwards</string>
+    <string name="audio_selection_close">Close</string>
+    <string name="custom_radio_sync_close">Close</string>
+    <string name="custom_radio_waiting_message">Waiting %1$s seconds for synchronization.</string>
     <string name="settings_category_other_title">Other</string>
     <string name="settings_donations_title">Donations</string>
     <string name="settings_donations_summary">Support the project by buying the developer a beer</string>
@@ -48,4 +60,27 @@
     <string name="donations_explanation_summary">Scan the QR code bellow with your phone, you will be redirected to the BuyMeACoffee page where you can donate</string>
 
     <string name="channel_selection_switch_channel">Switch channel</string>
+
+    <string name="reauth_message">Re-authenticating…</string>
+
+    <string name="settings_category_account_title">Account</string>
+    <string name="settings_current_account_title">Current account</string>
+    <string name="settings_current_account_saved_summary">Saved for sign-in: %1$s</string>
+    <string name="settings_current_account_none_summary">Not signed in</string>
+    <string name="settings_f1_username_title">F1TV email address</string>
+    <string name="settings_f1_password_title">F1TV password</string>
+    <string name="signin_setup_title">Sign in setup</string>
+    <string name="signin_setup_message">Enter your F1TV email and password once and the app will fill the web login for you. You can also paste a custom radio URL.</string>
+    <string name="signin_setup_email_hint">F1TV email</string>
+    <string name="signin_setup_password_hint">F1TV password</string>
+    <string name="signin_setup_audio_url_hint">Custom radio URL (optional)</string>
+    <string name="signin_setup_confirm">Save and sign in</string>
+    <string name="signin_setup_skip">Skip</string>
+    <string name="signin_setup_credentials_validation">Enter both email and password, or leave both empty.</string>
+    <string name="settings_custom_radio_delay_title">Radio sync delay</string>
+    <string name="settings_custom_radio_url_title">Custom Radio URL</string>
+    <string name="settings_custom_radio_url_summary">Leave blank to use the default streams</string>
+    <string name="settings_auto_select_custom_radio_title">Prefer custom radio when available</string>
+    <string name="settings_auto_select_custom_radio_summary">Automatically replace F1 audio with the built-in or saved custom radio stream when one is available.</string>
+    <string name="settings_app_locale_title">App language</string>
 </resources>

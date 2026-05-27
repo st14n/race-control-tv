@@ -1,12 +1,13 @@
 package fr.groggy.racecontrol.tv
 
-import com.google.android.exoplayer2.ext.okhttp.OkHttpDataSource
-import com.google.android.exoplayer2.upstream.HttpDataSource
+import androidx.media3.datasource.HttpDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import com.squareup.moshi.Moshi
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import fr.groggy.racecontrol.tv.utils.DeviceInfo
 import okhttp3.JavaNetCookieJar
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -35,7 +36,7 @@ class RaceControlTvModule {
     @Provides
     fun loggingInterceptor(): HttpLoggingInterceptor {
         return if (BuildConfig.DEBUG) {
-            HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY)
+            HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BASIC)
         } else {
             HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.NONE)
         }
@@ -61,6 +62,13 @@ class RaceControlTvModule {
     @Singleton
     fun httpDataSourceFactory(okHttpClient: OkHttpClient): HttpDataSource.Factory {
         return OkHttpDataSource.Factory(okHttpClient)
-            .setUserAgent(BuildConfig.DEFAULT_USER_AGENT)
+            .setUserAgent(DeviceInfo.userAgent)
+            .setDefaultRequestProperties(
+                mapOf(
+                    "Origin" to "https://f1tv.formula1.com",
+                    "Referer" to "https://f1tv.formula1.com/"
+                    // Cookies are handled by OkHttp's CookieJar
+                )
+            )
     }
 }
