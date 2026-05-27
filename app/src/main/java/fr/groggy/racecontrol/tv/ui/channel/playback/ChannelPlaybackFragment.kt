@@ -414,11 +414,14 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
 
     internal fun showCustomRadioSyncDialog() {
         view?.post {
+            if (childFragmentManager.findFragmentByTag(CUSTOM_RADIO_SYNC_DIALOG_TAG) != null) {
+                return@post
+            }
             CustomRadioSyncDialog(
                 currentOffsetMs = customRadioOffsetMs,
                 onOffsetSelected = { offsetMs -> setCustomRadioOffset(offsetMs) },
                 onUserInteraction = ::resetOverlayAutoCloseTimer,
-                onDialogDismissed = ::hidePlayerMenusAndControls
+                onDialogDismissed = { playbackGlue?.notifyMenuDismissed() }
             ).show(childFragmentManager, CUSTOM_RADIO_SYNC_DIALOG_TAG)
         }
         resetOverlayAutoCloseTimer()
