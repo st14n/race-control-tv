@@ -43,7 +43,6 @@
     <string name="settings_use_external_audio_title">Externe audio (PRES-kanaal)</string>
     <string name="settings_use_external_audio_summary">Mix internationaal commentaar met de huidige stream (vereist herstart)</string>
     <string name="settings_audio_offset_ms_title">Audiovertraging</string>
-    <string name="settings_custom_radio_backend_title">Custom Radio-backend</string>
     <string name="custom_radio_audio_label">Radio</string>
     <string name="custom_radio_overlay_label">%1$s / %2$s seconden vertraagd</string>
     <string name="custom_radio_sync_action">Radio sync</string>
@@ -64,10 +63,23 @@
     <string name="reauth_message">Opnieuw inloggen...</string>
 
     <string name="settings_category_account_title">Account</string>
+    <string name="settings_current_account_title">Huidig account</string>
+    <string name="settings_current_account_saved_summary">Opgeslagen voor aanmelden: %1$s</string>
+    <string name="settings_current_account_none_summary">Niet aangemeld</string>
     <string name="settings_f1_username_title">F1TV e-mailadres</string>
     <string name="settings_f1_password_title">F1TV wachtwoord</string>
+    <string name="signin_setup_title">Aanmeldinstellingen</string>
+    <string name="signin_setup_message">Voer je F1TV e-mailadres en wachtwoord eenmalig in, dan vult de app het webformulier automatisch voor je in. Je kunt hier ook een aangepaste radio-URL plakken.</string>
+    <string name="signin_setup_email_hint">F1TV e-mailadres</string>
+    <string name="signin_setup_password_hint">F1TV wachtwoord</string>
+    <string name="signin_setup_audio_url_hint">Aangepaste radio-URL (optioneel)</string>
+    <string name="signin_setup_confirm">Opslaan en aanmelden</string>
+    <string name="signin_setup_skip">Overslaan</string>
+    <string name="signin_setup_credentials_validation">Voer zowel e-mailadres als wachtwoord in, of laat beide leeg.</string>
     <string name="settings_custom_radio_delay_title">Radio synchronisatievertraging</string>
     <string name="settings_custom_radio_url_title">Aangepaste radio URL</string>
     <string name="settings_custom_radio_url_summary">Laat leeg om de standaardstreams te gebruiken</string>
+    <string name="settings_auto_select_custom_radio_title">Gebruik aangepaste radio wanneer beschikbaar</string>
+    <string name="settings_auto_select_custom_radio_summary">Vervang F1-audio automatisch door de ingebouwde of opgeslagen aangepaste radiostream wanneer die beschikbaar is.</string>
     <string name="settings_app_locale_title">App-taal</string>
 </resources>

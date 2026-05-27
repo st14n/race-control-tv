@@ -21,6 +21,7 @@ data class F1TvViewingResponse(
         @param:Json(name = "streamType") val streamType: String? = null, // e.g., "SDR_HD_DASHWV" or "HLS"
         @param:Json(name = "drmType") val drmType: String?,
         @param:Json(name = "laURL") val laURL: String?, // License URL (useful for checking)
+        @param:Json(name = "playApiVersion") val playApiVersion: String? = null,
         @param:Json(name = "channelId") val channelId: String? = null
     )
 }
@@ -37,6 +38,7 @@ data class F1TvViewing(
     val contentId: String,
     val channelId: String?,
     val platform: String,
+    val playApiVersion: String = "2.0",
     val ascendontoken: String,
     val entitlementtoken: String,
     val streamType: String?,
@@ -45,6 +47,7 @@ data class F1TvViewing(
     val externalAudioUri: Uri? = null,
     val externalAudioStreamType: String? = null,
     val externalAudioLaURL: String? = null,
+    val externalAudioPlayApiVersion: String? = null,
     val externalAudioEntitlementtoken: String? = null,
     val externalAudioContentId: String? = null,
     val externalAudioChannelId: String? = null

@@ -54,9 +54,10 @@ class SharedPreferencesF1CredentialsRepository @Inject constructor(
 
     override fun delete() =
         store.update {
-            //remove(LOGIN_KEY)
-            //remove(PASSWORD_KEY)
+            remove(LOGIN_KEY)
+            remove(PASSWORD_KEY)
             remove(LOGIN_TOKEN)
+            remove(LAST_LOGIN_TS)
         }
 
     override fun saveLastLoginTimestamp(timestampMs: Long) =

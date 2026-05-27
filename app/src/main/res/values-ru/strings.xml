@@ -48,6 +48,37 @@
     <string name="donations_explanation_summary">Scan the QR code bellow with your phone, you will be redirected to the BuyMeACoffee page where you can donate</string>
     <string name="custom_radio_audio_label">Радио</string>
     <string name="custom_radio_overlay_label">%1$s / %2$sс с задержкой</string>
+    <string name="settings_use_external_audio_title">Внешнее аудио (канал PRES)</string>
+    <string name="settings_use_external_audio_summary">Смешивать международный комментарий с текущим потоком (требуется перезапуск)</string>
+    <string name="settings_audio_offset_ms_title">Смещение синхронизации аудио</string>
+    <string name="custom_radio_sync_action">Синхронизация радио</string>
+    <string name="custom_radio_sync_title">Синхронизация радио [%1$s задержки]</string>
+    <string name="custom_radio_sync_decrease">0,5 с вперед</string>
+    <string name="custom_radio_sync_increase">0,5 с назад</string>
+    <string name="audio_selection_close">Закрыть</string>
+    <string name="custom_radio_sync_close">Закрыть</string>
+    <string name="custom_radio_waiting_message">Ожидание %1$s с для синхронизации.</string>
+    <string name="reauth_message">Повторная аутентификация…</string>
+    <string name="settings_category_account_title">Аккаунт</string>
+    <string name="settings_current_account_title">Текущий аккаунт</string>
+    <string name="settings_current_account_saved_summary">Сохранено для входа: %1$s</string>
+    <string name="settings_current_account_none_summary">Вход не выполнен</string>
+    <string name="settings_f1_username_title">Email F1TV</string>
+    <string name="settings_f1_password_title">Пароль F1TV</string>
+    <string name="signin_setup_title">Настройка входа</string>
+    <string name="signin_setup_message">Один раз введите email и пароль F1TV, и приложение автоматически заполнит веб-страницу входа. Здесь также можно вставить собственный URL радиопотока.</string>
+    <string name="signin_setup_email_hint">Email F1TV</string>
+    <string name="signin_setup_password_hint">Пароль F1TV</string>
+    <string name="signin_setup_audio_url_hint">Собственный URL радио (необязательно)</string>
+    <string name="signin_setup_confirm">Сохранить и войти</string>
+    <string name="signin_setup_skip">Пропустить</string>
+    <string name="signin_setup_credentials_validation">Введите и email, и пароль, либо оставьте оба поля пустыми.</string>
+    <string name="settings_custom_radio_delay_title">Задержка синхронизации радио</string>
+    <string name="settings_custom_radio_url_title">Собственный URL радио</string>
+    <string name="settings_custom_radio_url_summary">Оставьте пустым, чтобы использовать потоки по умолчанию</string>
+    <string name="settings_auto_select_custom_radio_title">Предпочитать собственное радио при наличии</string>
+    <string name="settings_auto_select_custom_radio_summary">Автоматически заменяет аудио F1 встроенным или сохраненным радиопотоком, когда он доступен.</string>
+    <string name="settings_app_locale_title">Язык приложения</string>
 
     <string name="channel_selection_switch_channel">Switch channel</string>
 </resources>

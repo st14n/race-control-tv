@@ -36,7 +36,8 @@ class ExoPlayerPlaybackTransportControlGlue(
     private val isCustomRadioActive: (() -> Boolean)? = null,
     private val currentAudioLabelOverride: (() -> String?)? = null,
     private val onCustomRadioOffsetAdjust: ((Long) -> Unit)? = null,
-    private val onControlsInteraction: (() -> Unit)? = null
+    private val onControlsInteraction: (() -> Unit)? = null,
+    private val onPlayerMenuDismissed: (() -> Unit)? = null
 ) : PlaybackTransportControlGlue<LeanbackPlayerAdapter>(
     activity,
     LeanbackPlayerAdapter(activity, exoPlayer, 1_000)
@@ -79,8 +80,25 @@ class ExoPlayerPlaybackTransportControlGlue(
         activity.findViewById(R.id.closed_captions)
     }
 
+    private var overlaySubtitleView: TextView? = null
+
     private var currentVideoFormat: Format? = null
     private var currentAudioFormat: Format? = null
+
+    // Guard against the dialog being reopened by the key-up event that leaks back
+    // from the dismissed dialog to the focused transport-row action button.
+    private var menuCurrentlyOpen = false
+
+    private fun openMenuOnce(opener: () -> Unit) {
+        if (menuCurrentlyOpen) return
+        menuCurrentlyOpen = true
+        opener()
+    }
+
+    private fun onMenuDismissed() {
+        menuCurrentlyOpen = false
+        onPlayerMenuDismissed?.invoke()
+    }
 
     init {
         exoPlayer.addAnalyticsListener(this)
@@ -110,6 +128,7 @@ class ExoPlayerPlaybackTransportControlGlue(
             add(resolutionSelectionAction)
             add(closedCaptionAction)
         }
+        refreshControlBarActionLabels()
     }
 
     override fun onCreateRowPresenter(): PlaybackRowPresenter {
@@ -118,6 +137,7 @@ class ExoPlayerPlaybackTransportControlGlue(
                 val glue = item as PlaybackBaseControlGlue<*>
                 viewHolder.title.text = glue.title
                 viewHolder.subtitle.text = glue.subtitle
+                overlaySubtitleView = viewHolder.subtitle
             }
         }
 
@@ -203,11 +223,11 @@ class ExoPlayerPlaybackTransportControlGlue(
                     playerAdapter.seekOffset(DEFAULT_SEEK_OFFSET)
                 }
             }
-            selectAudioAction -> openAudioSelectionDialog()
+            selectAudioAction -> openMenuOnce { openAudioSelectionDialog() }
             customRadioSyncAction -> onCustomRadioSyncRequested?.invoke()
             closedCaptionAction -> toggleClosedCaptions()
-            resolutionSelectionAction -> openResolutionSelectionDialog()
-            switchChannelAction -> openChannelSwitchDialog()
+            resolutionSelectionAction -> openMenuOnce { openResolutionSelectionDialog() }
+            switchChannelAction -> openMenuOnce { openChannelSwitchDialog() }
             else -> super.onActionClicked(action)
         }
     }
@@ -215,17 +235,25 @@ class ExoPlayerPlaybackTransportControlGlue(
     private fun openChannelSwitchDialog() {
         val sessionId = ChannelPlaybackFragment.findSessionId(activity) ?: return
         val contentId = ChannelPlaybackFragment.findContentId(activity) ?: return
-        ChannelSelectionDialog.newInstance(sessionId, contentId)
-            .show(activity.supportFragmentManager)
+        activity.window.decorView.post {
+            ChannelSelectionDialog.newInstance(sessionId, contentId)
+                .onDialogDismissed(::onMenuDismissed)
+                .show(activity.supportFragmentManager)
+        }
     }
 
     private fun openResolutionSelectionDialog() {
-        ResolutionSelectionDialog(exoPlayer.currentTracks)
-            .setResolutionSelectedListener { width, height ->
-                trackSelector.setParameters(
-                    trackSelector.buildUponParameters().setMaxVideoSize(width, height)
-                )
-            }.show(activity.supportFragmentManager, null)
+        activity.window.decorView.post {
+            ResolutionSelectionDialog(
+                tracks = exoPlayer.currentTracks,
+                onDialogDismissed = ::onMenuDismissed
+            )
+                .setResolutionSelectedListener { width, height ->
+                    trackSelector.setParameters(
+                        trackSelector.buildUponParameters().setMaxVideoSize(width, height)
+                    )
+                }.show(activity.supportFragmentManager, null)
+        }
     }
 
     private fun toggleClosedCaptions() {
@@ -241,21 +269,26 @@ class ExoPlayerPlaybackTransportControlGlue(
     private fun openAudioSelectionDialog() {
         val audioGroups = exoPlayer.currentTracks.groups
             .filter { it.type == C.TRACK_TYPE_AUDIO }
-        val dialog = AudioSelectionDialogFragment(audioGroups)
-        dialog.onAudioLanguageSelected { language ->
-            onAudioTrackSelected?.invoke()
-            trackSelector.setParameters(
-                trackSelector.buildUponParameters()
-                    .setPreferredAudioLanguage(language)
-                    .setPreferredTextLanguage(language)
+        activity.window.decorView.post {
+            val dialog = AudioSelectionDialogFragment(
+                audioGroups = audioGroups,
+                onDialogDismissed = ::onMenuDismissed
             )
-            updateSubtitle()
+            dialog.onAudioLanguageSelected { language ->
+                onAudioTrackSelected?.invoke()
+                trackSelector.setParameters(
+                    trackSelector.buildUponParameters()
+                        .setPreferredAudioLanguage(language)
+                        .setPreferredTextLanguage(language)
+                )
+                updateSubtitle()
+            }
+            dialog.onCustomRadioSelected {
+                onCustomRadioRequested?.invoke()
+                updateSubtitle()
+            }
+            dialog.show(activity.supportFragmentManager, null)
         }
-        dialog.onCustomRadioSelected {
-            onCustomRadioRequested?.invoke()
-            updateSubtitle()
-        }
-        dialog.show(activity.supportFragmentManager, null)
     }
 
     // ── AnalyticsListener overrides ──────────────────────────────────────────
@@ -307,17 +340,86 @@ class ExoPlayerPlaybackTransportControlGlue(
     }
 
     private fun updateSubtitle() {
-        val videoQuality = currentVideoFormat?.let {
-            context.getString(R.string.video_quality, it.height, it.frameRate.roundToInt())
+        val videoQuality = currentVideoQualityLabel() ?: currentResolutionActionLabel()
+        val audioLanguage = currentAudioLabel()
+        val overlayText = listOfNotNull(videoQuality, audioLanguage).joinToString(separator = " / ")
+        subtitle = overlayText
+        overlaySubtitleView?.post {
+            overlaySubtitleView?.text = overlayText
         }
-        val audioLanguage = currentAudioLabelOverride?.invoke()
-            ?: currentAudioFormat?.label
-            ?: currentAudioFormat?.language?.uppercase()
-        subtitle = listOfNotNull(videoQuality, audioLanguage).joinToString(separator = " / ")
+        refreshControlBarActionLabels(audioLanguage = audioLanguage)
     }
 
     fun refreshSubtitle() {
         updateSubtitle()
+    }
+
+    private fun currentVideoQualityLabel(): String? = currentVideoFormat?.let {
+        val fps = it.frameRate.roundToInt()
+        if (it.height >= 2160) {
+            context.getString(R.string.video_quality_4k, it.height, fps)
+        } else {
+            context.getString(R.string.video_quality, it.height, fps)
+        }
+    }
+
+    private fun currentResolutionActionLabel(): String? {
+        val availableFormats = exoPlayer.currentTracks.groups
+            .filter { it.type == C.TRACK_TYPE_VIDEO }
+            .flatMap { group ->
+                (0 until group.length).map { group.getTrackFormat(it) }
+            }
+            .filter { it.height > 0 && it.frameRate > 1F }
+            .sortedWith(compareBy<Format> { it.height }.thenBy { it.frameRate.roundToInt() })
+
+        if (availableFormats.isEmpty()) {
+            return currentVideoQualityLabel()
+        }
+
+        val params = trackSelector.parameters
+        val isAuto = params.maxVideoWidth == Int.MAX_VALUE && params.maxVideoHeight == Int.MAX_VALUE
+
+        val targetFormat = if (isAuto) {
+            availableFormats.last()
+        } else {
+            availableFormats.lastOrNull { format ->
+                format.width <= params.maxVideoWidth && format.height <= params.maxVideoHeight
+            } ?: availableFormats.last()
+        }
+
+        val qualityLabel = formatQualityLabel(targetFormat)
+        return if (isAuto) "Auto $qualityLabel" else qualityLabel
+    }
+
+    private fun formatQualityLabel(format: Format): String {
+        val fps = format.frameRate.roundToInt()
+        return if (format.height >= 2160) {
+            context.getString(R.string.video_quality_4k, format.height, fps)
+        } else {
+            context.getString(R.string.video_quality, format.height, fps)
+        }
+    }
+
+    private fun currentAudioLabel(): String? = currentAudioLabelOverride?.invoke()
+        ?: currentAudioFormat?.let(::displayAudioTrackLabel)
+
+    private fun refreshControlBarActionLabels(
+        videoQuality: String? = currentResolutionActionLabel(),
+        audioLanguage: String? = currentAudioLabel()
+    ) {
+        selectAudioAction.label2 = audioLanguage
+        resolutionSelectionAction.label2 = videoQuality
+
+        val primaryActionsAdapter = controlsRow?.primaryActionsAdapter as? ArrayObjectAdapter ?: return
+        refreshPrimaryAction(primaryActionsAdapter, selectAudioAction)
+        refreshPrimaryAction(primaryActionsAdapter, resolutionSelectionAction)
+    }
+
+    private fun refreshPrimaryAction(adapter: ArrayObjectAdapter, action: Action) {
+        val index = adapter.indexOf(action)
+        if (index >= 0) {
+            adapter.notifyArrayItemRangeChanged(index, 1)
+        }
     }
 
     private fun LeanbackPlayerAdapter.seekOffset(offset: Long) {

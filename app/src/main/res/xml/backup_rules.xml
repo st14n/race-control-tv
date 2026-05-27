@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <exclude domain="sharedpref" path="fr.groggy.racecontrol.tv.DATA_KEY_VALUE_STORE.xml" />
+    <exclude domain="sharedpref" path="fr.groggy.racecontrol.tv_preferences.xml" />
+</full-backup-content>

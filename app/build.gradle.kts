@@ -12,16 +12,15 @@ rootProject.file(".env").takeIf { it.exists() }?.forEachLine { line ->
 }
 val f1BuildUsername = envProps["F1_username"] ?: ""
 val f1BuildPassword = envProps["F1_password"] ?: ""
+val appApplicationId = "com.st14n.f1"
+val appVersionCode = 1
+val appVersionName = "1.0.0"
 // Token refresh interval: default 6 hours; override in .env for testing (e.g. 300000 = 5 min)
 val tokenRefreshIntervalMs = envProps["TOKEN_REFRESH_INTERVAL_MS"]?.toLongOrNull()
     ?: (6L * 60 * 60 * 1000)
-// Custom Radio stream URLs (set CUSTOM_RADIO_URL_* in .env to override defaults)
-val customRadioUrlMp3 = envProps["CUSTOM_RADIO_URL_MP3"]
-    ?: "https://playerservices.streamtheworld.com/api/livestream-redirect/GRAND_PRIX_RADIO.mp3"
-val customRadioUrlSc  = envProps["CUSTOM_RADIO_URL_SC"]
-    ?: "https://playerservices.streamtheworld.com/api/livestream-redirect/GRAND_PRIX_RADIO_SC"
-val customRadioUrlAac = envProps["CUSTOM_RADIO_URL_AAC"]
-    ?: "https://playerservices.streamtheworld.com/api/livestream-redirect/GRAND_PRIX_RADIOAAC.aac"
+// Custom Radio stream URL (set CUSTOM_RADIO_URL in .env to override defaults)
+val customRadioUrl = envProps["CUSTOM_RADIO_URL"]
+    ?: ""
 val hasCustomReleaseSigning = listOf(
     "signing.key.store.path",
     "signing.key.password",
@@ -42,11 +41,11 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.st14n.f1"
+        applicationId = appApplicationId
         minSdk = 28
         targetSdk = 36
-        versionCode = 44
-        versionName = "3.1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
 
         buildConfigField(
             "String",
@@ -63,12 +62,8 @@ android {
         buildConfigField("String", "F1_PASSWORD",
             "\"${f1BuildPassword.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
         buildConfigField("long", "TOKEN_REFRESH_INTERVAL_MS", "${tokenRefreshIntervalMs}L")
-        buildConfigField("String", "CUSTOM_RADIO_URL_MP3",
-            "\"${customRadioUrlMp3.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
-        buildConfigField("String", "CUSTOM_RADIO_URL_SC",
-            "\"${customRadioUrlSc.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
-        buildConfigField("String", "CUSTOM_RADIO_URL_AAC",
-            "\"${customRadioUrlAac.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        buildConfigField("String", "CUSTOM_RADIO_URL",
+            "\"${customRadioUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
     }
 
     signingConfigs {
@@ -136,16 +131,49 @@ android {
     }
 }
 
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        variant.outputs.forEach { output ->
+            val abiSuffix = output.filters
+                .find { it.filterType == com.android.build.api.variant.FilterConfiguration.FilterType.ABI }
+                ?.identifier
+                ?.let { "-$it" }
+                .orEmpty()
+            val buildTypeSuffix = if (variant.buildType == "release") "" else "-${variant.buildType}"
+            output.outputFileName.set("$appApplicationId-$appVersionName$buildTypeSuffix$abiSuffix.apk")
+        }
+    }
+}
+
 
 tasks.withType<org.gradle.api.tasks.compile.JavaCompile>().configureEach {
     if (name.startsWith("hiltJavaCompile")) {
         val proj = project // capture at configuration time — avoids Task.project at execution time
+        val variantName = name.removePrefix("hiltJavaCompile").replaceFirstChar { it.lowercase() }
+        val javacTaskName = "compile${name.removePrefix("hiltJavaCompile")}JavaWithJavac"
         doFirst {
             val filteredProcessorPath = options.annotationProcessorPath
                 ?.files
                 .orEmpty()
                 .filterNot { it.name.startsWith("moshi-kotlin-codegen") }
             options.annotationProcessorPath = proj.files(filteredProcessorPath)
+        }
+        doLast {
+            val javacOutput = layout.buildDirectory.dir(
+                "intermediates/javac/$variantName/$javacTaskName/classes"
+            ).get().asFile
+            val hiltOutput = layout.buildDirectory.dir(
+                "intermediates/classes/$variantName/$name"
+            ).get().asFile
+
+            if (javacOutput.exists() && hiltOutput.exists()) {
+                copy {
+                    from(javacOutput)
+                    into(hiltOutput)
+                    include("**/*_GeneratedInjector.class")
+                    include("hilt_aggregated_deps/**/*.class")
+                }
+            }
         }
     }
 }
@@ -193,7 +221,6 @@ dependencies {
     implementation("androidx.media3:media3-ui:$media3Version")
     implementation("androidx.media3:media3-datasource-okhttp:$media3Version")
     implementation("androidx.media3:media3-ui-leanback:$media3Version")
-    implementation("org.videolan.android:libvlc-all:3.6.2")
     implementation("org.bytedeco:javacv:1.5.8")
     implementation("org.bytedeco:ffmpeg:5.1.2-1.5.8")
     implementation("org.bytedeco:ffmpeg:5.1.2-1.5.8:android-arm")

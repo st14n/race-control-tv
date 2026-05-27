@@ -2,6 +2,7 @@ package fr.groggy.racecontrol.tv.ui.player
 
 import android.app.AlertDialog
 import android.app.Dialog
+import android.content.DialogInterface
 import android.os.Bundle
 import android.view.KeyEvent
 import androidx.fragment.app.DialogFragment
@@ -11,7 +12,8 @@ import java.util.Locale
 class CustomRadioSyncDialog(
     private val currentOffsetMs: Long,
     private val onOffsetSelected: (Long) -> Long,
-    private val onUserInteraction: (() -> Unit)? = null
+    private val onUserInteraction: (() -> Unit)? = null,
+    private val onDialogDismissed: (() -> Unit)? = null
 ) : DialogFragment() {
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
@@ -25,6 +27,7 @@ class CustomRadioSyncDialog(
 
         dialog.setOnShowListener {
             onUserInteraction?.invoke()
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).requestFocus()
             dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener {
                 dialogOffsetMs = onOffsetSelected((dialogOffsetMs - 500L).coerceIn(0L, 30_000L))
                 onUserInteraction?.invoke()
@@ -40,7 +43,14 @@ class CustomRadioSyncDialog(
             if (event.action == KeyEvent.ACTION_DOWN) {
                 onUserInteraction?.invoke()
             }
-            false
+            if (event.action == KeyEvent.ACTION_UP &&
+                (event.keyCode == KeyEvent.KEYCODE_BACK || event.keyCode == KeyEvent.KEYCODE_ESCAPE)
+            ) {
+                dismiss()
+                true
+            } else {
+                false
+            }
         }
 
         return dialog
@@ -49,5 +59,10 @@ class CustomRadioSyncDialog(
     private fun formatOffset(offsetMs: Long): String {
         val clampedMs = offsetMs.coerceIn(0L, 30_000L)
         return String.format(Locale.getDefault(), "%.1f s", clampedMs / 1000.0)
+    }
+
+    override fun onDismiss(dialog: DialogInterface) {
+        super.onDismiss(dialog)
+        onDialogDismissed?.invoke()
     }
 }

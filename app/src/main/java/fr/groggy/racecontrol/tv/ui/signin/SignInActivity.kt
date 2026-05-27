@@ -106,16 +106,26 @@
 
 package fr.groggy.racecontrol.tv.ui.signin
 
+import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.text.InputType
 import android.util.Log
+import android.view.KeyEvent
+import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN
 import android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.Toast
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
@@ -157,6 +167,7 @@ class SignInActivity : ComponentActivity() {
     private val reauthOverlay: android.widget.TextView by lazy { findViewById(R.id.reauth_overlay) }
 
     private var isSilentReAuth = false
+    private var hasShownInitialSetupPrompt = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Log.d(TAG, "onCreate")
@@ -204,6 +215,11 @@ class SignInActivity : ComponentActivity() {
         }, "Android")
 
         loginWebView.webViewClient = object : WebViewClient() {
+            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                autoAcceptCookieDialog()
+            }
+
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 Log.d(TAG, "onPageFinished: $url")
@@ -213,9 +229,9 @@ class SignInActivity : ComponentActivity() {
                 if (url?.startsWith(F1_LOGIN_URL) == true) {
                     // We are on the login page. Attempt auto-fill.
                     Log.d(TAG, "Login page finished loading. Attempting auto-fill...")
-                    autoFillCredentials() // This will use saved credentials
                     // Also setup capture in case auto-fill fails and user enters manually
                     captureCredentials()
+                    autoFillCredentials() // This will use saved credentials
                 } else {
                     // We are on a *different* page (likely after a successful login)
                     // Now check for the session cookie to confirm login and get the token
@@ -246,6 +262,10 @@ class SignInActivity : ComponentActivity() {
     private fun autoAcceptCookieDialog() {
         val jsCode = """
         javascript:(function() {
+            if (window.__f1CookieConsentAutomationInstalled) {
+                window.__f1CookieConsentKick = Date.now();
+            }
+
             function collectInteractiveElements(root, found) {
                 if (!root) {
                     return;
@@ -279,6 +299,20 @@ class SignInActivity : ComponentActivity() {
                     });
                 } catch (error) {
                     console.log('CookieConsent: shadow DOM scan failed: ' + error);
+                }
+
+                try {
+                    root.querySelectorAll('iframe').forEach(function(frame) {
+                        try {
+                            if (frame.contentDocument) {
+                                collectInteractiveElements(frame.contentDocument, found);
+                            }
+                        } catch (error) {
+                            console.log('CookieConsent: iframe scan skipped: ' + error);
+                        }
+                    });
+                } catch (error) {
+                    console.log('CookieConsent: iframe enumeration failed: ' + error);
                 }
             }
 
@@ -334,21 +368,58 @@ class SignInActivity : ComponentActivity() {
                 }
 
                 console.log('CookieConsent: clicking consent button.');
-                candidate.click();
+                ['pointerdown', 'mousedown', 'mouseup', 'click'].forEach(function(eventName) {
+                    try {
+                        candidate.dispatchEvent(new MouseEvent(eventName, {
+                            bubbles: true,
+                            cancelable: true,
+                            view: window
+                        }));
+                    } catch (error) {
+                        console.log('CookieConsent: dispatch failed for ' + eventName + ': ' + error);
+                    }
+                });
+                try {
+                    candidate.click();
+                } catch (error) {
+                    console.log('CookieConsent: direct click failed: ' + error);
+                }
                 return true;
+            }
+
+            function scheduleRetryLoop() {
+                var attempts = 0;
+                var intervalId = setInterval(function() {
+                    attempts += 1;
+                    if (clickConsentButton() || attempts >= 20) {
+                        clearInterval(intervalId);
+                    }
+                }, 1000);
+            }
+
+            if (!window.__f1CookieConsentAutomationInstalled) {
+                window.__f1CookieConsentAutomationInstalled = true;
+                try {
+                    var observer = new MutationObserver(function() {
+                        clickConsentButton();
+                    });
+                    observer.observe(document.documentElement || document.body, {
+                        childList: true,
+                        subtree: true,
+                        attributes: true
+                    });
+                } catch (error) {
+                    console.log('CookieConsent: observer install failed: ' + error);
+                }
             }
 
             if (clickConsentButton()) {
                 return 'clicked-now';
             }
 
-            [500, 1500, 3000].forEach(function(delayMs) {
-                setTimeout(function() {
-                    clickConsentButton();
-                }, delayMs);
-            });
+            scheduleRetryLoop();
 
-            return 'scheduled-retries';
+            return 'observer-installed';
         })();
         """
         loginWebView.evaluateJavascript(jsCode) { result ->
@@ -392,83 +463,264 @@ class SignInActivity : ComponentActivity() {
 
     private fun autoFillCredentials() {
         lifecycleScope.launch {
-            val settings = settingsRepository.getCurrent()
-            val savedCredentials = credentialsService.getSavedCredentials()
-            val login: String
-            val password: String
-            when {
-                settings.f1Username.isNotEmpty() -> {
-                    login = settings.f1Username
-                    password = settings.f1Password
-                    Log.d(TAG, "Using credentials from Settings for auto-fill.")
+            val resolvedCredentials = resolveStoredCredentials()
+            if (resolvedCredentials == null) {
+                Log.d(TAG, "No saved credentials and no build-time credentials. Showing initial setup prompt.")
+                maybeShowInitialSetupPrompt()
+                return@launch
+            }
+
+            fillLoginForm(
+                login = resolvedCredentials.login,
+                password = resolvedCredentials.password,
+                autoSubmit = true
+            )
+        }
+    }
+
+    private suspend fun resolveStoredCredentials(): F1Credentials? {
+        val settings = settingsRepository.getCurrent()
+        if (settings.f1Username.isNotEmpty() && settings.f1Password.isNotEmpty()) {
+            Log.d(TAG, "Using credentials from Settings for auto-fill.")
+            return F1Credentials(login = settings.f1Username, password = settings.f1Password)
+        }
+
+        val savedCredentials = credentialsService.getSavedCredentials()
+        if (savedCredentials != null) {
+            Log.d(TAG, "Saved credentials found for ${savedCredentials.login}. Injecting JS for auto-fill.")
+            return savedCredentials
+        }
+
+        return if (BuildConfig.F1_USERNAME.isNotEmpty() && BuildConfig.F1_PASSWORD.isNotEmpty()) {
+            Log.d(TAG, "No saved credentials. Using build-time fallback credentials for this build.")
+            F1Credentials(login = BuildConfig.F1_USERNAME, password = BuildConfig.F1_PASSWORD)
+        } else {
+            null
+        }
+    }
+
+    private fun fillLoginForm(login: String, password: String, autoSubmit: Boolean) {
+        Log.d(TAG, "Injecting JS for auto-fill autoSubmit=$autoSubmit")
+        val escapedLogin = login
+            .replace("\\", "\\\\")
+            .replace("'", "\\'")
+            .replace("\n", "\\n")
+        val escapedPassword = password
+            .replace("\\", "\\\\")
+            .replace("'", "\\'")
+            .replace("\n", "\\n")
+        val shouldAutoSubmit = if (autoSubmit) "true" else "false"
+
+        val jsCode = """
+        javascript:(function() {
+            function setNativeValue(element, value) {
+                if (!element) {
+                    return false;
                 }
-                savedCredentials != null -> {
-                    login = savedCredentials.login
-                    password = savedCredentials.password
-                    Log.d(TAG, "Saved credentials found for ${login}. Injecting JS for auto-fill.")
+
+                var prototype = element.tagName === 'TEXTAREA'
+                    ? window.HTMLTextAreaElement.prototype
+                    : window.HTMLInputElement.prototype;
+                var descriptor = Object.getOwnPropertyDescriptor(prototype, 'value');
+                if (descriptor && descriptor.set) {
+                    descriptor.set.call(element, value);
+                } else {
+                    element.value = value;
                 }
-                BuildConfig.F1_USERNAME.isNotEmpty() -> {
-                    login = BuildConfig.F1_USERNAME
-                    password = BuildConfig.F1_PASSWORD
-                    Log.d(TAG, "No saved credentials. Using build-time fallback credentials.")
-                    // Persist so subsequent launches use SharedPreferences (no need to re-read BuildConfig)
-                    credentialsService.saveCredentials(
-                        fr.groggy.racecontrol.tv.f1.F1Credentials(login = login, password = password)
-                    )
+
+                ['input', 'change', 'blur'].forEach(function(eventName) {
+                    element.dispatchEvent(new Event(eventName, { bubbles: true }));
+                });
+                return true;
+            }
+
+            function findLoginField() {
+                return document.querySelector('.txtLogin')
+                    || document.querySelector('input[type="email"]')
+                    || document.querySelector('input[name="email"]');
+            }
+
+            function findPasswordField() {
+                return document.querySelector('.txtPassword')
+                    || document.querySelector('input[type="password"]');
+            }
+
+            function findSubmitButton() {
+                return document.querySelector('button.btn.btn-primary[type="submit"]')
+                    || document.querySelector('button[type="submit"]');
+            }
+
+            function tryFill() {
+                var loginField = findLoginField();
+                var passwordField = findPasswordField();
+                var loginButton = findSubmitButton();
+                var loginFilled = setNativeValue(loginField, '$escapedLogin');
+                var passwordFilled = setNativeValue(passwordField, '$escapedPassword');
+
+                if (!loginFilled || !passwordFilled) {
+                    return false;
                 }
-                else -> {
-                    Log.d(TAG, "No saved credentials and no build-time credentials. Auto-fill skipped.")
-                    return@launch
+
+                console.log('AutoFill: credentials filled.');
+                if ($shouldAutoSubmit && loginButton) {
+                    setTimeout(function() {
+                        console.log('AutoFill: Clicking login button.');
+                        loginButton.click();
+                    }, 500);
+                }
+                return true;
+            }
+
+            if (tryFill()) {
+                return 'filled-now';
+            }
+
+            var attempts = 0;
+            var intervalId = setInterval(function() {
+                attempts += 1;
+                if (tryFill() || attempts >= 15) {
+                    clearInterval(intervalId);
+                }
+            }, 1000);
+
+            return 'scheduled-retries';
+        })();
+        """
+
+        loginWebView.evaluateJavascript(jsCode) { result ->
+            Log.d(TAG, "AutoFill JS execution result: $result")
+        }
+    }
+
+    private fun maybeShowInitialSetupPrompt() {
+        if (isSilentReAuth || hasShownInitialSetupPrompt) {
+            return
+        }
+        hasShownInitialSetupPrompt = true
+
+        val settings = settingsRepository.getCurrent()
+        val density = resources.displayMetrics.density
+        val fieldLayoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+        val contentView = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            val horizontalPadding = (24 * density).toInt()
+            val verticalPadding = (20 * density).toInt()
+            setPadding(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding)
+        }
+        val emailInput = EditText(this).apply {
+            hint = getString(R.string.signin_setup_email_hint)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+            setText(settings.f1Username)
+            layoutParams = fieldLayoutParams
+        }
+        val passwordInput = EditText(this).apply {
+            hint = getString(R.string.signin_setup_password_hint)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            imeOptions = EditorInfo.IME_ACTION_NEXT
+            setText(settings.f1Password)
+            layoutParams = fieldLayoutParams
+        }
+        val audioUrlInput = EditText(this).apply {
+            hint = getString(R.string.signin_setup_audio_url_hint)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            imeOptions = EditorInfo.IME_ACTION_DONE
+            setText(settings.customRadioUrl)
+            layoutParams = fieldLayoutParams
+        }
+        contentView.addView(emailInput)
+        contentView.addView(passwordInput)
+        contentView.addView(audioUrlInput)
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.signin_setup_title)
+            .setMessage(R.string.signin_setup_message)
+            .setView(contentView)
+            .setPositiveButton(R.string.signin_setup_confirm, null)
+            .setNegativeButton(R.string.signin_setup_skip, null)
+            .create()
+
+        dialog.setOnShowListener {
+            val saveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            val skipButton = dialog.getButton(AlertDialog.BUTTON_NEGATIVE)
+
+            emailInput.setOnEditorActionListener { _, actionId, event ->
+                if (actionId == EditorInfo.IME_ACTION_NEXT || isConfirmKey(event)) {
+                    passwordInput.requestFocus()
+                    true
+                } else {
+                    false
                 }
             }
-            // Always proceed with JS injection after resolving credentials above
-            Log.d(TAG, "Injecting JS for auto-fill.")
-                // Escape potential special characters in username/password for JS
-                val escapedLogin = login.replace("'", "\\'")
-                val escapedPassword = password.replace("'", "\\'")
-
-                val jsCode = """
-                javascript:(function() {
-                    var loginField = document.querySelector('.txtLogin');
-                    var passwordField = document.querySelector('.txtPassword');
-                    var loginButton = document.querySelector('button.btn.btn-primary[type="submit"]');
-                    var filled = false;
-
-                    if (loginField) {
-                        loginField.value = '$escapedLogin';
-                        console.log('AutoFill: Login field filled.');
-                        filled = true;
-                    } else {
-                        console.log('AutoFill: Login field (.txtLogin) not found.');
-                    }
-
-                    if (passwordField) {
-                        passwordField.value = '$escapedPassword';
-                        console.log('AutoFill: Password field filled.');
-                        filled = filled && true; // Both must be filled
-                    } else {
-                        console.log('AutoFill: Password field (.txtPassword) not found.');
-                        filled = false;
-                    }
-
-                    if (filled && loginButton) {
-                        console.log('AutoFill: Credentials filled, attempting click after 1s.');
-                        // Added small delay to ensure fields are processed if needed by page JS
-                        setTimeout(function() {
-                            console.log('AutoFill: Clicking login button.');
-                            loginButton.click();
-                        }, 1000); // 1 second delay
-                    } else if (!filled) {
-                       console.log('AutoFill: Not clicking button because fields were not filled.');
-                    } else {
-                       console.log('AutoFill: Login button not found, cannot click.');
-                    }
-                })();
-                """
-                loginWebView.evaluateJavascript(jsCode) { result ->
-                    Log.d(TAG, "AutoFill JS execution result: $result")
+            passwordInput.setOnEditorActionListener { _, actionId, event ->
+                if (actionId == EditorInfo.IME_ACTION_NEXT || isConfirmKey(event)) {
+                    audioUrlInput.requestFocus()
+                    true
+                } else {
+                    false
                 }
+            }
+            audioUrlInput.setOnEditorActionListener { _, actionId, event ->
+                if (actionId == EditorInfo.IME_ACTION_DONE || isConfirmKey(event)) {
+                    hideKeyboard(audioUrlInput)
+                    saveButton.requestFocus()
+                    true
+                } else {
+                    false
+                }
+            }
+
+            val onDialogButtonFocused: (View, Boolean) -> Unit = { view, hasFocus ->
+                if (hasFocus) {
+                    hideKeyboard(currentFocus ?: view)
+                }
+            }
+            saveButton.onFocusChangeListener = View.OnFocusChangeListener(onDialogButtonFocused)
+            skipButton.onFocusChangeListener = View.OnFocusChangeListener(onDialogButtonFocused)
+            saveButton.requestFocus()
+
+            saveButton.setOnClickListener {
+                val email = emailInput.text.toString().trim()
+                val password = passwordInput.text.toString()
+                val audioUrl = audioUrlInput.text.toString().trim()
+
+                if (email.isBlank() xor password.isBlank()) {
+                    Toast.makeText(
+                        this,
+                        R.string.signin_setup_credentials_validation,
+                        Toast.LENGTH_LONG
+                    ).show()
+                    return@setOnClickListener
+                }
+
+                lifecycleScope.launch {
+                    settingsRepository.updateSignInDefaults(
+                        username = email,
+                        password = password,
+                        customRadioUrl = audioUrl
+                    )
+                    if (email.isNotBlank() && password.isNotBlank()) {
+                        credentialsService.saveCredentials(F1Credentials(login = email, password = password))
+                        fillLoginForm(login = email, password = password, autoSubmit = true)
+                    }
+                    dialog.dismiss()
+                }
+            }
         }
+
+        dialog.show()
+    }
+
+    private fun hideKeyboard(view: View) {
+        getSystemService(InputMethodManager::class.java)
+            ?.hideSoftInputFromWindow(view.windowToken, 0)
+    }
+
+    private fun isConfirmKey(event: KeyEvent?): Boolean {
+        return event?.action == KeyEvent.ACTION_DOWN &&
+            (event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER || event.keyCode == KeyEvent.KEYCODE_ENTER)
     }
 
     private fun navigateToHome() {

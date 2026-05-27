@@ -47,6 +47,37 @@
   <string name="donations_explanation_summary">Scannen Sie den unteren QR Code mit Ihrem Smartphone, Sie werden zur BuyMeACoffee Seite weitergeleitet wo Sie spenden können</string>
   <string name="custom_radio_audio_label">Radio</string>
   <string name="custom_radio_overlay_label">%1$s / %2$ss verzögert</string>
+  <string name="settings_use_external_audio_title">Externe Audio (PRES-Kanal)</string>
+  <string name="settings_use_external_audio_summary">Mische den internationalen Kommentar mit dem aktuellen Stream (Neustart erforderlich)</string>
+  <string name="settings_audio_offset_ms_title">Audio-Synchronisationsversatz</string>
+  <string name="custom_radio_sync_action">Radio-Sync</string>
+  <string name="custom_radio_sync_title">Radio-Sync [%1$s verzögert]</string>
+  <string name="custom_radio_sync_decrease">0,5 s vorwärts</string>
+  <string name="custom_radio_sync_increase">0,5 s rückwärts</string>
+  <string name="audio_selection_close">Schließen</string>
+  <string name="custom_radio_sync_close">Schließen</string>
+  <string name="custom_radio_waiting_message">Warte %1$s Sekunden auf die Synchronisierung.</string>
+  <string name="reauth_message">Erneute Anmeldung…</string>
+  <string name="settings_category_account_title">Konto</string>
+  <string name="settings_current_account_title">Aktuelles Konto</string>
+  <string name="settings_current_account_saved_summary">Für die Anmeldung gespeichert: %1$s</string>
+  <string name="settings_current_account_none_summary">Nicht angemeldet</string>
+  <string name="settings_f1_username_title">F1TV E-Mail-Adresse</string>
+  <string name="settings_f1_password_title">F1TV Passwort</string>
+  <string name="signin_setup_title">Anmeldeeinrichtung</string>
+  <string name="signin_setup_message">Geben Sie Ihre F1TV-E-Mail und Ihr Passwort einmal ein, dann füllt die App das Web-Login automatisch aus. Sie können hier auch eine benutzerdefinierte Radio-URL einfügen.</string>
+  <string name="signin_setup_email_hint">F1TV E-Mail</string>
+  <string name="signin_setup_password_hint">F1TV Passwort</string>
+  <string name="signin_setup_audio_url_hint">Benutzerdefinierte Radio-URL (optional)</string>
+  <string name="signin_setup_confirm">Speichern und anmelden</string>
+  <string name="signin_setup_skip">Überspringen</string>
+  <string name="signin_setup_credentials_validation">Geben Sie E-Mail und Passwort beide ein oder lassen Sie beide leer.</string>
+  <string name="settings_custom_radio_delay_title">Radio-Synchronisationsverzögerung</string>
+  <string name="settings_custom_radio_url_title">Benutzerdefinierte Radio-URL</string>
+  <string name="settings_custom_radio_url_summary">Leer lassen, um die Standardstreams zu verwenden</string>
+  <string name="settings_auto_select_custom_radio_title">Benutzerdefiniertes Radio bevorzugen, wenn verfügbar</string>
+  <string name="settings_auto_select_custom_radio_summary">Ersetzt F1-Audio automatisch durch den integrierten oder gespeicherten Radiostream, wenn einer verfügbar ist.</string>
+  <string name="settings_app_locale_title">App-Sprache</string>
 
   <string name="channel_selection_switch_channel">Switch channel</string>
 </resources>

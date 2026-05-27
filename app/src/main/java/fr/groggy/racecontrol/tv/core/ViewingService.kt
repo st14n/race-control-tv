@@ -25,13 +25,18 @@ class ViewingService @Inject constructor(
 
     private val retryAttempts = AtomicInteger(0)
 
-    suspend fun getViewing(channelId: String?, contentId: String, streamType: Settings.StreamType): F1TvViewing = withContext(Dispatchers.IO) {
-        Log.d(TAG, "getViewing $channelId - $contentId")
+    suspend fun getViewing(
+        channelId: String?,
+        contentId: String,
+        streamType: Settings.StreamType,
+        preferHdrManifest: Boolean = true
+    ): F1TvViewing = withContext(Dispatchers.IO) {
+        Log.d(TAG, "getViewing $channelId - $contentId preferHdrManifest=$preferHdrManifest")
         retryAttempts.set(0)
 
         while (retryAttempts.getAndIncrement() < MAX_RETRIES) {
             try {
-                return@withContext getViewingOrThrow(channelId, contentId, streamType)
+                return@withContext getViewingOrThrow(channelId, contentId, streamType, preferHdrManifest)
             } catch (e: TokenExpiredException) {
                 throw e
             } catch (e: Exception) {
@@ -43,13 +48,18 @@ class ViewingService @Inject constructor(
         throw MaxRetryAttemptsReachedException()
     }
 
-    private suspend fun getViewingOrThrow(channelId: String?, contentId: String, streamType: Settings.StreamType): F1TvViewing {
+    private suspend fun getViewingOrThrow(
+        channelId: String?,
+        contentId: String,
+        streamType: Settings.StreamType,
+        preferHdrManifest: Boolean
+    ): F1TvViewing {
         val token = tokenService.getToken()
         if (!token.isValid()) {
             throw TokenExpiredException()
         }
 
-        return f1Tv.getViewing(channelId, contentId, streamType, token.value)
+        return f1Tv.getViewing(channelId, contentId, streamType, token.value, preferHdrManifest)
     }
 
     class TokenExpiredException: IllegalStateException("The token is expired")
