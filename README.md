@@ -121,3 +121,5 @@ Thanks to the contributors to [f1viewer](https://github.com/SoMuchForSubtlety/f1
 Thanks to [Thiago Andrade](https://github.com/ttandrade) for the icon and visual design work carried forward in the project.
 
 Thanks to [Leonardo Rossetto](https://github.com/leonardoxh) for his earlier work this fork was built on.
+
+Thanks to [LoVega1337](https://github.com/LoVega1337) and [Loïc Yhuel](https://github.com/hwti) for their knowledge about the 4K/HDR manifest. 
