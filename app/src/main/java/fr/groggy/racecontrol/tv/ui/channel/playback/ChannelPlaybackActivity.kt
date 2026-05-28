@@ -6,6 +6,8 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
+import android.view.GestureDetector
+import android.view.MotionEvent
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.FragmentActivity
@@ -39,19 +41,45 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
     /** The [F1TvViewing] currently loaded into the player, used for 4K fallback detection. */
     private var currentViewing: F1TvViewing? = null
 
+    private val playbackTouchGestureDetector by lazy(LazyThreadSafetyMode.NONE) {
+        GestureDetector(
+            this,
+            object : GestureDetector.SimpleOnGestureListener() {
+                override fun onDown(e: MotionEvent): Boolean {
+                    return activePlaybackFragment()?.shouldHandleTouchOverlayGesture() == true
+                }
+
+                override fun onSingleTapUp(e: MotionEvent): Boolean {
+                    return activePlaybackFragment()?.showControlsOverlayFromTouch() == true
+                }
+            }
+        )
+    }
+
     private val preferHdrManifestForDevice: Boolean by lazy(LazyThreadSafetyMode.NONE) {
-        !settingsRepository.getCurrent().disableHdrPlayback && DeviceInfo.shouldRequestHdrManifest(this)
+        !settingsRepository.getCurrent().disableHdrPlayback &&
+            DeviceInfo.shouldRequestHdrManifest(this) &&
+            allowsUhdPlaybackForSeason()
     }
 
     companion object {
         private val TAG = ChannelPlaybackActivity::class.simpleName
 
-        fun intent(context: Context, sessionId: String, channelId: String?, contentId: String): Intent {
+        fun intent(
+            context: Context,
+            sessionId: String,
+            channelId: String?,
+            contentId: String,
+            isLiveSession: Boolean,
+            seasonYear: Int
+        ): Intent {
             val intent = Intent(context, ChannelPlaybackActivity::class.java)
             // Pass IDs needed to *fetch* viewing details initially
             ChannelPlaybackFragment.putChannelId(intent, channelId)
             ChannelPlaybackFragment.putContentId(intent, contentId)
             ChannelPlaybackFragment.putSessionId(intent, sessionId)
+            ChannelPlaybackFragment.putIsLiveSession(intent, isLiveSession)
+            ChannelPlaybackFragment.putSeasonYear(intent, seasonYear)
             return intent
         }
     }
@@ -69,10 +97,33 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
             ?.onHostConfigurationChanged()
     }
 
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        val playbackFragment = activePlaybackFragment()
+        if (playbackFragment?.shouldHandleTouchOverlayGesture() == true &&
+            playbackTouchGestureDetector.onTouchEvent(event)
+        ) {
+            return true
+        }
+        return super.dispatchTouchEvent(event)
+    }
+
     override fun onSwitchChannel(channel: Channel) {
         val sessionId = ChannelPlaybackFragment.findSessionId(this) ?: return
-        startActivity(intent(this, sessionId, channel.id?.value, channel.contentId))
+        startActivity(
+            intent(
+                this,
+                sessionId,
+                channel.id?.value,
+                channel.contentId,
+                ChannelPlaybackFragment.findIsLiveSession(this),
+                ChannelPlaybackFragment.findSeasonYear(this)
+            )
+        )
         finish()
+    }
+
+    private fun allowsUhdPlaybackForSeason(): Boolean {
+        return ChannelPlaybackFragment.findSeasonYear(this) >= 2026
     }
 
     private suspend fun attachViewingIfNeeded(
@@ -181,6 +232,10 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
             Log.d(TAG, "Opening with internal player.")
             openWithInternalPlayer(viewing) // Pass viewing object
         }
+    }
+
+    private fun activePlaybackFragment(): ChannelPlaybackFragment? {
+        return supportFragmentManager.findFragmentByTag(ChannelPlaybackFragment.TAG) as? ChannelPlaybackFragment
     }
 
     private fun openWithExternalPlayer(viewing: F1TvViewing) {

@@ -45,9 +45,9 @@
     <string name="settings_open_with_external_player_summary">Jeśli WŁĄCZONE aplikacja będzie korzystała z zewnętrznego odtwarzacza zamiast wbudowanego</string>
     <string name="settings_category_other_title">Inne</string>
     <string name="settings_donations_title">Darowizny</string>
-    <string name="settings_donations_summary">Wesprzyj projekt kupując programiście piwo</string>
+    <string name="settings_donations_summary">Wesprzyj projekt!</string>
     <string name="settings_logout_title">Wyloguj</string>
-    <string name="donations_explanation_summary">Zeskanuj poniższy kod QR telefonem, by zostać przekierowanym do serwisu BuyMyACoffee umożliwiającego przekazanie darowizny</string>
+    <string name="donations_explanation_summary">Zeskanuj poniższy kod QR telefonem, aby wesprzeć projekt</string>
     <string name="custom_radio_audio_label">Radio</string>
     <string name="custom_radio_overlay_label">%1$s / %2$ss opóźnione</string>
     <string name="settings_use_external_audio_title">Zewnętrzne audio (kanał PRES)</string>
@@ -80,6 +80,9 @@
     <string name="settings_custom_radio_url_summary">Pozostaw puste, aby użyć domyślnych strumieni</string>
     <string name="settings_auto_select_custom_radio_title">Preferuj własne radio, gdy jest dostępne</string>
     <string name="settings_auto_select_custom_radio_summary">Automatycznie zastępuje dźwięk F1 wbudowanym lub zapisanym strumieniem radiowym, gdy jest dostępny.</string>
+    <string name="settings_restrict_custom_radio_to_live_sessions_title">Używaj własnego radia tylko podczas sesji na żywo</string>
+    <string name="settings_restrict_custom_radio_to_live_sessions_summary">Uniemożliwia automatyczny lub ręczny wybór własnego radia dla sesji VOD i powtórek.</string>
+    <string name="custom_radio_live_only_message">Własne radio jest ograniczone do sesji na żywo.</string>
     <string name="settings_app_locale_title">Język aplikacji</string>
 
     <string name="channel_selection_switch_channel">Switch channel</string>

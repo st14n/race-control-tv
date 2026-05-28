@@ -16,6 +16,8 @@ data class Settings(
     val customRadioUrl: String,
     /** Auto-switch to custom radio when a built-in or saved custom stream is available. */
     val autoSelectCustomRadio: Boolean,
+    /** Restrict custom radio selection to sessions that are currently live. */
+    val restrictCustomRadioToLiveSessions: Boolean,
     /** F1TV account email (stored locally for auto-fill). */
     val f1Username: String,
     /** F1TV account password (stored locally for auto-fill). */
@@ -41,6 +43,7 @@ data class Settings(
             customRadioDelayMs = 20_000L,
             customRadioUrl = "",
             autoSelectCustomRadio = true,
+            restrictCustomRadioToLiveSessions = true,
             f1Username = "",
             f1Password = ""
         )
@@ -54,6 +57,7 @@ data class Settings(
         const val KEY_CUSTOM_RADIO_DELAY_MS = "custom_radio_delay_ms"
         const val KEY_CUSTOM_RADIO_URL = "custom_radio_url"
         const val KEY_AUTO_SELECT_CUSTOM_RADIO = "auto_select_custom_radio"
+        const val KEY_RESTRICT_CUSTOM_RADIO_TO_LIVE_SESSIONS = "restrict_custom_radio_to_live_sessions"
         const val KEY_OLD_CUSTOM_RADIO_DELAY_MS = "gp_radio_delay_ms"
         const val KEY_OLD_CUSTOM_RADIO_URL = "gp_radio_custom_url"
         const val KEY_F1_USERNAME = "f1_username"

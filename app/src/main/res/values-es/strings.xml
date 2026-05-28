@@ -46,9 +46,9 @@
     <string name="settings_open_with_external_player_summary">Si está ON, usará una reprodtor multimedia externo para reproducir el contenido en lugar del incorporado</string>
     <string name="settings_category_other_title">Otro</string>
     <string name="settings_donations_title">Donaciones</string>
-    <string name="settings_donations_summary">Apoya al proyecto comprando una cerveza al desarrollador</string>
+    <string name="settings_donations_summary">¡Apoya el proyecto!</string>
     <string name="settings_logout_title">Cerrar sesión</string>
-    <string name="donations_explanation_summary">Escanea el siguiente código QR con tu teléfono, te redirigirá a la web BuyMeACoffee donde podrás hacer una donación</string>
+    <string name="donations_explanation_summary">Escanea el siguiente código QR con tu teléfono para apoyar el proyecto</string>
     <string name="custom_radio_audio_label">Radio</string>
     <string name="custom_radio_overlay_label">%1$s / %2$ss retrasado</string>
     <string name="settings_use_external_audio_title">Audio externo (canal PRES)</string>
@@ -81,6 +81,9 @@
     <string name="settings_custom_radio_url_summary">Déjalo vacío para usar los streams predeterminados</string>
     <string name="settings_auto_select_custom_radio_title">Preferir radio personalizada cuando esté disponible</string>
     <string name="settings_auto_select_custom_radio_summary">Sustituye automáticamente el audio de F1 por la radio integrada o guardada cuando haya una disponible.</string>
+    <string name="settings_restrict_custom_radio_to_live_sessions_title">Usar radio personalizada solo en sesiones en directo</string>
+    <string name="settings_restrict_custom_radio_to_live_sessions_summary">Impide seleccionar la radio personalizada, automática o manualmente, en sesiones VOD y repeticiones.</string>
+    <string name="custom_radio_live_only_message">La radio personalizada está limitada a las sesiones en directo.</string>
     <string name="settings_app_locale_title">Idioma de la app</string>
 
     <string name="channel_selection_switch_channel">Mudar canal</string>

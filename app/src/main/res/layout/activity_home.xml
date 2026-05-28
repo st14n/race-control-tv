@@ -18,6 +18,7 @@
         android:layout_margin="8dp"/>
 
     <RelativeLayout
+        android:id="@+id/teaserContainer"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content">
 
@@ -39,8 +40,11 @@
             android:id="@+id/teaserImageText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_centerInParent="true"
-            android:layout_centerHorizontal="true"
+            android:layout_alignEnd="@id/teaserImage"
+            android:layout_alignRight="@id/teaserImage"
+            android:layout_alignTop="@id/teaserImage"
+            android:layout_marginEnd="32dp"
+            android:layout_marginTop="4dp"
             android:textColor="@android:color/white"
             android:textAlignment="center"
             android:textSize="36sp" />

@@ -44,9 +44,9 @@
   <string name="settings_open_with_external_player_summary">Wenn eingeschaltet wird anstatt der integrierte Player, ein externer Player genutzt um den Inhalt abzuspielen</string>
   <string name="settings_category_other_title">Sonstiges</string>
   <string name="settings_donations_title">Spenden</string>
-  <string name="settings_donations_summary">Unterstützen Sie dieses Projekt in dem Sie dem Entwickler ein Bier spenden</string>
+  <string name="settings_donations_summary">Unterstützen Sie das Projekt!</string>
   <string name="settings_logout_title">Abmelden</string>
-  <string name="donations_explanation_summary">Scannen Sie den unteren QR Code mit Ihrem Smartphone, Sie werden zur BuyMeACoffee Seite weitergeleitet wo Sie spenden können</string>
+  <string name="donations_explanation_summary">Scannen Sie den QR-Code unten mit Ihrem Smartphone, um das Projekt zu unterstützen</string>
   <string name="custom_radio_audio_label">Radio</string>
   <string name="custom_radio_overlay_label">%1$s / %2$ss verzögert</string>
   <string name="settings_use_external_audio_title">Externe Audio (PRES-Kanal)</string>
@@ -79,6 +79,9 @@
   <string name="settings_custom_radio_url_summary">Leer lassen, um die Standardstreams zu verwenden</string>
   <string name="settings_auto_select_custom_radio_title">Benutzerdefiniertes Radio bevorzugen, wenn verfügbar</string>
   <string name="settings_auto_select_custom_radio_summary">Ersetzt F1-Audio automatisch durch den integrierten oder gespeicherten Radiostream, wenn einer verfügbar ist.</string>
+  <string name="settings_restrict_custom_radio_to_live_sessions_title">Benutzerdefiniertes Radio nur bei Live-Sessions verwenden</string>
+  <string name="settings_restrict_custom_radio_to_live_sessions_summary">Verhindert die automatische oder manuelle Auswahl von benutzerdefiniertem Radio bei VOD- und Replay-Sessions.</string>
+  <string name="custom_radio_live_only_message">Benutzerdefiniertes Radio ist auf Live-Sessions beschränkt.</string>
   <string name="settings_app_locale_title">App-Sprache</string>
 
   <string name="channel_selection_switch_channel">Switch channel</string>

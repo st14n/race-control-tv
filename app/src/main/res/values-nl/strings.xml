@@ -56,9 +56,9 @@
     <string name="custom_radio_waiting_message">Radio wacht %1$s seconden voor synchronisatie.</string>
     <string name="settings_category_other_title">Andere</string>
     <string name="settings_donations_title">Donaties</string>
-    <string name="settings_donations_summary">Steun het project door voor de ontwikkelaar een biertje te kopen</string>
+    <string name="settings_donations_summary">Steun het project!</string>
     <string name="settings_logout_title">Log uit</string>
-    <string name="donations_explanation_summary">Scan de onderstaande QR-code met je telefoon, je wordt doorgestuurd naar de BuyMeACoffee-pagina waar je kunt doneren</string>
+    <string name="donations_explanation_summary">Scan de onderstaande QR-code met je telefoon om het project te steunen</string>
 
     <string name="channel_selection_switch_channel">Kanaal wisselen</string>
 
@@ -83,5 +83,8 @@
     <string name="settings_custom_radio_url_summary">Laat leeg om de standaardstreams te gebruiken</string>
     <string name="settings_auto_select_custom_radio_title">Gebruik aangepaste radio wanneer beschikbaar</string>
     <string name="settings_auto_select_custom_radio_summary">Vervang F1-audio automatisch door de ingebouwde of opgeslagen aangepaste radiostream wanneer die beschikbaar is.</string>
+    <string name="settings_restrict_custom_radio_to_live_sessions_title">Aangepaste radio alleen gebruiken bij live-sessies</string>
+    <string name="settings_restrict_custom_radio_to_live_sessions_summary">Voorkomt dat aangepaste radio automatisch of handmatig wordt geselecteerd bij VOD- en replay-sessies.</string>
+    <string name="custom_radio_live_only_message">Aangepaste radio is beperkt tot live-sessies.</string>
     <string name="settings_app_locale_title">App-taal</string>
 </resources>

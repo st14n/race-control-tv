@@ -1,6 +1,8 @@
 package fr.groggy.racecontrol.tv.ui.player
 
+import android.content.pm.PackageManager
 import android.util.Log
+import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
@@ -33,6 +35,9 @@ class ExoPlayerPlaybackTransportControlGlue(
     private val onCustomRadioRequested: (() -> Unit)? = null,
     private val onCustomRadioSyncRequested: (() -> Unit)? = null,
     private val onAudioTrackSelected: (() -> Unit)? = null,
+    private val onPlayRequested: (() -> Unit)? = null,
+    private val onPauseRequested: (() -> Unit)? = null,
+    private val isCustomRadioSelectable: (() -> Boolean)? = null,
     private val isCustomRadioActive: (() -> Boolean)? = null,
     private val currentAudioLabelOverride: (() -> String?)? = null,
     private val onCustomRadioOffsetAdjust: ((Long) -> Unit)? = null,
@@ -42,6 +47,11 @@ class ExoPlayerPlaybackTransportControlGlue(
     activity,
     LeanbackPlayerAdapter(activity, exoPlayer, 1_000)
 ), AnalyticsListener {
+
+    private val shouldForceControlFocus: Boolean =
+        !activity.packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
+    private val shouldDisableFocusForTouchControls: Boolean =
+        activity.packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
 
     companion object {
         private val TAG = ExoPlayerPlaybackTransportControlGlue::class.simpleName
@@ -86,6 +96,8 @@ class ExoPlayerPlaybackTransportControlGlue(
 
     private var currentVideoFormat: Format? = null
     private var currentAudioFormat: Format? = null
+    private var lastHandledActionKey: String? = null
+    private var lastHandledActionAtElapsedMs: Long = 0L
 
     // Guard against the dialog being reopened by the key-up event that leaks back
     // from the dismissed dialog to the focused transport-row action button.
@@ -151,7 +163,8 @@ class ExoPlayerPlaybackTransportControlGlue(
             override fun onBindRowViewHolder(viewHolder: RowPresenter.ViewHolder, item: Any) {
                 super.onBindRowViewHolder(viewHolder, item)
                 viewHolder.setOnKeyListener(this@ExoPlayerPlaybackTransportControlGlue)
-                focusPrimaryControlSoon(viewHolder.view)
+                maybeFocusPrimaryControlSoon(viewHolder.view)
+                maybeDisableFocusForTouchControls(viewHolder.view)
             }
 
             override fun onUnbindRowViewHolder(viewHolder: RowPresenter.ViewHolder) {
@@ -161,13 +174,13 @@ class ExoPlayerPlaybackTransportControlGlue(
 
             override fun onReappear(viewHolder: RowPresenter.ViewHolder) {
                 super.onReappear(viewHolder)
-                focusPrimaryControlSoon(viewHolder.view)
+                maybeFocusPrimaryControlSoon(viewHolder.view)
             }
 
             override fun onRowViewSelected(viewHolder: RowPresenter.ViewHolder, selected: Boolean) {
                 super.onRowViewSelected(viewHolder, selected)
                 if (selected) {
-                    focusPrimaryControlSoon(viewHolder.view)
+                    maybeFocusPrimaryControlSoon(viewHolder.view)
                 }
             }
         }.apply {
@@ -181,6 +194,51 @@ class ExoPlayerPlaybackTransportControlGlue(
     private fun focusPrimaryControlSoon(root: View) {
         root.post { focusPrimaryControl(root) }
         root.postDelayed({ focusPrimaryControl(root) }, 120L)
+    }
+
+    private fun maybeFocusPrimaryControlSoon(root: View) {
+        if (!shouldForceControlFocus) return
+        focusPrimaryControlSoon(root)
+    }
+
+    private fun maybeDisableFocusForTouchControls(root: View) {
+        if (!shouldDisableFocusForTouchControls) return
+        root.post {
+            val controlBar = findVisibleControlBar(root) ?: return@post
+            disableFocusForTouchControls(controlBar)
+        }
+    }
+
+    private fun disableFocusForTouchControls(container: ViewGroup) {
+        container.isFocusable = false
+        container.isFocusableInTouchMode = false
+        for (index in 0 until container.childCount) {
+            val child = container.getChildAt(index)
+            child.isFocusable = false
+            child.isFocusableInTouchMode = false
+            child.setOnTouchListener(null)
+            if (child is ViewGroup) {
+                disableFocusForTouchControls(child)
+            }
+        }
+    }
+
+    override fun play() {
+        Log.d(TAG, "play requested from transport controls")
+        if (onPlayRequested != null) {
+            onPlayRequested.invoke()
+        } else {
+            exoPlayer.play()
+        }
+    }
+
+    override fun pause() {
+        Log.d(TAG, "pause requested from transport controls")
+        if (onPauseRequested != null) {
+            onPauseRequested.invoke()
+        } else {
+            exoPlayer.pause()
+        }
     }
 
     private fun focusPrimaryControl(root: View): Boolean {
@@ -212,9 +270,21 @@ class ExoPlayerPlaybackTransportControlGlue(
     }
 
     override fun onActionClicked(action: Action) {
-        Log.d(TAG, "onActionClicked")
+        val actionKey = action.debounceKey()
+        if (shouldIgnoreRapidDuplicateAction(action, actionKey)) {
+            Log.d(TAG, "Ignoring duplicate action: $actionKey")
+            return
+        }
+        Log.d(TAG, "onActionClicked: ${action.javaClass.simpleName}")
         onControlsInteraction?.invoke()
         when (action) {
+            is PlaybackControlsRow.PlayPauseAction -> {
+                if (exoPlayer.isPlaying) {
+                    pause()
+                } else {
+                    play()
+                }
+            }
             rewindAction -> {
                 if (isCustomRadioActive?.invoke() == true) {
                     onCustomRadioOffsetAdjust?.invoke(CUSTOM_RADIO_OVERLAY_OFFSET_STEP_MS)
@@ -278,6 +348,7 @@ class ExoPlayerPlaybackTransportControlGlue(
         activity.window.decorView.post {
             val dialog = AudioSelectionDialogFragment(
                 audioGroups = audioGroups,
+                includeCustomRadioOption = isCustomRadioSelectable?.invoke() != false,
                 onDialogDismissed = ::onMenuDismissed
             )
             dialog.onAudioLanguageSelected { language ->
@@ -426,6 +497,30 @@ class ExoPlayerPlaybackTransportControlGlue(
         if (index >= 0) {
             adapter.notifyArrayItemRangeChanged(index, 1)
         }
+    }
+
+    private fun Action.debounceKey(): String {
+        return buildString {
+            append(javaClass.name)
+            append('|')
+            append(id)
+            append('|')
+            append(label1 ?: "")
+        }
+    }
+
+    private fun shouldIgnoreRapidDuplicateAction(action: Action, actionKey: String): Boolean {
+        val shouldDebounce = action is PlaybackControlsRow.PlayPauseAction ||
+            shouldDisableFocusForTouchControls
+        if (!shouldDebounce) return false
+        val now = SystemClock.elapsedRealtime()
+        val shouldIgnore = actionKey == lastHandledActionKey &&
+            now - lastHandledActionAtElapsedMs <= 250L
+        if (!shouldIgnore) {
+            lastHandledActionKey = actionKey
+            lastHandledActionAtElapsedMs = now
+        }
+        return shouldIgnore
     }
 
     private fun LeanbackPlayerAdapter.seekOffset(offset: Long) {

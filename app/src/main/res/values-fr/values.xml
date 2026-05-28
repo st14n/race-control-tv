@@ -44,9 +44,9 @@
     <string name="settings_open_with_external_player_summary">If ON we will use an external player to play content instead the built in player</string>
     <string name="settings_category_other_title">Other</string>
     <string name="settings_donations_title">Donations</string>
-    <string name="settings_donations_summary">Support the project by buying the developer a beer</string>
+    <string name="settings_donations_summary">Soutenez le projet !</string>
     <string name="settings_logout_title">Logout</string>
-    <string name="donations_explanation_summary">Scan the QR code bellow with your phone, you will be redirected to the BuyMeACoffee page where you can donate</string>
+    <string name="donations_explanation_summary">Scannez le QR code ci-dessous avec votre téléphone pour soutenir le projet</string>
     <string name="settings_use_external_audio_title">Audio externe (canal PRES)</string>
     <string name="settings_use_external_audio_summary">Mélange le commentaire international avec le flux actuel (redémarrage requis)</string>
     <string name="settings_audio_offset_ms_title">Décalage de synchronisation audio</string>
@@ -79,6 +79,9 @@
     <string name="settings_custom_radio_url_summary">Laissez vide pour utiliser les flux par défaut</string>
     <string name="settings_auto_select_custom_radio_title">Préférer la radio personnalisée quand disponible</string>
     <string name="settings_auto_select_custom_radio_summary">Remplace automatiquement l’audio F1 par le flux radio intégré ou enregistré lorsqu’il est disponible.</string>
+    <string name="settings_restrict_custom_radio_to_live_sessions_title">Utiliser la radio personnalisée uniquement pour les sessions en direct</string>
+    <string name="settings_restrict_custom_radio_to_live_sessions_summary">Empêche la sélection automatique ou manuelle de la radio personnalisée pour les sessions VOD et les replays.</string>
+    <string name="custom_radio_live_only_message">La radio personnalisée est limitée aux sessions en direct.</string>
     <string name="settings_app_locale_title">Langue de l’application</string>
 
     <string name="channel_selection_switch_channel">Switch channel</string>

@@ -2,12 +2,16 @@ package fr.groggy.racecontrol.tv.ui.home
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.fragment.app.FragmentContainerView
+import androidx.leanback.widget.VerticalGridView
+import androidx.recyclerview.widget.RecyclerView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
@@ -42,6 +46,22 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
     @Inject internal lateinit var seasonService: SeasonService
     @Inject internal lateinit var credentialsService: CredentialsService
     private var teaserImage: ImageView? = null
+    private var teaserContainer: View? = null
+    private var settingsButton: View? = null
+    private var fragmentContainer: FragmentContainerView? = null
+    private var homeHeaderOffsetPx: Int = 0
+    private var homeFeedScrollView: RecyclerView? = null
+    private val isTouchDevice: Boolean by lazy(LazyThreadSafetyMode.NONE) {
+        packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
+    }
+    private val homeFeedScrollListener = object : RecyclerView.OnScrollListener() {
+        override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+            if (!isTouchDevice || dy == 0) return
+            val maxOffset = maxHomeHeaderOffsetPx()
+            if (maxOffset <= 0) return
+            applyHomeHeaderOffset((homeHeaderOffsetPx + dy).coerceIn(0, maxOffset))
+        }
+    }
 
     private var syncJob: Job? = null
 
@@ -50,6 +70,8 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
 
         val currentYear = Year.now().value
         teaserImage = findViewById(R.id.teaserImage)
+        teaserContainer = findViewById(R.id.teaserContainer)
+        fragmentContainer = findViewById(R.id.fragment_container)
         teaserImage?.setOnClickListener {
             val activity = SeasonBrowseActivity.intent(this, Archive(currentYear))
             startActivity(activity)
@@ -58,9 +80,9 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
         val teaserImageText = findViewById<TextView>(R.id.teaserImageText)
         teaserImageText.text = resources.getString(R.string.teaser_image_text, currentYear)
 
-        val settingsButton = findViewById<View>(R.id.settings)
-        applySettingsButtonInsets(settingsButton)
-        settingsButton.setOnClickListener {
+        settingsButton = findViewById(R.id.settings)
+        settingsButton?.let(::applySettingsButtonInsets)
+        settingsButton?.setOnClickListener {
             startActivity(SettingsActivity.intent(this))
         }
 
@@ -95,6 +117,8 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
                 replace(R.id.fragment_container, HomeFragment(), TAG)
             }
         }
+        supportFragmentManager.executePendingTransactions()
+        bindTouchHomeFeedScrollIfNeeded()
     }
 
     override fun onResume() {
@@ -123,5 +147,37 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
             insets
         }
         ViewCompat.requestApplyInsets(settingsButton)
+    }
+
+    private fun bindTouchHomeFeedScrollIfNeeded() {
+        if (!isTouchDevice) return
+        val container = fragmentContainer ?: return
+        val gridView = findVerticalGridView(container) ?: return
+        if (homeFeedScrollView === gridView) return
+        homeFeedScrollView?.removeOnScrollListener(homeFeedScrollListener)
+        homeFeedScrollView = gridView
+        gridView.addOnScrollListener(homeFeedScrollListener)
+    }
+
+    private fun applyHomeHeaderOffset(offsetPx: Int) {
+        homeHeaderOffsetPx = offsetPx
+        val translationY = -offsetPx.toFloat()
+        settingsButton?.translationY = translationY
+        teaserContainer?.translationY = translationY
+        fragmentContainer?.translationY = translationY
+    }
+
+    private fun maxHomeHeaderOffsetPx(): Int {
+        return fragmentContainer?.top ?: 0
+    }
+
+    private fun findVerticalGridView(view: View): VerticalGridView? {
+        if (view is VerticalGridView) return view
+        val group = view as? ViewGroup ?: return null
+        for (index in 0 until group.childCount) {
+            val found = findVerticalGridView(group.getChildAt(index))
+            if (found != null) return found
+        }
+        return null
     }
 }

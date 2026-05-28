@@ -27,6 +27,7 @@ class SessionGridFragment : VerticalGridSupportFragment(), OnItemViewClickedList
 
         private val CONTENT_ID = "${SessionGridFragment::class}.CONTENT_ID"
         private val SESSION_ID = "${SessionGridFragment::class}.SESSION_ID"
+        private val SEASON_YEAR = "${SessionGridFragment::class}.SEASON_YEAR"
 
         fun putContentId(intent: Intent, contentId: String) {
             intent.putExtra(CONTENT_ID, contentId)
@@ -36,6 +37,10 @@ class SessionGridFragment : VerticalGridSupportFragment(), OnItemViewClickedList
             intent.putExtra(SESSION_ID, sessionId)
         }
 
+        fun putSeasonYear(intent: Intent, seasonYear: Int) {
+            intent.putExtra(SEASON_YEAR, seasonYear)
+        }
+
         fun findSessionId(activity: Activity): String? {
             return activity.intent.getStringExtra(SESSION_ID)
         }
@@ -43,11 +48,16 @@ class SessionGridFragment : VerticalGridSupportFragment(), OnItemViewClickedList
         fun findContentId(activity: Activity): String? {
             return activity.intent.getStringExtra(CONTENT_ID)
         }
+
+        fun findSeasonYear(activity: Activity): Int {
+            return activity.intent.getIntExtra(SEASON_YEAR, org.threeten.bp.Year.now().value)
+        }
     }
 
     @Inject internal lateinit var settingsRepository: SettingsRepository
 
     private val channelsAdapter = ArrayObjectAdapter(ChannelCardPresenter())
+    private var isLiveSession: Boolean = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -77,6 +87,7 @@ class SessionGridFragment : VerticalGridSupportFragment(), OnItemViewClickedList
     }
 
     private fun onUpdatedSession(session: Session) {
+        isLiveSession = session.isLiveSession
         when (session) {
             is SingleChannelSession -> {
                 goToPlayback(session.contentId, session.channel?.value)
@@ -103,7 +114,9 @@ class SessionGridFragment : VerticalGridSupportFragment(), OnItemViewClickedList
             requireActivity(),
             sessionId,
             channelId,
-            contentId
+            contentId,
+            isLiveSession,
+            findSeasonYear(requireActivity())
         )
         startActivity(intent)
     }
@@ -112,7 +125,14 @@ class SessionGridFragment : VerticalGridSupportFragment(), OnItemViewClickedList
         val sessionId = findSessionId(requireActivity()) ?: return requireActivity().finish()
 
         val channel = item as Channel
-        val intent = ChannelPlaybackActivity.intent(requireActivity(), sessionId, channel.id?.value, channel.contentId)
+        val intent = ChannelPlaybackActivity.intent(
+            requireActivity(),
+            sessionId,
+            channel.id?.value,
+            channel.contentId,
+            isLiveSession,
+            findSeasonYear(requireActivity())
+        )
         startActivity(intent)
     }
 
