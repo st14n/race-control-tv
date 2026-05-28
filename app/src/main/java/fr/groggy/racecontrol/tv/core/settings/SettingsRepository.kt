@@ -72,6 +72,10 @@ class SettingsRepository(
                     Settings.KEY_AUTO_SELECT_CUSTOM_RADIO,
                     Settings.DEFAULT.autoSelectCustomRadio
                 ),
+                restrictCustomRadioToLiveSessions = getBoolean(
+                    Settings.KEY_RESTRICT_CUSTOM_RADIO_TO_LIVE_SESSIONS,
+                    Settings.DEFAULT.restrictCustomRadioToLiveSessions
+                ),
                 f1Username = getString(Settings.KEY_F1_USERNAME, "") ?: "",
                 f1Password = getString(Settings.KEY_F1_PASSWORD, "") ?: ""
             )

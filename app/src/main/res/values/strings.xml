@@ -55,11 +55,12 @@
     <string name="audio_selection_close">Close</string>
     <string name="custom_radio_sync_close">Close</string>
     <string name="custom_radio_waiting_message">Waiting %1$s seconds for synchronization.</string>
+    <string name="custom_radio_live_only_message">Custom radio is restricted to live sessions.</string>
     <string name="settings_category_other_title">Other</string>
     <string name="settings_donations_title">Donations</string>
-    <string name="settings_donations_summary">Support the project by buying the developer a beer</string>
+    <string name="settings_donations_summary">Support the project!</string>
     <string name="settings_logout_title">Logout</string>
-    <string name="donations_explanation_summary">Scan the QR code bellow with your phone, you will be redirected to the BuyMeACoffee page where you can donate</string>
+    <string name="donations_explanation_summary">Scan the QR code bellow with your phone to support the project</string>
 
     <string name="channel_selection_switch_channel">Switch channel</string>
 
@@ -84,5 +85,7 @@
     <string name="settings_custom_radio_url_summary">Leave blank to use the default streams</string>
     <string name="settings_auto_select_custom_radio_title">Prefer custom radio when available</string>
     <string name="settings_auto_select_custom_radio_summary">Automatically replace F1 audio with the built-in or saved custom radio stream when one is available.</string>
+    <string name="settings_restrict_custom_radio_to_live_sessions_title">Use custom radio for live sessions only</string>
+    <string name="settings_restrict_custom_radio_to_live_sessions_summary">Prevent custom radio from being selected automatically or manually for VOD and replay sessions.</string>
     <string name="settings_app_locale_title">App language</string>
 </resources>

@@ -181,6 +181,7 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
         val activity = when (item) {
             is Session -> {
                 SessionBrowseActivity.intent(requireActivity(), item.id.value, item.contentId)
+                SessionBrowseActivity.intent(requireActivity(), item.id.value, item.contentId, currentYear)
             }
             is HomeItem -> when (item.type) {
                 HomeItemType.ARCHIVE -> {

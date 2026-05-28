@@ -2,6 +2,7 @@ package fr.groggy.racecontrol.tv.ui.season.browse
 
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.util.Log
@@ -65,8 +66,9 @@ class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener 
     }
 
     private fun setupUIElements() {
-        headersState = HEADERS_ENABLED
-        isHeadersTransitionOnBackEnabled = true
+        val isTouchDevice = requireContext().packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
+        headersState = if (isTouchDevice) HEADERS_DISABLED else HEADERS_ENABLED
+        isHeadersTransitionOnBackEnabled = !isTouchDevice
         brandColor = ContextCompat.getColor(requireContext(), R.color.fastlane_background)
         adapter = eventsAdapter
     }
@@ -157,7 +159,7 @@ class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener 
     ) {
         val session = item as Session
         val intent =
-            SessionBrowseActivity.intent(requireActivity(), session.id.value, session.contentId)
+            SessionBrowseActivity.intent(requireActivity(), session.id.value, session.contentId, findArchive(requireActivity()).year)
         startActivity(intent)
     }
 

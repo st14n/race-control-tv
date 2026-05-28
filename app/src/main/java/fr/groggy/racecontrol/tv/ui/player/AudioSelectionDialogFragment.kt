@@ -63,6 +63,7 @@ private fun audioSelectionSortPriority(format: Format): Int {
 
 class AudioSelectionDialogFragment(
     private val audioGroups: List<Tracks.Group>,
+    private val includeCustomRadioOption: Boolean = true,
     private val onDialogDismissed: (() -> Unit)? = null
 ) : DialogFragment() {
 
@@ -88,7 +89,9 @@ class AudioSelectionDialogFragment(
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val items = buildList {
-            add(getString(R.string.custom_radio_audio_label))
+            if (includeCustomRadioOption) {
+                add(getString(R.string.custom_radio_audio_label))
+            }
             addAll(audioItems.map { it.displayLabel })
         }.toTypedArray()
 
@@ -119,9 +122,10 @@ class AudioSelectionDialogFragment(
     }
 
     private fun onItemSelected(index: Int) {
+        val audioIndex = if (includeCustomRadioOption) index - 1 else index
         when {
-            index == 0 -> onCustomRadioSelectedListener?.invoke()
-            index - 1 in audioItems.indices -> onAudioLanguageSelectedListener?.invoke(audioItems[index - 1].format.language)
+            includeCustomRadioOption && index == 0 -> onCustomRadioSelectedListener?.invoke()
+            audioIndex in audioItems.indices -> onAudioLanguageSelectedListener?.invoke(audioItems[audioIndex].format.language)
         }
         dismiss()
     }

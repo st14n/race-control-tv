@@ -77,6 +77,12 @@
             android:summary="@string/settings_auto_select_custom_radio_summary"
             android:defaultValue="true" />
 
+        <SwitchPreference
+            android:key="restrict_custom_radio_to_live_sessions"
+            android:title="@string/settings_restrict_custom_radio_to_live_sessions_title"
+            android:summary="@string/settings_restrict_custom_radio_to_live_sessions_summary"
+            android:defaultValue="true" />
+
         <Preference
             android:key="reset_settings"
             android:title="@string/settings_reset_to_default_title"/>

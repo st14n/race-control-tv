@@ -45,9 +45,9 @@
     <string name="settings_open_with_external_player_summary">If ON we will use an external player to play content instead the built in player</string>
     <string name="settings_category_other_title">Other</string>
     <string name="settings_donations_title">Donations</string>
-    <string name="settings_donations_summary">Support the project by buying the developer a beer</string>
+    <string name="settings_donations_summary">Поддержите проект!</string>
     <string name="settings_logout_title">Logout</string>
-    <string name="donations_explanation_summary">Scan the QR code bellow with your phone, you will be redirected to the BuyMeACoffee page where you can donate</string>
+    <string name="donations_explanation_summary">Отсканируйте QR-код ниже телефоном, чтобы поддержать проект</string>
     <string name="custom_radio_audio_label">Радио</string>
     <string name="custom_radio_overlay_label">%1$s / %2$sс с задержкой</string>
     <string name="settings_use_external_audio_title">Внешнее аудио (канал PRES)</string>
@@ -80,6 +80,9 @@
     <string name="settings_custom_radio_url_summary">Оставьте пустым, чтобы использовать потоки по умолчанию</string>
     <string name="settings_auto_select_custom_radio_title">Предпочитать собственное радио при наличии</string>
     <string name="settings_auto_select_custom_radio_summary">Автоматически заменяет аудио F1 встроенным или сохраненным радиопотоком, когда он доступен.</string>
+    <string name="settings_restrict_custom_radio_to_live_sessions_title">Использовать собственное радио только для прямых эфиров</string>
+    <string name="settings_restrict_custom_radio_to_live_sessions_summary">Запрещает автоматически или вручную выбирать собственное радио для VOD и повторов.</string>
+    <string name="custom_radio_live_only_message">Собственное радио доступно только для прямых эфиров.</string>
     <string name="settings_app_locale_title">Язык приложения</string>
 
     <string name="channel_selection_switch_channel">Switch channel</string>

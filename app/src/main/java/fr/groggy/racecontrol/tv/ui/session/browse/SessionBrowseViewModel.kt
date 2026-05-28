@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withContext
+import org.threeten.bp.Instant
 import javax.inject.Inject
 
 @HiltViewModel
@@ -40,13 +41,15 @@ class SessionBrowseViewModel @Inject constructor(
             .onEach { Log.d(TAG, "Session changed") }
             .flatMapLatest { session ->
                 val channelList = channels(contentId).first()
+                val isLiveSession = session.isLiveNow()
                 Log.d(TAG, "Loaded channel count ${channelList.size}")
 
                 if (channelList.isEmpty()) {
                     flowOf(
                         SingleChannelSession(
                             contentId = session.contentId,
-                            channel = channelList.firstOrNull()?.id
+                            channel = channelList.firstOrNull()?.id,
+                            isLiveSession = isLiveSession
                         )
                     )
                 } else {
@@ -54,7 +57,8 @@ class SessionBrowseViewModel @Inject constructor(
                         MultiChannelsSession(
                             contentId = session.contentId,
                             name = session.name,
-                            channels = channelList
+                            channels = channelList,
+                            isLiveSession = isLiveSession
                         )
                     )
                 }
@@ -88,19 +92,26 @@ class SessionBrowseViewModel @Inject constructor(
     }
 }
 
+private fun F1TvSession.isLiveNow(now: Instant = Instant.now()): Boolean {
+    return !period.start.isAfter(now) && !period.end.isBefore(now)
+}
+
 sealed class Session {
     abstract val contentId: String
+    abstract val isLiveSession: Boolean
 }
 
 data class SingleChannelSession(
     override val contentId: String,
-    val channel: F1TvChannelId?
+    val channel: F1TvChannelId?,
+    override val isLiveSession: Boolean
 ) : Session()
 
 data class MultiChannelsSession(
     override val contentId: String,
     val name: String,
-    val channels: List<Channel>
+    val channels: List<Channel>,
+    override val isLiveSession: Boolean
 ) : Session()
 
 sealed class Channel {

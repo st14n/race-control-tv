@@ -34,6 +34,7 @@ import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.util.EventLogger
 import dagger.hilt.android.AndroidEntryPoint
+import fr.groggy.racecontrol.tv.core.settings.Settings
 import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
 import fr.groggy.racecontrol.tv.f1tv.F1TvViewing
 import fr.groggy.racecontrol.tv.R
@@ -64,14 +65,20 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         private const val ARG_SESSION_ID = "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_SESSION_ID"
         private const val ARG_CONTENT_ID = "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_CONTENT_ID"
         private const val ARG_CHANNEL_ID = "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_CHANNEL_ID"
+        private const val ARG_IS_LIVE_SESSION = "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_IS_LIVE_SESSION"
+        private const val ARG_SEASON_YEAR = "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_SEASON_YEAR"
 
         fun putSessionId(intent: Intent, sessionId: String) = intent.putExtra(ARG_SESSION_ID, sessionId)
         fun putChannelId(intent: Intent, channelId: String?) = intent.putExtra(ARG_CHANNEL_ID, channelId)
         fun putContentId(intent: Intent, contentId: String) = intent.putExtra(ARG_CONTENT_ID, contentId)
+        fun putIsLiveSession(intent: Intent, isLiveSession: Boolean) = intent.putExtra(ARG_IS_LIVE_SESSION, isLiveSession)
+        fun putSeasonYear(intent: Intent, seasonYear: Int) = intent.putExtra(ARG_SEASON_YEAR, seasonYear)
 
         fun findChannelId(activity: Activity): String? = activity.intent.getStringExtra(ARG_CHANNEL_ID)
         fun findContentId(activity: Activity): String? = activity.intent.getStringExtra(ARG_CONTENT_ID)
         fun findSessionId(activity: Activity): String? = activity.intent.getStringExtra(ARG_SESSION_ID)
+        fun findIsLiveSession(activity: Activity): Boolean = activity.intent.getBooleanExtra(ARG_IS_LIVE_SESSION, true)
+        fun findSeasonYear(activity: Activity): Int = activity.intent.getIntExtra(ARG_SEASON_YEAR, org.threeten.bp.Year.now().value)
 
         fun findViewing(fragment: ChannelPlaybackFragment): F1TvViewing? {
             val args = fragment.arguments ?: return null
@@ -132,11 +139,15 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
 
     private val trackSelector: DefaultTrackSelector by lazy {
         DefaultTrackSelector(requireContext()).apply {
+            val isLegacySeason = findSeasonYear(requireActivity()) <= 2025
             // Remove the default viewport/display-size cap so 4K tracks are eligible
             // for auto-selection on a 4K display without extra configuration.
             setParameters(
                 buildUponParameters()
-                    .setMaxVideoSize(Int.MAX_VALUE, Int.MAX_VALUE)
+                    .setMaxVideoSize(
+                        if (isLegacySeason) 1920 else Int.MAX_VALUE,
+                        if (isLegacySeason) 1080 else Int.MAX_VALUE
+                    )
                     .setMaxVideoBitrate(Int.MAX_VALUE)
             )
         }
@@ -210,6 +221,9 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                 onCustomRadioRequested = ::injectCustomRadio,
                 onCustomRadioSyncRequested = ::showCustomRadioSyncDialog,
                 onAudioTrackSelected = ::stopCustomRadio,
+                onPlayRequested = ::resumePlaybackFromTransportControls,
+                onPauseRequested = ::pausePlaybackFromTransportControls,
+                isCustomRadioSelectable = ::isCustomRadioAvailableForCurrentSession,
                 isCustomRadioActive = { customRadioInjected },
                 currentAudioLabelOverride = {
                     if (customRadioInjected) customRadioOverlayLabel() else null
@@ -317,7 +331,11 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         if (playbackState == Player.STATE_READY && !hasAutoInjectedCustomRadio) {
             hasAutoInjectedCustomRadio = true
             val settings = settingsRepository.getCurrent()
-            if (settings.autoSelectCustomRadio && buildCustomRadioPlan(settings).isNotEmpty()) {
+            if (
+                settings.autoSelectCustomRadio &&
+                isCustomRadioAvailableForCurrentSession(settings) &&
+                buildCustomRadioPlan(settings).isNotEmpty()
+            ) {
                 injectCustomRadio()
             }
         }
@@ -357,19 +375,19 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     override fun onPause() {
         super.onPause()
         cancelOverlayAutoCloseTimer()
-        if (player.isPlaying) {
-            player.pause()
-            Log.d(TAG, "onPause: paused")
-        }
-        customRadioPlayer?.pause()
+        pausePlaybackFromTransportControls(logSource = "onPause")
     }
 
     override fun onResume() {
         super.onResume()
-        val radio = customRadioPlayer ?: return
-        if (customRadioMuted || customRadioInjected) {
-            // VLC keeps its audioDelay across pause/resume — just resume playback
-            radio.play()
+        if (player.playWhenReady) {
+            resumePlaybackFromTransportControls(logSource = "onResume")
+        } else {
+            val radio = customRadioPlayer ?: return
+            if (customRadioMuted || customRadioInjected) {
+                // VLC keeps its audioDelay across pause/resume — just resume playback
+                radio.play()
+            }
         }
     }
 
@@ -398,10 +416,50 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         }
     }
 
+    internal fun shouldHandleTouchOverlayGesture(): Boolean {
+        return isAdded && !isControlsOverlayVisible() && !hasOpenPlaybackDialog()
+    }
+
+    internal fun showControlsOverlayFromTouch(): Boolean {
+        if (!shouldHandleTouchOverlayGesture()) return false
+        showControlsOverlay(true)
+        return true
+    }
+
+    private fun hasOpenPlaybackDialog(): Boolean {
+        return childFragmentManager.fragments.any { fragment ->
+            fragment is DialogFragment && fragment.dialog?.isShowing == true
+        }
+    }
+
+    private fun pausePlaybackFromTransportControls(logSource: String = "transport") {
+        cancelCustomRadioDelayNudge(resume = false)
+        if (player.isPlaying) {
+            player.pause()
+        }
+        customRadioPlayer?.pause()
+        Log.d(TAG, "$logSource: paused main player and custom radio")
+    }
+
+    private fun resumePlaybackFromTransportControls(logSource: String = "transport") {
+        if (!player.isPlaying) {
+            player.play()
+        }
+        if (customRadioMuted || customRadioInjected) {
+            customRadioPlayer?.play()
+        }
+        Log.d(TAG, "$logSource: resumed main player and custom radio")
+    }
+
     // ── Grand Prix Radio ──────────────────────────────────────────────────────
 
     internal fun injectCustomRadio() {
         if (customRadioInjected) return
+        val settings = settingsRepository.getCurrent()
+        if (!isCustomRadioAvailableForCurrentSession(settings)) {
+            Toast.makeText(requireContext(), R.string.custom_radio_live_only_message, Toast.LENGTH_LONG).show()
+            return
+        }
         // If the radio is already streaming but muted, just unmute — no 20s wait needed
         if (customRadioMuted && customRadioPlayer != null) {
             customRadioMuted = false
@@ -419,7 +477,6 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         }
         // VLC was muted but died while muted — reset muted flag before fresh start
         customRadioMuted = false
-        val settings = settingsRepository.getCurrent()
         val radioPlan = buildCustomRadioPlan(settings)
         if (radioPlan.isEmpty()) {
             logCustomRadioTelemetry("plan_empty", detail = "No custom radio backend available")
@@ -628,7 +685,13 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         customRadioPlayer = null
     }
 
-    private fun buildCustomRadioPlan(settings: fr.groggy.racecontrol.tv.core.settings.Settings): List<CustomRadioPlanEntry> {
+    private fun isCustomRadioAvailableForCurrentSession(
+        settings: Settings = settingsRepository.getCurrent()
+    ): Boolean {
+        return !settings.restrictCustomRadioToLiveSessions || findIsLiveSession(requireActivity())
+    }
+
+    private fun buildCustomRadioPlan(settings: Settings): List<CustomRadioPlanEntry> {
         val customUrl = settings.customRadioUrl.trim()
         if (customUrl.isNotBlank()) {
             if (!isSupportedCustomRadioUrl(customUrl)) {
@@ -637,7 +700,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             }
             return listOf(
                 CustomRadioPlanEntry(
-                    backend = fr.groggy.racecontrol.tv.core.settings.Settings.CustomRadioBackend.EXOPLAYER,
+                    backend = Settings.CustomRadioBackend.EXOPLAYER,
                     source = CustomRadioSource(
                         name = "custom",
                         url = customUrl,
@@ -650,7 +713,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         return CustomRadioSources.defaultCandidate?.let {
             listOf(
                 CustomRadioPlanEntry(
-                    fr.groggy.racecontrol.tv.core.settings.Settings.CustomRadioBackend.EXOPLAYER,
+                    Settings.CustomRadioBackend.EXOPLAYER,
                     it
                 )
             )
