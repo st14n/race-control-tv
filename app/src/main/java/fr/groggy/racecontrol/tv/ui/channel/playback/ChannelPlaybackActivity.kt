@@ -3,6 +3,7 @@ package fr.groggy.racecontrol.tv.ui.channel.playback
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
 import androidx.annotation.StringRes
@@ -23,6 +24,7 @@ import fr.groggy.racecontrol.tv.f1tv.F1TvViewing
 import fr.groggy.racecontrol.tv.ui.player.ChannelSelectionDialog
 import fr.groggy.racecontrol.tv.ui.session.browse.Channel
 import fr.groggy.racecontrol.tv.ui.signin.SignInActivity
+import fr.groggy.racecontrol.tv.utils.DeviceInfo
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -36,6 +38,10 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
 
     /** The [F1TvViewing] currently loaded into the player, used for 4K fallback detection. */
     private var currentViewing: F1TvViewing? = null
+
+    private val preferHdrManifestForDevice: Boolean by lazy(LazyThreadSafetyMode.NONE) {
+        !settingsRepository.getCurrent().disableHdrPlayback && DeviceInfo.shouldRequestHdrManifest(this)
+    }
 
     companion object {
         private val TAG = ChannelPlaybackActivity::class.simpleName
@@ -53,8 +59,14 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         lifecycleScope.launch {
-            attachViewingIfNeeded(Settings.StreamType.DASH, preferHdrManifest = true)
+            attachViewingIfNeeded(Settings.StreamType.DASH, preferHdrManifest = preferHdrManifestForDevice)
         }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        (supportFragmentManager.findFragmentByTag(ChannelPlaybackFragment.TAG) as? ChannelPlaybackFragment)
+            ?.onHostConfigurationChanged()
     }
 
     override fun onSwitchChannel(channel: Channel) {
@@ -85,7 +97,7 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
             // and they are not already watching the PRES channel itself
             val settings = settingsRepository.getCurrent()
             if (settings.useExternalAudio) {
-                viewing = tryAttachExternalAudio(viewing, contentId, channelId, streamType)
+                viewing = tryAttachExternalAudio(viewing, contentId, channelId, streamType, preferHdrManifest)
             }
 
             onViewingCreated(viewing)
@@ -123,7 +135,8 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         viewing: F1TvViewing,
         contentId: String,
         currentChannelId: String?,
-        streamType: Settings.StreamType
+        streamType: Settings.StreamType,
+        preferHdrManifest: Boolean
     ): F1TvViewing = try {
         val channels = f1TvClient.getChannels(contentId)
         val presChannel = channels
@@ -138,7 +151,12 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
             return viewing
         }
         Log.i(TAG, "Fetching PRES audio from channelId=${presChannel.channelId}")
-        val presViewing = viewingService.getViewing(presChannel.channelId, presChannel.contentId, streamType)
+        val presViewing = viewingService.getViewing(
+            presChannel.channelId,
+            presChannel.contentId,
+            streamType,
+            preferHdrManifest
+        )
         viewing.copy(
             externalAudioUri = presViewing.url,
             externalAudioStreamType = presViewing.streamType,

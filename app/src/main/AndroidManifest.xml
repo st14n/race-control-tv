@@ -34,7 +34,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".ui.channel.playback.ChannelPlaybackActivity" />
+        <activity
+            android:name=".ui.channel.playback.ChannelPlaybackActivity"
+            android:configChanges="keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize" />
         <activity android:name=".ui.season.browse.SeasonBrowseActivity" />
         <activity android:name=".ui.session.browse.SessionBrowseActivity" />
         <activity android:name=".ui.signin.SignInActivity" />

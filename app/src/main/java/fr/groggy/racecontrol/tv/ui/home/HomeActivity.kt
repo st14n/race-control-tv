@@ -5,8 +5,12 @@ import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.view.View
+import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.commit
 import androidx.lifecycle.lifecycleScope
@@ -54,9 +58,13 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
         val teaserImageText = findViewById<TextView>(R.id.teaserImageText)
         teaserImageText.text = resources.getString(R.string.teaser_image_text, currentYear)
 
-        findViewById<View>(R.id.settings).setOnClickListener {
+        val settingsButton = findViewById<View>(R.id.settings)
+        applySettingsButtonInsets(settingsButton)
+        settingsButton.setOnClickListener {
             startActivity(SettingsActivity.intent(this))
         }
+
+        ensureHomeFragmentPresent()
 
     }
 
@@ -76,11 +84,15 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
                      */
                 }
 
-                if (supportFragmentManager.findFragmentByTag(TAG) !is HomeFragment) {
-                    supportFragmentManager.commit {
-                        replace(R.id.fragment_container, HomeFragment(), TAG)
-                    }
-                }
+                ensureHomeFragmentPresent()
+            }
+        }
+    }
+
+    private fun ensureHomeFragmentPresent() {
+        if (supportFragmentManager.findFragmentByTag(TAG) !is HomeFragment) {
+            supportFragmentManager.commit {
+                replace(R.id.fragment_container, HomeFragment(), TAG)
             }
         }
     }
@@ -99,5 +111,17 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
         syncJob?.cancel()
         syncJob = null
         super.onPause()
+    }
+
+    private fun applySettingsButtonInsets(settingsButton: View) {
+        val baseTopMargin = (settingsButton.layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin ?: 0
+        ViewCompat.setOnApplyWindowInsetsListener(settingsButton) { view, insets ->
+            val statusBarTopInset = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
+            view.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                topMargin = baseTopMargin + statusBarTopInset
+            }
+            insets
+        }
+        ViewCompat.requestApplyInsets(settingsButton)
     }
 }

@@ -42,6 +42,12 @@
             android:summary="@string/settings_display_thumbnails_enabled_summary"
             android:defaultValue="true" />
 
+        <SwitchPreference
+            android:key="disable_hdr_playback"
+            android:title="@string/settings_disable_hdr_playback_title"
+            android:summary="@string/settings_disable_hdr_playback_summary"
+            android:defaultValue="false" />
+
         <ListPreference
             android:key="audio_offset_ms"
             android:title="@string/settings_audio_offset_ms_title"

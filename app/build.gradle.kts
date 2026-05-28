@@ -13,8 +13,8 @@ rootProject.file(".env").takeIf { it.exists() }?.forEachLine { line ->
 val f1BuildUsername = envProps["F1_username"] ?: ""
 val f1BuildPassword = envProps["F1_password"] ?: ""
 val appApplicationId = "com.st14n.f1"
-val appVersionCode = 1
-val appVersionName = "1.0.0"
+val appVersionCode = 2
+val appVersionName = "1.0.1"
 // Token refresh interval: default 6 hours; override in .env for testing (e.g. 300000 = 5 min)
 val tokenRefreshIntervalMs = envProps["TOKEN_REFRESH_INTERVAL_MS"]?.toLongOrNull()
     ?: (6L * 60 * 60 * 1000)
@@ -218,6 +218,7 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:$media3Version")
     implementation("androidx.media3:media3-exoplayer-dash:$media3Version")
     implementation("androidx.media3:media3-exoplayer-hls:$media3Version")
+    implementation("androidx.media3:media3-effect:$media3Version")
     implementation("androidx.media3:media3-ui:$media3Version")
     implementation("androidx.media3:media3-datasource-okhttp:$media3Version")
     implementation("androidx.media3:media3-ui-leanback:$media3Version")
