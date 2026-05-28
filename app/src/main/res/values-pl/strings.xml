@@ -38,6 +38,8 @@
     <string name="settings_bypass_channel_selection_summary">Jeśli WŁĄCZONE po wybraniu wydarzenia zostaniesz automatycznie przekierowany do odtwarzania głównej transmisji</string>
     <string name="settings_display_thumbnails_enabled_title">Wyświetlaj miniatury</string>
     <string name="settings_display_thumbnails_enabled_summary">Wyświetlane miniatury mogą zawierać spojlery. WYŁĄCZENIE tej opcji ukryje miniatury</string>
+    <string name="settings_disable_hdr_playback_title">Wyłącz odtwarzanie HDR</string>
+    <string name="settings_disable_hdr_playback_summary">Wymusza odtwarzanie SDR i pomija manifesty HDR, nawet na urządzeniach, które potrafią odtworzyć strumień 4K HDR lub zastosować do niego tone mapping.</string>
     <string name="settings_open_with_external_player_title">Otwieraj w zewnętrznym odtwarzaczu (beta)</string>
     <string name="settings_reset_to_default_title">Przywróć ustawienia domyślne</string>
     <string name="settings_open_with_external_player_summary">Jeśli WŁĄCZONE aplikacja będzie korzystała z zewnętrznego odtwarzacza zamiast wbudowanego</string>

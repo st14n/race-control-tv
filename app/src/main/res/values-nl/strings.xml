@@ -37,6 +37,8 @@
     <string name="settings_bypass_channel_selection_summary">Indien AAN na het selecteren van een evenement, wordt u onmiddellijk doorgestuurd naar de speler in de algemene uitzending</string>
     <string name="settings_display_thumbnails_enabled_title">Miniaturen weergeven</string>
     <string name="settings_display_thumbnails_enabled_summary">Miniaturen kunnen spoilers bevatten. Als u dit uitschakelt, worden miniatuurafbeeldingen uitgeschakeld</string>
+    <string name="settings_disable_hdr_playback_title">HDR-weergave uitschakelen</string>
+    <string name="settings_disable_hdr_playback_summary">Forceert SDR-weergave en slaat HDR-manifests over, zelfs op apparaten die de 4K-HDR-stream kunnen afspelen of via tone mapping kunnen omzetten.</string>
     <string name="settings_open_with_external_player_title">Open in externe speler(beta)</string>
     <string name="settings_reset_to_default_title">Instellingen terugzetten naar standaard</string>
     <string name="settings_open_with_external_player_summary">Indien AAN gebruiken we een externe speler om inhoud af te spelen in plaats van de ingebouwde speler</string>

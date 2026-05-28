@@ -39,6 +39,8 @@
     <string name="settings_bypass_channel_selection_summary">Si se activa después de seleccionar un evento, se le redirigirá inmediatamente al reproductor de la emisión general</string>
     <string name="settings_display_thumbnails_enabled_title">Mostrar miniaturas</string>
     <string name="settings_display_thumbnails_enabled_summary">Las miniaturas pueden contener spoilers. Desactivalo para deshabilitar las miniaturas</string>
+    <string name="settings_disable_hdr_playback_title">Desactivar reproducción HDR</string>
+    <string name="settings_disable_hdr_playback_summary">Fuerza la reproducción SDR y omite los manifiestos HDR, incluso en dispositivos que pueden reproducir o aplicar tone mapping al stream 4K HDR.</string>
     <string name="settings_open_with_external_player_title">Abrir con reproductor multimedia externo (beta)</string>
     <string name="settings_reset_to_default_title">Restablecer la configuración por defecto</string>
     <string name="settings_open_with_external_player_summary">Si está ON, usará una reprodtor multimedia externo para reproducir el contenido en lugar del incorporado</string>

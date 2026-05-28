@@ -37,6 +37,8 @@
   <string name="settings_bypass_channel_selection_summary">Wenn eingeschaltet, wird die Kanalauswahl nach dem Auswählen eines Events übersprungen und Sie gelangen direkt im Player des Hauptkanals</string>
   <string name="settings_display_thumbnails_enabled_title">Vorschaubilder anzeigen</string>
   <string name="settings_display_thumbnails_enabled_summary">Vorschaubilder könnten Spoiler enthalten. Das Ausschalten dieser Option deaktiviert die Anzeige der Vorschaubilder</string>
+  <string name="settings_disable_hdr_playback_title">HDR-Wiedergabe deaktivieren</string>
+  <string name="settings_disable_hdr_playback_summary">Erzwingt SDR-Wiedergabe und überspringt HDR-Manifeste, selbst auf Geräten, die den 4K-HDR-Stream wiedergeben oder per Tone-Mapping umwandeln können.</string>
   <string name="settings_open_with_external_player_title">Öffne mit externem Player (Beta)</string>
   <string name="settings_reset_to_default_title">Einstellungen zum Standard zurücksetzen</string>
   <string name="settings_open_with_external_player_summary">Wenn eingeschaltet wird anstatt der integrierte Player, ein externer Player genutzt um den Inhalt abzuspielen</string>

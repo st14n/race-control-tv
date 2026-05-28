@@ -9,6 +9,8 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
+import android.view.View
+import android.view.ViewGroup
 import android.widget.Toast
 import androidx.annotation.Keep
 import androidx.fragment.app.DialogFragment
@@ -18,6 +20,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.RenderersFactory
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.dash.DashMediaSource
 import androidx.media3.exoplayer.hls.HlsMediaSource
@@ -36,6 +39,7 @@ import fr.groggy.racecontrol.tv.f1tv.F1TvViewing
 import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.ui.player.CustomRadioSyncDialog
 import fr.groggy.racecontrol.tv.ui.player.ExoPlayerPlaybackTransportControlGlue
+import fr.groggy.racecontrol.tv.utils.DeviceInfo
 import javax.inject.Inject
 import java.util.Locale
 
@@ -102,6 +106,8 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     private var playbackGlue: ExoPlayerPlaybackTransportControlGlue? = null
     private var customRadioDelayNudgeRunnable: Runnable? = null
     private var suppressOverlayReopenUntilElapsedMs: Long = 0L
+    private var lastVideoHostWidth: Int = 0
+    private var lastVideoHostHeight: Int = 0
     private val overlayAutoCloseHandler = Handler(Looper.getMainLooper())
     private val overlayAutoCloseRunnable = Runnable {
         if (!isAdded) return@Runnable
@@ -109,6 +115,19 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         if (isControlsOverlayVisible()) {
             hideControlsOverlay(true)
         }
+    }
+    private val videoHostLayoutChangeListener = View.OnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
+        val newWidth = right - left
+        val newHeight = bottom - top
+        val oldWidth = oldRight - oldLeft
+        val oldHeight = oldBottom - oldTop
+        if (newWidth <= 0 || newHeight <= 0) return@OnLayoutChangeListener
+        if (newWidth == oldWidth && newHeight == oldHeight) return@OnLayoutChangeListener
+        if (newWidth == lastVideoHostWidth && newHeight == lastVideoHostHeight) return@OnLayoutChangeListener
+        lastVideoHostWidth = newWidth
+        lastVideoHostHeight = newHeight
+        Log.d(TAG, "Video host resized to ${newWidth}x${newHeight}; updating surface")
+        updateVideoSurfaceSize(player.videoSize.width, player.videoSize.height)
     }
 
     private val trackSelector: DefaultTrackSelector by lazy {
@@ -123,9 +142,18 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         }
     }
 
+    private val renderersFactory: RenderersFactory by lazy {
+        val settings = settingsRepository.getCurrent()
+        HdrToneMappingRenderersFactory(
+            requireContext(),
+            enableHdrToSdrToneMapping =
+                !settings.disableHdrPlayback && DeviceInfo.shouldToneMapHdrToSdr(requireContext())
+        )
+    }
+
     private val player: ExoPlayer by lazy {
         Log.d(TAG, "Initializing ExoPlayer (Media3)")
-        ExoPlayer.Builder(requireContext())
+        ExoPlayer.Builder(requireContext(), renderersFactory)
             .setTrackSelector(trackSelector)
             .build().also { p ->
                 p.playWhenReady = true
@@ -162,6 +190,16 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             false
         }
         startPlayer()
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        lastVideoHostWidth = view.width
+        lastVideoHostHeight = view.height
+        view.addOnLayoutChangeListener(videoHostLayoutChangeListener)
+        view.post {
+            updateVideoSurfaceSize(player.videoSize.width, player.videoSize.height)
+        }
     }
 
     private fun startPlayer() {
@@ -289,6 +327,10 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         Log.d(TAG, "isPlaying → $isPlaying")
     }
 
+    override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+        updateVideoSurfaceSize(videoSize.width, videoSize.height)
+    }
+
     override fun onPositionDiscontinuity(
         oldPosition: Player.PositionInfo,
         newPosition: Player.PositionInfo,
@@ -339,6 +381,21 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         player.removeListener(this)
         player.release()
         super.onDestroy()
+    }
+
+    override fun onDestroyView() {
+        view?.removeOnLayoutChangeListener(videoHostLayoutChangeListener)
+        lastVideoHostWidth = 0
+        lastVideoHostHeight = 0
+        super.onDestroyView()
+    }
+
+    internal fun onHostConfigurationChanged() {
+        view?.post {
+            val fragmentView = view ?: return@post
+            fragmentView.requestLayout()
+            fragmentView.requestApplyInsets()
+        }
     }
 
     // ── Grand Prix Radio ──────────────────────────────────────────────────────
@@ -747,4 +804,10 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             formatCustomRadioOffset(customRadioOffsetMs)
         )
     }
+
+    private fun updateVideoSurfaceSize(videoWidth: Int, videoHeight: Int) {
+        if (videoWidth <= 0 || videoHeight <= 0 || view == null) return
+        super<VideoSupportFragment>.onVideoSizeChanged(videoWidth, videoHeight)
+    }
+
 }

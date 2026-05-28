@@ -38,6 +38,8 @@
     <string name="settings_bypass_channel_selection_summary">If ON after select a event you will be immediately redirected to the player in the general broadcast</string>
     <string name="settings_display_thumbnails_enabled_title">Display Thumbnails</string>
     <string name="settings_display_thumbnails_enabled_summary">Thumbnails may contain spoilers. Turning this OFF will disable thumbnail images</string>
+    <string name="settings_disable_hdr_playback_title">Disable HDR playback</string>
+    <string name="settings_disable_hdr_playback_summary">Force SDR playback and skip HDR manifests, even on devices that can play or tone-map the 4K HDR stream.</string>
     <string name="settings_open_with_external_player_title">Open with external player (beta)</string>
     <string name="settings_reset_to_default_title">Reset settings to default</string>
     <string name="settings_open_with_external_player_summary">If ON we will use an external player to play content instead the built in player</string>

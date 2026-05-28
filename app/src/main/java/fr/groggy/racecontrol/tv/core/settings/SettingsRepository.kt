@@ -58,6 +58,7 @@ class SettingsRepository(
                 bypassChannelSelection = getBoolean(Settings.KEY_BYPASS_CHANNEL_SELECTION, Settings.DEFAULT.bypassChannelSelection),
                 displayThumbnailsEnabled = getBoolean(Settings.KEY_DISPLAY_THUMBNAILS_ENABLED, Settings.DEFAULT.displayThumbnailsEnabled),
                 openWithExternalPlayer = getBoolean(Settings.KEY_OPEN_WITH_EXTERNAL_PLAYER, Settings.DEFAULT.openWithExternalPlayer),
+                disableHdrPlayback = getBoolean(Settings.KEY_DISABLE_HDR_PLAYBACK, Settings.DEFAULT.disableHdrPlayback),
                 useExternalAudio = getBoolean(Settings.KEY_USE_EXTERNAL_AUDIO, Settings.DEFAULT.useExternalAudio),
                 audioOffsetMs = getString(Settings.KEY_AUDIO_OFFSET_MS, null)?.toLongOrNull()
                     ?: Settings.DEFAULT.audioOffsetMs,
