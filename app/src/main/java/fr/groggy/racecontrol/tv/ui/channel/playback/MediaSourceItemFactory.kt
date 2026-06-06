@@ -4,7 +4,6 @@ import android.net.Uri
 import android.util.Log
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
-import fr.groggy.racecontrol.tv.BuildConfig
 import fr.groggy.racecontrol.tv.f1.F1Client
 import fr.groggy.racecontrol.tv.f1tv.F1TvViewing
 import fr.groggy.racecontrol.tv.utils.DeviceInfo
@@ -21,6 +20,7 @@ object MediaSourceItemFactory {
             contentId = viewing.contentId,
             channelId = viewing.channelId,
             playApiVersion = viewing.playApiVersion,
+            platform = viewing.platform,
             streamType = viewing.streamType,
             laURL = viewing.laURL,
             ascendontoken = viewing.ascendontoken,
@@ -40,6 +40,7 @@ object MediaSourceItemFactory {
             contentId = viewing.externalAudioContentId ?: viewing.contentId,
             channelId = viewing.externalAudioChannelId ?: viewing.channelId,
             playApiVersion = viewing.externalAudioPlayApiVersion ?: viewing.playApiVersion,
+            platform = viewing.platform,
             streamType = viewing.externalAudioStreamType ?: viewing.streamType,
             laURL = viewing.externalAudioLaURL ?: viewing.laURL,
             ascendontoken = viewing.ascendontoken,
@@ -52,13 +53,15 @@ object MediaSourceItemFactory {
         contentId: String,
         channelId: String?,
         playApiVersion: String,
+        platform: String,
         streamType: String?,
         laURL: String?,
         ascendontoken: String,
         entitlementtoken: String
     ): MediaItem {
         val builder = MediaItem.Builder().setUri(uri)
-        val isDash = streamType?.contains("DASH", ignoreCase = true) == true || uri.toString().endsWith(".mpd", ignoreCase = true)
+        val isDash = streamType?.contains("DASH", ignoreCase = true) == true ||
+            uri.toString().contains(".mpd", ignoreCase = true)
 
         if (entitlementtoken.isNotBlank()) {
             val licenseUri: Uri? = when {
@@ -74,7 +77,7 @@ object MediaSourceItemFactory {
                         Uri.parse(
                             F1Client.buildWidevineUrl(
                                 playApiVersion = playApiVersion,
-                                platform = viewingPlatform(uri, laURL),
+                                platform = platform,
                                 contentId = contentId,
                                 channelId = channelId
                             )
@@ -94,11 +97,9 @@ object MediaSourceItemFactory {
                         .setLicenseUri(licenseUri)
                         .setLicenseRequestHeaders(
                             mapOf(
-                                "apiKey" to F1Client.API_KEY,
-                                "User-Agent" to DeviceInfo.userAgent,
                                 "x-f1-device-info" to DeviceInfo.f1DeviceInfo,
-                                "ascendontoken" to ascendontoken,
-                                "entitlementtoken" to entitlementtoken
+                                "ascendonToken" to ascendontoken,
+                                "entitlementToken" to entitlementtoken
                             )
                         )
                         .setMultiSession(true)
@@ -114,14 +115,4 @@ object MediaSourceItemFactory {
         return builder.build()
     }
 
-    private fun viewingPlatform(uri: Uri, laURL: String?): String {
-        if (!laURL.isNullOrBlank() && laURL.contains("WEB_DASH", ignoreCase = true)) {
-            return "WEB_DASH"
-        }
-        return if (uri.toString().contains(".mpd", ignoreCase = true)) {
-            "BIG_SCREEN_DASH"
-        } else {
-            "BIG_SCREEN_HLS"
-        }
-    }
 }

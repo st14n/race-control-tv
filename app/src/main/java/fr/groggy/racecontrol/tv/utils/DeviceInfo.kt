@@ -17,12 +17,13 @@ object DeviceInfo {
     private val TAG = DeviceInfo::class.simpleName
 
     private const val SPOOFED_BRAND = "Google"
-    private const val SPOOFED_PRODUCT = "sabrina_prod_stable"
-    private const val SPOOFED_MODEL = "sabrina_prod_stable"
-    private const val SPOOFED_APP_VERSION = "30410001"
+    private const val SPOOFED_PRODUCT = "kirkwood"
+    private const val SPOOFED_MODEL = "Google TV Streamer"
+    private const val SPOOFED_ANDROID_RELEASE = "14"
+    private const val SPOOFED_BUILD_ID = "UTTK.250729.004"
+    private const val SPOOFED_F1_DEVICE_INFO_MODEL = "google tv streamer"
+    private const val SPOOFED_APP_VERSION = "30482001"
     private const val SPOOFED_PLAYER_VERSION = "3.112.0"
-
-    const val tvOsDeviceInfo = "device=tvos"
 
     /**
      * WebView-style User-Agent that matches this device's real model and Android version.
@@ -30,13 +31,13 @@ object DeviceInfo {
      */
     val userAgent: String = buildString {
         append("Mozilla/5.0 (Linux; Android ")
-        append(Build.VERSION.RELEASE)
+        append(SPOOFED_ANDROID_RELEASE)
         append("; ")
         append(SPOOFED_BRAND)
         append(' ')
-        append(SPOOFED_PRODUCT)
+        append(SPOOFED_MODEL)
         append(" Build/")
-        append(Build.ID)
+        append(SPOOFED_BUILD_ID)
         append("; wv) AppleWebKit/537.36 (KHTML, like Gecko)")
         append(" Version/4.0 Chrome/128.0.6613.114 Mobile Safari/537.36")
     }
@@ -46,7 +47,7 @@ object DeviceInfo {
      *
      * Uses the key schema observed in the official F1TV Android TV app:
      *   device=android_tv;screen=bigscreen;os=android;model=<model>;
-     *   osVersion=<api>;appVersion=30410001;playerVersion=3.112.0;p=true;u=false;
+     *   osVersion=34;appVersion=30482001;playerVersion=3.112.0;tms=1;
      *
      * The spoofed brand/product pair mirrors the Google/sabrina identity discussed
      * in recent 4K patch experiments. appVersion / playerVersion stay aligned with
@@ -56,12 +57,11 @@ object DeviceInfo {
         append("device=android_tv")
         append(";screen=bigscreen")
         append(";os=android")
-        append(";model=").append(SPOOFED_MODEL)
-        append(";osVersion=").append(Build.VERSION.SDK_INT)
+        append(";model=").append(SPOOFED_F1_DEVICE_INFO_MODEL)
+        append(";osVersion=34")
         append(";appVersion=").append(SPOOFED_APP_VERSION)
         append(";playerVersion=").append(SPOOFED_PLAYER_VERSION)
-        append(";p=true")
-        append(";u=false")
+        append(";tms=1")
         append(";")
     }
 
@@ -106,7 +106,11 @@ object DeviceInfo {
     fun shouldRequestHdrManifest(context: Context): Boolean {
         val supportsHlg = supportsHlgDisplay(context)
         val supportsToneMapping = supportsHdrToSdrToneMapping()
-        val shouldRequestHdr = supportsHlg || supportsToneMapping
+        // Request the HDR manifest only when the output display advertises HLG.
+        // Tone mapping support is still used later for rendering fallback, but it
+        // should not by itself opt the app into the HDR/CMAF feed because some
+        // Android TV decoders render that path as a green video plane.
+        val shouldRequestHdr = supportsHlg
         Log.i(
             TAG,
             "shouldRequestHdrManifest supportsHlg=$supportsHlg supportsToneMapping=$supportsToneMapping shouldRequestHdr=$shouldRequestHdr"

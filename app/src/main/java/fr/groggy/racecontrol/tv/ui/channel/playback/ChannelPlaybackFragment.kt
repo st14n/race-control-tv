@@ -28,6 +28,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.source.ClippingMediaSource
+import androidx.media3.exoplayer.source.FilteringMediaSource
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
@@ -52,10 +53,11 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         internal val TAG = ChannelPlaybackFragment::class.simpleName
 
         private const val CUSTOM_RADIO_DEFAULT_OFFSET_MS = 20_000L
-        private const val CUSTOM_RADIO_MAX_OFFSET_MS = 30_000L
+        private const val CUSTOM_RADIO_MAX_OFFSET_MS = 120_000L
         private const val CUSTOM_RADIO_EARLY_END_THRESHOLD_MS = 12_000L
         private const val CUSTOM_RADIO_RETRY_DELAY_MS = 500L
         private const val OVERLAY_AUTO_CLOSE_DELAY_MS = 10_000L
+        private const val UHD_STARTUP_BUFFERING_TIMEOUT_MS = 12_000L
         private const val CUSTOM_RADIO_SYNC_DIALOG_TAG = "custom_radio_sync"
         private const val CUSTOM_RADIO_USER_AGENT =
             "Mozilla/5.0 (Linux; Android 14; Google TV Streamer Build/UTT3.240625.001.K5; wv) " +
@@ -77,7 +79,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         fun findChannelId(activity: Activity): String? = activity.intent.getStringExtra(ARG_CHANNEL_ID)
         fun findContentId(activity: Activity): String? = activity.intent.getStringExtra(ARG_CONTENT_ID)
         fun findSessionId(activity: Activity): String? = activity.intent.getStringExtra(ARG_SESSION_ID)
-        fun findIsLiveSession(activity: Activity): Boolean = activity.intent.getBooleanExtra(ARG_IS_LIVE_SESSION, true)
+        fun findIsLiveSession(activity: Activity): Boolean = activity.intent.getBooleanExtra(ARG_IS_LIVE_SESSION, false)
         fun findSeasonYear(activity: Activity): Int = activity.intent.getIntExtra(ARG_SEASON_YEAR, org.threeten.bp.Year.now().value)
 
         fun findViewing(fragment: ChannelPlaybackFragment): F1TvViewing? {
@@ -112,6 +114,9 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     private var customRadioStartedAtElapsedMs: Long = 0L
     private var playbackGlue: ExoPlayerPlaybackTransportControlGlue? = null
     private var customRadioDelayNudgeRunnable: Runnable? = null
+    private var currentViewing: F1TvViewing? = null
+    private var hasRenderedFirstFrameForCurrentSource = false
+    private var startupBufferingWatchdogRunnable: Runnable? = null
     private var suppressOverlayReopenUntilElapsedMs: Long = 0L
     private var lastVideoHostWidth: Int = 0
     private var lastVideoHostHeight: Int = 0
@@ -175,6 +180,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                         output: Any,
                         renderTimeMs: Long
                     ) {
+                        hasRenderedFirstFrameForCurrentSource = true
                         Log.i(TAG, "onRenderedFirstFrame: output=$output renderTimeMs=${renderTimeMs}ms")
                     }
                     override fun onPlayerError(
@@ -249,41 +255,73 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     }
 
     private fun preparePlayer(viewing: F1TvViewing) {
-        Log.i(TAG, "preparePlayer: url=${viewing.url} streamType=${viewing.streamType}")
+        currentViewing = viewing
+        hasRenderedFirstFrameForCurrentSource = false
+        cancelStartupBufferingWatchdog()
+        Log.i(
+            TAG,
+            "preparePlayer: " +
+                "contentId=${viewing.contentId} channelId=${viewing.channelId} " +
+                "platform=${viewing.platform} playApiVersion=${viewing.playApiVersion} " +
+                "streamType=${viewing.streamType} requestedOverride=${viewing.requestedOverrideStreamType} " +
+                "laUrl=${viewing.laURL} url=${viewing.url}"
+        )
         try {
             val settings = settingsRepository.getCurrent()
             val mainItem = MediaSourceItemFactory.newMediaItem(viewing)
-            val mainSource = createMediaSource(viewing.url.toString(), viewing.streamType, mainItem)
+            val mainSource = createMediaSource(
+                urlString = viewing.url.toString(),
+                streamType = viewing.streamType,
+                mediaItem = mainItem,
+                rewriteF1CmafHlsDrm = shouldRewriteF1CmafHlsDrm(viewing)
+            )
 
-            val useExternalAudio = settings.useExternalAudio && viewing.externalAudioUri != null
+            val useExternalAudio = viewing.externalAudioUri != null &&
+                (settings.useExternalAudio || viewing.externalAudioRequired)
             val mediaSource = if (useExternalAudio) {
                 Log.i(TAG, "External audio enabled — building MergingMediaSource")
                 val audioItem = MediaSourceItemFactory.newExternalAudioMediaItem(viewing)
                 val audioSource = createMediaSource(
                     viewing.externalAudioUri.toString(),
                     viewing.externalAudioStreamType,
-                    audioItem
+                    audioItem,
+                    rewriteF1CmafHlsDrm = false
                 )
-                // adjustPeriodTimeOffsets=false, clipDurations=false keeps both streams in sync
-                // The audioOffsetMs preference is applied via ClippingMediaSource if non-zero
+                val finalMainSource = if (viewing.externalAudioRequired) {
+                    Log.i(TAG, "Filtering main HDR source to video only; companion source supplies audio")
+                    FilteringMediaSource(mainSource, C.TRACK_TYPE_VIDEO)
+                } else {
+                    mainSource
+                }
+                val audioOnlySource = FilteringMediaSource(audioSource, C.TRACK_TYPE_AUDIO)
+                // HDR CMAF embedded AAC is broken on some Android TV devices. For that case,
+                // the main HLS source is video-only and the companion source supplies audio.
+                // Use period-time adjustment because F1's HLS and DASH live windows do not always
+                // share identical period offsets; without this, the DASH audio can be present but silent.
                 val offsetMs = settings.audioOffsetMs
                 val finalAudioSource = if (offsetMs != 0L) {
                     Log.i(TAG, "Applying audioOffsetMs=$offsetMs to audio source")
-                    ClippingMediaSource.Builder(audioSource)
+                    ClippingMediaSource.Builder(audioOnlySource)
                         .setStartPositionUs(if (offsetMs > 0) offsetMs * 1000L else 0L)
                         .setEndPositionUs(C.TIME_END_OF_SOURCE)
                         .setEnableInitialDiscontinuity(false)
                         .setAllowDynamicClippingUpdates(true)
                         .setRelativeToDefaultPosition(false)
                         .build()
-                } else audioSource
-                MergingMediaSource(false, false, mainSource, finalAudioSource)
+                } else audioOnlySource
+                MergingMediaSource(
+                    /* adjustPeriodTimeOffsets = */ true,
+                    /* clipDurations = */ false,
+                    finalMainSource,
+                    finalAudioSource
+                )
             } else {
                 mainSource
             }
 
             player.setMediaSource(mediaSource)
             player.prepare()
+            scheduleStartupBufferingWatchdog("prepare")
             Log.d(TAG, "Player prepared")
         } catch (e: Exception) {
             Log.e(TAG, "Error preparing player", e)
@@ -298,28 +336,70 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     private fun createMediaSource(
         urlString: String,
         streamType: String?,
-        mediaItem: androidx.media3.common.MediaItem
+        mediaItem: androidx.media3.common.MediaItem,
+        rewriteF1CmafHlsDrm: Boolean = false
     ): androidx.media3.exoplayer.source.MediaSource {
         val isDash = streamType?.contains("DASH", ignoreCase = true) == true
-            || urlString.endsWith(".mpd", ignoreCase = true)
+            || urlString.contains(".mpd", ignoreCase = true)
         return if (isDash) {
             Log.i(TAG, "Using DashMediaSource for $urlString")
             DashMediaSource.Factory(httpDataSourceFactory).createMediaSource(mediaItem)
         } else {
-            Log.i(TAG, "Using HlsMediaSource for $urlString")
-            HlsMediaSource.Factory(httpDataSourceFactory)
+            Log.i(TAG, "Using HlsMediaSource for $urlString rewriteF1CmafHlsDrm=$rewriteF1CmafHlsDrm")
+            val dataSourceFactory = if (rewriteF1CmafHlsDrm) {
+                F1CmafHlsDrmFixingDataSource.Factory(httpDataSourceFactory)
+            } else {
+                httpDataSourceFactory
+            }
+            HlsMediaSource.Factory(dataSourceFactory)
                 .createMediaSource(mediaItem)
         }
+    }
+
+    private fun shouldRewriteF1CmafHlsDrm(viewing: F1TvViewing): Boolean {
+        // Do NOT rewrite F1's HDR CMAF-WV playlists to SAMPLE-AES/cbcs by default.
+        //
+        // The logs show the player successfully licenses and renders HDR_UHD_CMAFWV,
+        // but the decoded picture is green and the embedded AAC can become invalid.
+        // That is consistent with decrypting CTR/cenc media as cbcs after rewriting
+        // SAMPLE-AES-CTR to SAMPLE-AES. Keep the playlist encryption method exactly
+        // as returned by F1 and let Media3 choose the scheme.
+        val looksLikeHdrCmafWv =
+            viewing.url.toString().contains("HDR-UHD-CMAF-WV", ignoreCase = true) ||
+                viewing.streamType?.contains("CMAFWV", ignoreCase = true) == true ||
+                viewing.requestedOverrideStreamType?.contains("CMAFWV", ignoreCase = true) == true
+        if (looksLikeHdrCmafWv) {
+            Log.i(TAG, "Leaving HDR CMAF-WV HLS DRM method unchanged; playlist rewrite disabled")
+        }
+        return false
     }
 
     // ── Player.Listener ──────────────────────────────────────────────────────
 
     override fun onPlayerError(error: PlaybackException) {
-        Log.e(TAG, "onPlayerError: ${error.errorCodeName} (${error.errorCode})", error)
+        val cause = error.cause
+        Log.e(
+            TAG,
+            "onPlayerError: ${error.errorCodeName} (${error.errorCode}) " +
+                "message=${error.message} " +
+                "cause=${cause?.javaClass?.simpleName}:${cause?.message} " +
+                "trackSelectorMax=${trackSelector.parameters.maxVideoWidth}x${trackSelector.parameters.maxVideoHeight} " +
+                "currentTracks=${player.currentTracks.groups.size} " +
+                "videoSize=${player.videoSize.width}x${player.videoSize.height}",
+            error
+        )
         (activity as? ChannelPlaybackActivity)?.playerError()
     }
 
     override fun onPlaybackStateChanged(playbackState: Int) {
+        Log.d(
+            TAG,
+            "onPlaybackStateChanged rawState=$playbackState " +
+                "playWhenReady=${player.playWhenReady} " +
+                "isPlaying=${player.isPlaying} " +
+                "currentPosition=${player.currentPosition} " +
+                "bufferedPosition=${player.bufferedPosition}"
+        )
         val state = when (playbackState) {
             Player.STATE_IDLE -> "IDLE"
             Player.STATE_BUFFERING -> "BUFFERING"
@@ -328,6 +408,12 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             else -> "UNKNOWN($playbackState)"
         }
         Log.d(TAG, "Playback state → $state")
+        when (playbackState) {
+            Player.STATE_BUFFERING -> scheduleStartupBufferingWatchdog("buffering")
+            Player.STATE_READY,
+            Player.STATE_ENDED,
+            Player.STATE_IDLE -> cancelStartupBufferingWatchdog()
+        }
         if (playbackState == Player.STATE_READY && !hasAutoInjectedCustomRadio) {
             hasAutoInjectedCustomRadio = true
             val settings = settingsRepository.getCurrent()
@@ -345,7 +431,52 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         Log.d(TAG, "isPlaying → $isPlaying")
     }
 
+    private fun scheduleStartupBufferingWatchdog(reason: String) {
+        val viewing = currentViewing ?: return
+        if (!looksLikeUhdOrHdr(viewing.streamType) && !looksLikeUhdOrHdr(viewing.requestedOverrideStreamType)) {
+            return
+        }
+        if (startupBufferingWatchdogRunnable != null) return
+
+        val runnable = Runnable {
+            startupBufferingWatchdogRunnable = null
+            if (!isAdded) return@Runnable
+            if (player.playbackState != Player.STATE_BUFFERING || player.isPlaying) return@Runnable
+
+            Log.w(
+                TAG,
+                "HDR/UHD startup buffering watchdog fired " +
+                    "contentId=${viewing.contentId} channelId=${viewing.channelId} " +
+                    "streamType=${viewing.streamType} requestedOverride=${viewing.requestedOverrideStreamType} " +
+                    "renderedFirstFrame=$hasRenderedFirstFrameForCurrentSource " +
+                    "position=${player.currentPosition} buffered=${player.bufferedPosition} " +
+                    "videoSize=${player.videoSize.width}x${player.videoSize.height} " +
+                    "reason=$reason timeoutMs=$UHD_STARTUP_BUFFERING_TIMEOUT_MS"
+            )
+            (activity as? ChannelPlaybackActivity)?.playerError()
+        }
+        startupBufferingWatchdogRunnable = runnable
+        overlayAutoCloseHandler.postDelayed(runnable, UHD_STARTUP_BUFFERING_TIMEOUT_MS)
+    }
+
+    private fun cancelStartupBufferingWatchdog() {
+        val runnable = startupBufferingWatchdogRunnable ?: return
+        overlayAutoCloseHandler.removeCallbacks(runnable)
+        startupBufferingWatchdogRunnable = null
+    }
+
+    private fun looksLikeUhdOrHdr(value: String?): Boolean {
+        val normalized = value?.uppercase() ?: return false
+        return "UHD" in normalized || "2160" in normalized || "HDR" in normalized
+    }
+
     override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+        Log.d(
+            TAG,
+            "onVideoSizeChanged width=${videoSize.width} height=${videoSize.height} " +
+                "pixelRatio=${videoSize.pixelWidthHeightRatio} " +
+                "unappliedRotationDegrees=${videoSize.unappliedRotationDegrees}"
+        )
         updateVideoSurfaceSize(videoSize.width, videoSize.height)
     }
 
@@ -393,6 +524,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
 
     override fun onDestroy() {
         Log.d(TAG, "onDestroy: releasing player")
+        cancelStartupBufferingWatchdog()
         cancelOverlayAutoCloseTimer()
         playbackGlue = null
         releaseCustomRadioPlayer()
@@ -688,7 +820,22 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     private fun isCustomRadioAvailableForCurrentSession(
         settings: Settings = settingsRepository.getCurrent()
     ): Boolean {
-        return !settings.restrictCustomRadioToLiveSessions || findIsLiveSession(requireActivity())
+        if (!settings.restrictCustomRadioToLiveSessions) return true
+        if (findIsLiveSession(requireActivity())) return true
+
+        // Some currently-broadcasting F1 sessions arrive with ARG_IS_LIVE_SESSION=false.
+        // Once playback has a dynamic/live timeline, allow custom radio anyway.
+        val timeline = player.currentTimeline
+        if (!timeline.isEmpty) {
+            val window = androidx.media3.common.Timeline.Window()
+            timeline.getWindow(player.currentMediaItemIndex.coerceAtLeast(0), window)
+            if (window.isLive || window.isDynamic) {
+                Log.i(TAG, "Custom radio allowed from player timeline isLive=${window.isLive} isDynamic=${window.isDynamic}")
+                return true
+            }
+        }
+
+        return false
     }
 
     private fun buildCustomRadioPlan(settings: Settings): List<CustomRadioPlanEntry> {

@@ -31,3 +31,19 @@ output.json
 *.jks
 *.pem
 .env
+
+# tmp & jadx folders
+tmp/
+jadx/
+official_jadx/
+unpacked_jadx/
+jadx_full/
+jadx_unpacked/
+
+# Archives
+*.zip
+# *.json
+*.txt
+*.jar
+*.mp4
+*.m3u8
