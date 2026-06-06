@@ -55,7 +55,7 @@ android {
         buildConfigField(
             "String",
             "F1_DEVICE_INFO",
-            "\"app=com.formulaone.production;os=android;osv=14;dev=Google TV Streamer\""
+            "\"brand=Google;product=kirkwood;os=android;osv=14;dev=Google TV Streamer\""
         )
         buildConfigField("String", "F1_USERNAME",
             "\"${f1BuildUsername.replace("\\", "\\\\").replace("\"", "\\\"")}\"")

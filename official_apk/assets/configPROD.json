@@ -1,0 +1,275 @@
+{
+  "configVersion": "4",
+  "config": {
+    "CLIENT": "ANDROID",
+    "ENVIRONMENT": "PROD",
+    "VERSION": "1.0",
+    "CONFIG_API_HOST": "https://f1tv.formula1.com/",
+    "SESSION_API_HOST": "https://api.formula1.com",
+    "CONTENT_API_HOST": "https://f1tv.formula1.com",
+    "VIDEO_HOST": "https://ott-video-cf.formula1.com",
+    "VIDEO_FER_HOST": "https://ott-video-fer.formula1.com",
+    "IMAGES_HOST": "https://ott-img.formula1.com",
+    "CD_SYSTEM_ID": "60a9ad84-e93d-480f-80d6-af37494f2e22",
+    "BETA_PAGE_PATH": "/check-betacode",
+    "LOGIN_PATH": "https://account.formula1.com/#/en/login?redirect=",
+    "SUBSCRIBE_PATH": "https://www.formula1.com/en/subscribe-to-f1-tv.html#en-GB",
+    "MANAGE_ACCOUNT_PATH": "https://account.formula1.com/#/en/my-account",
+    "SUBSCRIPTION_PRIORITY_LIST": "VIP,Pro Annual,Pro Monthly,Access Annual,Access Monthly",
+    "CHALLENGE_URL": "https://api.formula1.com/6657193977244c13/rSa9Vzy3KajA9f9m/v1/challenge",
+    "TOKENREFRESHINTERVAL_SECONDS": 82800,
+    "BITMOVIN": {
+      "PLAYBACK_OFFSET": {
+        "WIF": {
+          "OBC": 0,
+          "OTHER": 0
+        },
+        "OBC": {
+          "WIF": 0,
+          "OTHER": 0
+        },
+        "OTHER": {
+          "WIF": 0,
+          "OBC": 0
+        }
+      },
+      "FORWARD_DURATION": "12",
+      "PLAYER_KEY": "f142443f-c4c6-4b76-852f-bd1962c06732",
+      "ANALYTICS_KEY": "ca24a2e0-aa36-4e2b-baa8-f7540cf1fa79"
+    },
+    "PLAYER": {
+      "bm": {
+        "bufferingTimeout": 10
+      },
+      "tm": {
+        "license": "CgIIAxI2CIf/nbYGEiRiNjBiZTUxYS04N2E1LTRjMDItOWFiNi1hMDFiOWM1M2NhZTAaAmYxIM+IjZgOGoACeVP7Lw3Sy3cnOcyU1wob3Pfu64xWj35rimTm1L7PnFIvLQzRwA/G/LWk3gLTFsyaHO8ElDKnlQg8OZ80On2uKIvpNpCRJFUdgARki8oMDflTJ5ith2w0DyfcV8wAUOkbfmPYkKZIjNYyGljLr8cxy8frqlF05XSvz4AjWgeNcGpYSCrv2o/eVrvBrLl7R/N7wlXb7/6qxIxOBqt7QAXmdpc3bu4T3vvoOdrki/Ot0CP417LYF3jLHyHQuzm34O7WJ+YGkYtSv4xf1gEWklfqDH2Y3uhiStgg8lI+khvNfirw/QSuggclr2E/AECVK2UR4++c2BKrLYKAQFJlOqt/qyAB",
+        "bufferingTimeout": 10,
+        "driver20ItemGridEnabled": false,
+        "uhdSupport": [
+          {
+            "brand": "Google",
+            "product": "kirkwood"
+          },
+          {
+            "brand": "Google",
+            "product": "sabrina_prod_stable"
+          },
+          {
+            "brand": "Amazon",
+            "product": "karat"
+          },
+          {
+            "brand": "Amazon",
+            "product": "gazelle"
+          }
+        ]
+      }
+    },
+    "FEATURE_TOGGLE": {
+      "LANDSCAPE_MODE": true
+    },
+    "NEW_RELIC": {
+      "TOKEN": "AA292ff6d2ae4d7df935c6513206ed1081c80bc942-NRMA",
+      "ingestLicense": "3d485c23b970381d86fb2c5225c27665FFFFNRAL",
+      "accountId": "2936384",
+      "endpoint": "https://insights-collector.newrelic.com/v1/accounts/2936384/events"
+    },
+    "GA": {
+      "gtmId": "GTM-TBGZL2F"
+    },
+    "FIREBASE": {
+      "PLATFORM_AMAZON_TV": "amazonfireTV",
+      "PLATFORM_ANDROID_TV": "androidTV"
+    },
+    "DR_MODE": {
+      "ENDPOINT": "https://f1tv.formula1.com/?drmode=appv2",
+      "NORMAL_MODE_REQUEST_INTERVAL_MILLIS": 120000,
+      "DR_MODE_REQUEST_INTERVAL_MILLIS": 300000,
+      "LOGIN_PANIC_MODE_TOGGLE": false
+    },
+    "CHROMECAST": {
+      "RECEIVER_APPLICATION_ID": "B3E81094",
+      "MESSAGE_NAMESPACE": "urn:x-cast:com.formula1.player.caf"
+    },
+    "CSG": {
+      "androidMobile": {
+        "distributionChannel": "dcc8bbf4-f5af-49db-b168-22c389d189f8",
+        "deviceType": 16,
+        "physicalDeviceType": 1000,
+        "cdSystemId": "60a9ad84-e93d-480f-80d6-af37494f2e22",
+        "csgApiKey": "PpJW2yg3t1S4K4SoKNGZVLsI1G8GsLTm",
+        "userApiKey": "LtTF5dTGtyOwRks0PFoVC5ooqSdfo9Az",
+        "externalBillType": 0
+      },
+      "androidTablet": {
+        "distributionChannel": "dcc8bbf4-f5af-49db-b168-22c389d189f8",
+        "deviceType": 17,
+        "physicalDeviceType": 1001,
+        "cdSystemId": "60a9ad84-e93d-480f-80d6-af37494f2e22",
+        "csgApiKey": "PpJW2yg3t1S4K4SoKNGZVLsI1G8GsLTm",
+        "userApiKey": "LtTF5dTGtyOwRks0PFoVC5ooqSdfo9Az",
+        "externalBillType": 0
+      },
+      "androidTV": {
+        "distributionChannel": "e827264e-a81b-4f65-a567-2070850c128e",
+        "deviceType": 49,
+        "physicalDeviceType": 17,
+        "cdSystemId": "60a9ad84-e93d-480f-80d6-af37494f2e22",
+        "csgApiKey": "CWkfako6ppvmpxVOaBwCeGZfiY1Kpi1w",
+        "userApiKey": "hcbvo36UEyh3hH54l9H6w6lRVY5OW49z",
+        "externalBillType": 0
+      },
+      "amazonFireTablet": {
+        "distributionChannel": "04350ee8-d70a-4c05-9ae4-734b81dd5c9f",
+        "deviceType": 20057,
+        "physicalDeviceType": 10047,
+        "cdSystemId": "60a9ad84-e93d-480f-80d6-af37494f2e22",
+        "csgApiKey": "YhB0XGG3r3Le8EpX4p2WELjGAsdnsmr0",
+        "userApiKey": "VB4o8sm11nLe2iCdjlXEMmO4xXy16PYS",
+        "externalBillType": 10037
+      },
+      "amazonFireStick": {
+        "distributionChannel": "f09c853a-0b65-4123-ac41-77e9911524be",
+        "deviceType": 20056,
+        "physicalDeviceType": 10046,
+        "cdSystemId": "60a9ad84-e93d-480f-80d6-af37494f2e22",
+        "csgApiKey": "R9mDcfOhGTPAwy9O4I38jQR2Omqy9V6z",
+        "userApiKey": "ilSzVTJDUsS5TGsbpeiEPGoYDpoF59yn",
+        "externalBillType": 10037
+      },
+      "amazonFireTV": {
+        "distributionChannel": "ac7050f5-6e4c-49e6-88fd-82fefa9377dd",
+        "deviceType": 20055,
+        "physicalDeviceType": 10045,
+        "cdSystemId": "60a9ad84-e93d-480f-80d6-af37494f2e22",
+        "csgApiKey": "VdJ3yeGHt4sXsJ3Lk8dvUS18XEkwp5Ud",
+        "userApiKey": "J19B2xNTJw1mumbrNILlNRJlcEMDTnqa",
+        "externalBillType": 10037
+      }
+    },
+    "DEFAULT_CHANNEL": "ALL",
+    "DEFAULT_LANGUAGE": "eng",
+    "DEFAULT_ISO_CODE": "KA",
+    "DEVICE_TYPE": "10",
+    "DISTRIBUTION_CHANNEL": "230608d2-808c-44de-9700-3e08c0e64529",
+    "CONTENT_TYPE": "",
+    "CSG_API_KEY": "PpJW2yg3t1S4K4SoKNGZVLsI1G8GsLTm",
+    "BETA_CODE": "ApAxzmb3",
+    "SUPPORTED_LANGUAGES": [
+      "deu",
+      "eng",
+      "spa",
+      "fra",
+      "nld",
+      "por",
+      "jpn"
+    ],
+    "CONNECTION_TIMEOUT": 20000,
+    "REQUEST_TIMEOUT": 20000,
+    "LOG_LEVEL": "info",
+    "PLAY_RESUME": {
+      "enabled": true,
+      "heartbeat": 300,
+      "minResumeSeconds": 10
+    },
+    "EMAIL_VERIFICATION": {
+      "enabled": true,
+      "reminderInHours": 24
+    },
+    "passwordRegexRulesCompliance": true,
+    "passwordFieldMaximumLength": 30,
+    "passwordRules": {
+      "rules": [
+        {
+          "name": "Minimum 1 uppercase letter",
+          "regex": ".*[A-Z].*",
+          "dictionaryKey": "password_upper_case_rule"
+        },
+        {
+          "name": "Minimum 1 lowercase letters",
+          "regex": ".*[a-z].*",
+          "dictionaryKey": "password_lower_case_rule"
+        },
+        {
+          "name": "Minimum 1 number",
+          "regex": ".*[0-9].*",
+          "dictionaryKey": "password_digit_rule"
+        },
+        {
+          "name": "Minimum 8 and maximum 30 characters",
+          "regex": ".{8,30}",
+          "dictionaryKey": "password_min_length_rule"
+        },
+        {
+          "name": "Must contain one of the following special characters !, @, #, $, %, ^, &, +, =",
+          "regex": ".*[!@#$%^&+=].*",
+          "dictionaryKey": "password_special_characters_rule"
+        }
+      ]
+    },
+    "enhanceLogin": {
+      "enabled": true
+    },
+    "amazonFreeTrialPeriod": {
+      "F1_TV_Pro_Monthly_Amazon_Production_FT": "P7D",
+      "F1_TV_Pro_Annual_Amazon_Production_FT": "P7D"
+    },
+    "SEARCH": {
+      "enabled": true
+    },
+    "propositionsPage": {
+      "version": "1",
+      "apiDomain": "https://api.formula1.com",
+      "mediaDomain": "https://media.formula1.com",
+      "mediaName": "prod-f1"
+    },
+    "LIVE_NOW": {
+      "enabled": false,
+      "banner_timeout_seconds": 30
+    },
+    "UPNEXT": {
+      "apiVersion": "2.0",
+      "pathVariable": "UPNEXT",
+      "enabled": true,
+      "inPlayerRailEnabled": true,
+      "autoPlayEnabled": true,
+      "autoPlaySeconds": 10,
+      "vodSecondFromEnd": 0,
+      "secondFromCoverageStarted": 30
+    },
+    "pinPairing": {
+      "enabled": false,
+      "displayedURL": "f1.com/tv",
+      "QRCodeURL": "https://f1tv.formula1.com/tv",
+      "limits": {
+        "rendezvousRefreshIntervalMinutes": 60,
+        "rendezvousRefreshLimitIntervalMinutes": 60,
+        "rendezvousStatusCheckIntervalMS": 10000,
+        "rendezvousRefreshLimitCount": 10
+      },
+      "imageURLs": {
+        "smartTVLandingPage": "https://media.formula1.com/image/upload/c_fill,h_1080,q_auto,w_1920/F1TV/Furniture/Feature/PinAndPair/landingPage.png",
+        "smartTVLoadingPage": "https://media.formula1.com/image/upload/c_fill,h_1080,q_auto,w_1920/F1TV/Furniture/Feature/PinAndPair/loadingPage.png",
+        "smartTVWelcomePage": "https://media.formula1.com/image/upload/c_fill,h_1080,q_auto,w_1920/F1TV/Furniture/Feature/PinAndPair/welcomePage.png"
+      },
+      "newRelic": {
+        "PinAndPairPollCodeLogsEnabled": true
+      }
+    },
+    "myList": {
+      "enabled": "true"
+    },
+    "video": {
+      "version": "3.0"
+    },
+    "LOCATION_DEFAULTS": {
+      "groupId": 90,
+      "entitlement": "VIP",
+      "userCountry": "Not Applicable"
+    },
+    "timeAfterLivePlaybackStartsToKickUserOutMs": 86400000,
+    "accessibilityStatement": {
+      "enabled": true
+    }
+  }
+}

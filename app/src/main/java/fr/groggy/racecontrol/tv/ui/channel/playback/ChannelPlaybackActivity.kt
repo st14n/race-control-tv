@@ -18,7 +18,6 @@ import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.core.ViewingService
 import fr.groggy.racecontrol.tv.core.settings.Settings
 import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
-import fr.groggy.racecontrol.tv.f1.F1Client
 import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannel
 import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType
 import fr.groggy.racecontrol.tv.f1tv.F1TvClient
@@ -87,7 +86,7 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         lifecycleScope.launch {
-            attachViewingIfNeeded(Settings.StreamType.DASH, preferHdrManifest = preferHdrManifestForDevice)
+            attachViewingIfNeeded(Settings.StreamType.HLS, preferHdrManifest = preferHdrManifestForDevice)
         }
     }
 
@@ -139,16 +138,31 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
             contentId = contentId,
             requestedChannelId = ChannelPlaybackFragment.findChannelId(this)
         )
-        Log.d(TAG, "Fetching viewing for contentId=$contentId channelId=$channelId preferHdrManifest=$preferHdrManifest")
+        Log.i(
+            TAG,
+            "Fetching viewing for contentId=$contentId channelId=$channelId " +
+                "sessionId=${ChannelPlaybackFragment.findSessionId(this)} " +
+                "isLiveSession=${ChannelPlaybackFragment.findIsLiveSession(this)} " +
+                "seasonYear=${ChannelPlaybackFragment.findSeasonYear(this)} " +
+                "preferHdrManifest=$preferHdrManifest"
+        )
         try {
             var viewing = viewingService.getViewing(channelId, contentId, streamType, preferHdrManifest)
-            Log.i(TAG, "Main viewing: url=${viewing.url} platform=${viewing.platform} type=${viewing.streamType}")
+            Log.i(
+                TAG,
+                "Main viewing: url=${viewing.url} platform=${viewing.platform} " +
+                    "type=${viewing.streamType} requestedOverride=${viewing.requestedOverrideStreamType}"
+            )
 
             // Fetch PRES / F1Live channel for external audio if the user wants it
             // and they are not already watching the PRES channel itself
             val settings = settingsRepository.getCurrent()
+            if (needsHdrEmbeddedAudioWorkaround(viewing)) {
+                viewing = tryAttachStandardAudioCompanion(viewing, contentId, channelId, streamType)
+            }
             if (settings.useExternalAudio) {
-                viewing = tryAttachExternalAudio(viewing, contentId, channelId, streamType, preferHdrManifest)
+                val externalAudioPreferHdr = preferHdrManifest && !viewing.externalAudioRequired
+                viewing = tryAttachExternalAudio(viewing, contentId, channelId, streamType, externalAudioPreferHdr)
             }
 
             onViewingCreated(viewing)
@@ -215,16 +229,73 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
             externalAudioPlayApiVersion = presViewing.playApiVersion,
             externalAudioEntitlementtoken = presViewing.entitlementtoken,
             externalAudioContentId = presViewing.contentId,
-            externalAudioChannelId = presViewing.channelId
+            externalAudioChannelId = presViewing.channelId,
+            externalAudioRequired = viewing.externalAudioRequired
         )
     } catch (e: Exception) {
         Log.w(TAG, "Failed to fetch PRES audio (non-fatal): ${e.message}")
         viewing
     }
 
+    /**
+     * F1's current HDR CMAF HLS embedded audio can be unreliable in Media3 on Android TV.
+     * Keep the UHD/HDR HLS video and pair it only with a same-channel standard HLS audio
+     * companion. Do not merge DASH audio with HLS video; that path caused silent playback.
+     */
+    private suspend fun tryAttachStandardAudioCompanion(
+        viewing: F1TvViewing,
+        contentId: String,
+        currentChannelId: String?,
+        streamType: Settings.StreamType
+    ): F1TvViewing = try {
+        Log.i(
+            TAG,
+            "Fetching standard same-channel audio companion for HDR CMAF playback " +
+                "contentId=$contentId channelId=$currentChannelId"
+        )
+        val audioViewing = viewingService.getViewing(
+            currentChannelId,
+            contentId,
+            Settings.StreamType.HLS,
+            preferHdrManifest = false
+        )
+        Log.i(
+            TAG,
+            "Attached standard audio companion for HDR video-only playback " +
+                "url=${audioViewing.url} type=${audioViewing.streamType} laUrl=${audioViewing.laURL} " +
+                "dash=${looksLikeDash(audioViewing.streamType, audioViewing.url.toString())}"
+        )
+        viewing.copy(
+            externalAudioUri = audioViewing.url,
+            externalAudioStreamType = audioViewing.streamType,
+            externalAudioLaURL = audioViewing.laURL,
+            externalAudioPlayApiVersion = audioViewing.playApiVersion,
+            externalAudioEntitlementtoken = audioViewing.entitlementtoken,
+            externalAudioContentId = audioViewing.contentId,
+            externalAudioChannelId = audioViewing.channelId,
+            externalAudioRequired = true
+        )
+    } catch (e: Exception) {
+        Log.w(TAG, "Failed to fetch standard audio companion (non-fatal): ${e.message}")
+        viewing
+    }
+
+    private fun needsHdrEmbeddedAudioWorkaround(viewing: F1TvViewing): Boolean {
+        return viewing.url.toString().contains("CMAF", ignoreCase = true) ||
+            viewing.streamType?.contains("CMAF", ignoreCase = true) == true ||
+            viewing.requestedOverrideStreamType?.contains("CMAF", ignoreCase = true) == true
+    }
+
     private fun onViewingCreated(viewing: F1TvViewing) {
         currentViewing = viewing
-        Log.d(TAG, "Proceeding to create player with viewing: $viewing")
+        Log.d(
+            TAG,
+            "Proceeding to create player with " +
+                "contentId=${viewing.contentId} channelId=${viewing.channelId} " +
+                "platform=${viewing.platform} playApiVersion=${viewing.playApiVersion} " +
+                "streamType=${viewing.streamType} requestedOverride=${viewing.requestedOverrideStreamType} " +
+                "url=${viewing.url}"
+        )
         if (settingsRepository.getCurrent().openWithExternalPlayer) {
             Log.d(TAG, "Opening with external player.")
             openWithExternalPlayer(viewing)
@@ -299,23 +370,35 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
      */
     fun playerError() {
         val failedViewing = currentViewing
-        val triedHdrManifest =
-            failedViewing?.playApiVersion == F1Client.PLAY_API_V3 &&
-            failedViewing.platform == "WEB_HLS" &&
-            failedViewing.streamType?.contains("HDR_UHD_CMAF", ignoreCase = true) == true
+        val triedHdrManifest = failedViewing?.let {
+            looksLikeUhdOrHdr(it.streamType) || looksLikeUhdOrHdr(it.requestedOverrideStreamType)
+        } == true
 
-        Log.e(TAG, "Player error. platform=${failedViewing?.platform} streamType=${failedViewing?.streamType} triedHdrManifest=$triedHdrManifest")
+        Log.e(
+            TAG,
+            "Player error. " +
+                "contentId=${failedViewing?.contentId} " +
+                "channelId=${failedViewing?.channelId} " +
+                "platform=${failedViewing?.platform} " +
+                "streamType=${failedViewing?.streamType} " +
+                "requestedOverride=${failedViewing?.requestedOverrideStreamType} " +
+                "playApiVersion=${failedViewing?.playApiVersion} " +
+                "laUrl=${failedViewing?.laURL} " +
+                "isLiveSession=${ChannelPlaybackFragment.findIsLiveSession(this)} " +
+                "seasonYear=${ChannelPlaybackFragment.findSeasonYear(this)} " +
+                "triedHdrManifest=$triedHdrManifest"
+        )
         currentViewing = null
 
         if (triedHdrManifest && !isFinishing && !isDestroyed) {
-            Log.i(TAG, "HDR tvOS manifest failed — retrying with standard Android TV stream")
+            Log.i(TAG, "HDR/UHD manifest failed - retrying with standard HLS/SDR stream")
             val fragment = supportFragmentManager.findFragmentByTag(ChannelPlaybackFragment.TAG)
             if (fragment != null) {
                 supportFragmentManager.commit {
                     remove(fragment)
                     runOnCommit {
                         lifecycleScope.launch {
-                            attachViewingIfNeeded(Settings.StreamType.DASH, preferHdrManifest = false)
+                            attachViewingIfNeeded(Settings.StreamType.HLS, preferHdrManifest = false)
                         }
                     }
                 }
@@ -324,5 +407,15 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         }
 
         handleError(R.string.unable_to_play_video_message, ::finish)
+    }
+
+    private fun looksLikeDash(streamType: String?, url: String): Boolean {
+        return streamType?.contains("DASH", ignoreCase = true) == true ||
+            url.contains(".mpd", ignoreCase = true)
+    }
+
+    private fun looksLikeUhdOrHdr(streamType: String?): Boolean {
+        val normalized = streamType?.uppercase() ?: return false
+        return "UHD" in normalized || "2160" in normalized || "HDR" in normalized
     }
 }

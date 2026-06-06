@@ -16,13 +16,14 @@ data class F1TvViewingResponse(
 ) {
     @JsonClass(generateAdapter = true)
     data class ResultObj(
-        @param:Json(name = "entitlementToken") val entitlementToken: String,
-        @param:Json(name = "url") val url: String,
+        @param:Json(name = "entitlementToken") val entitlementToken: String? = null,
+        @param:Json(name = "url") val url: String? = null,
         @param:Json(name = "streamType") val streamType: String? = null, // e.g., "SDR_HD_DASHWV" or "HLS"
-        @param:Json(name = "drmType") val drmType: String?,
-        @param:Json(name = "laURL") val laURL: String?, // License URL (useful for checking)
+        @param:Json(name = "drmType") val drmType: String? = null,
+        @param:Json(name = "laURL") val laURL: String? = null, // License URL (useful for checking)
         @param:Json(name = "playApiVersion") val playApiVersion: String? = null,
-        @param:Json(name = "channelId") val channelId: String? = null
+        @param:Json(name = "channelId") val channelId: String? = null,
+        @param:Json(name = "tme") val tme: Map<String, Any?>? = null
     )
 }
 
@@ -42,6 +43,7 @@ data class F1TvViewing(
     val ascendontoken: String,
     val entitlementtoken: String,
     val streamType: String?,
+    val requestedOverrideStreamType: String? = null,
     val laURL: String?,
     // External audio (PRES/F1Live channel) for MergingMediaSource — populated by ChannelPlaybackActivity
     val externalAudioUri: Uri? = null,
@@ -50,5 +52,6 @@ data class F1TvViewing(
     val externalAudioPlayApiVersion: String? = null,
     val externalAudioEntitlementtoken: String? = null,
     val externalAudioContentId: String? = null,
-    val externalAudioChannelId: String? = null
+    val externalAudioChannelId: String? = null,
+    val externalAudioRequired: Boolean = false
 ) : Parcelable

@@ -83,18 +83,21 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
                 getString(R.string.season_last_event, event.name, currentYear.toString())
             val existingListRow = existingListRows.find { it.headerItem.name == headerName }
             val sessionsListRow = getLastSessionsRow(event.sessions, headerName, existingListRow)
+            val existingIndex = existingListRows.indexOfFirst { it.headerItem.name == headerName }
 
             if (existingListRow == null) {
-                homeEntriesAdapter.add(sessionsListRow)
-                ensureArchiveRowPresent()
+                if (existingIndex >= 0) {
+                    homeEntriesAdapter.replace(existingIndex, sessionsListRow)
+                } else {
+                    homeEntriesAdapter.add(0, sessionsListRow)
+                }
             } else {
-
                 /* Compare the old list to the new to see if it needs updating */
                 if (!hasMatchingSessions(existingListRow, sessionsListRow)) {
-                    homeEntriesAdapter.replace(0, sessionsListRow)
+                    homeEntriesAdapter.replace(existingIndex, sessionsListRow)
                 }
-                ensureArchiveRowPresent()
             }
+            ensureArchiveRowPresent()
             maybeSelectLatestEventByDefault()
         } else {
             onEmptySeason()
@@ -180,7 +183,6 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
     ) {
         val activity = when (item) {
             is Session -> {
-                SessionBrowseActivity.intent(requireActivity(), item.id.value, item.contentId)
                 SessionBrowseActivity.intent(requireActivity(), item.id.value, item.contentId, currentYear)
             }
             is HomeItem -> when (item.type) {
