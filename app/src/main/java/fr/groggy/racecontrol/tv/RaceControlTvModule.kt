@@ -65,9 +65,7 @@ class RaceControlTvModule {
             .setUserAgent(DeviceInfo.userAgent)
             .setDefaultRequestProperties(
                 mapOf(
-                    "x-f1-device-info" to DeviceInfo.f1DeviceInfo,
-                    "Origin" to "https://f1tv.formula1.com",
-                    "Referer" to "https://f1tv.formula1.com/"
+                    "x-f1-device-info" to DeviceInfo.f1DeviceInfo
                     // Cookies are handled by OkHttp's CookieJar
                 )
             )

@@ -1,7 +1,15 @@
 package fr.groggy.racecontrol.tv.ui.channel.playback
 
 import android.content.Context
+import android.media.MediaFormat
+import android.os.Build
 import android.os.Handler
+import android.util.Log
+import androidx.media3.common.C
+import androidx.media3.common.Effect
+import androidx.media3.common.Format
+import androidx.media3.effect.DefaultVideoFrameProcessor
+import androidx.media3.effect.SingleInputVideoGraph
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.Renderer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
@@ -9,13 +17,35 @@ import androidx.media3.exoplayer.video.MediaCodecVideoRenderer
 import androidx.media3.exoplayer.video.PlaybackVideoGraphWrapper
 import androidx.media3.exoplayer.video.VideoFrameReleaseControl
 import androidx.media3.exoplayer.video.VideoRendererEventListener
+import fr.groggy.racecontrol.tv.ui.channel.playback.protectedhdr.ProtectedHlgGlObjectsProvider
 
 class HdrToneMappingRenderersFactory(
     context: Context,
-    private val enableHdrToSdrToneMapping: Boolean
+    private val enableHdrToSdrToneMapping: Boolean,
+    private val enableProtectedHlgVideoGraph: Boolean,
+    private val enableOfficialLikeDirectHdrCodecConfig: Boolean
 ) : DefaultRenderersFactory(context) {
 
+    companion object {
+        private val TAG = HdrToneMappingRenderersFactory::class.simpleName
+    }
+
     private val appContext = context.applicationContext
+
+    init {
+        setEnableDecoderFallback(true)
+    }
+
+    private fun shouldForceSynchronousCodecQueueing(): Boolean {
+        val identity = listOf(
+            Build.BRAND,
+            Build.MANUFACTURER,
+            Build.MODEL,
+            Build.DEVICE,
+            Build.PRODUCT
+        ).joinToString(separator = " ").lowercase()
+        return "google tv streamer" in identity || "kirkwood" in identity
+    }
 
     override fun buildVideoRenderers(
         context: Context,
@@ -38,23 +68,189 @@ class HdrToneMappingRenderersFactory(
             out
         )
 
-        if (!enableHdrToSdrToneMapping) {
+        if (!enableProtectedHlgVideoGraph &&
+            !enableHdrToSdrToneMapping &&
+            !enableOfficialLikeDirectHdrCodecConfig
+        ) {
             return
         }
 
         for (index in out.indices) {
             val renderer = out[index]
             if (renderer is MediaCodecVideoRenderer) {
-                out[index] = ToneMappingMediaCodecVideoRenderer(
-                    context = appContext,
-                    mediaCodecSelector = mediaCodecSelector,
-                    allowedVideoJoiningTimeMs = allowedVideoJoiningTimeMs,
-                    enableDecoderFallback = enableDecoderFallback,
-                    eventHandler = eventHandler,
-                    eventListener = eventListener
-                )
+                out[index] = when {
+                    enableProtectedHlgVideoGraph -> {
+                        Log.i(TAG, "Installing Media3 protected HLG video graph renderer")
+                        ProtectedHlgGraphMediaCodecVideoRenderer(
+                            context = appContext,
+                            mediaCodecSelector = mediaCodecSelector,
+                            allowedVideoJoiningTimeMs = allowedVideoJoiningTimeMs,
+                            enableDecoderFallback = enableDecoderFallback,
+                            eventHandler = eventHandler,
+                            eventListener = eventListener
+                        )
+                    }
+                    enableHdrToSdrToneMapping -> {
+                        ToneMappingMediaCodecVideoRenderer(
+                            context = appContext,
+                            mediaCodecSelector = mediaCodecSelector,
+                            allowedVideoJoiningTimeMs = allowedVideoJoiningTimeMs,
+                            enableDecoderFallback = enableDecoderFallback,
+                            eventHandler = eventHandler,
+                            eventListener = eventListener
+                        )
+                    }
+                    else -> {
+                        Log.i(TAG, "Installing official-like direct secure HDR MediaCodec renderer")
+                        OfficialLikeDirectHdrMediaCodecVideoRenderer(
+                            context = appContext,
+                            mediaCodecSelector = mediaCodecSelector,
+                            allowedVideoJoiningTimeMs = allowedVideoJoiningTimeMs,
+                            enableDecoderFallback = enableDecoderFallback,
+                            eventHandler = eventHandler,
+                            eventListener = eventListener
+                        )
+                    }
+                }
             }
         }
+    }
+}
+
+private class ProtectedHlgGraphMediaCodecVideoRenderer(
+    context: Context,
+    mediaCodecSelector: MediaCodecSelector,
+    allowedVideoJoiningTimeMs: Long,
+    enableDecoderFallback: Boolean,
+    eventHandler: Handler,
+    eventListener: VideoRendererEventListener
+) : MediaCodecVideoRenderer(
+    Builder(context)
+        .setMediaCodecSelector(mediaCodecSelector)
+        .setAllowedJoiningTimeMs(allowedVideoJoiningTimeMs)
+        .setEnableDecoderFallback(enableDecoderFallback)
+        .setEventHandler(eventHandler)
+        .setEventListener(eventListener)
+        .setMaxDroppedFramesToNotify(DefaultRenderersFactory.MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY)
+) {
+
+    init {
+        // An empty effect list is enough to make Media3 route decoder output through VideoSink/GL.
+        setVideoEffects(emptyList<Effect>())
+    }
+
+    override fun getMediaFormat(
+        format: Format,
+        codecMimeType: String,
+        codecMaxValues: MediaCodecVideoRenderer.CodecMaxValues,
+        codecOperatingRate: Float,
+        deviceNeedsNoPostProcessWorkaround: Boolean,
+        tunnelingAudioSessionId: Int
+    ): MediaFormat {
+        return OfficialLikeHdrMediaFormat.configure(
+            mediaFormat = super.getMediaFormat(
+                format,
+                codecMimeType,
+                codecMaxValues,
+                codecOperatingRate,
+                deviceNeedsNoPostProcessWorkaround,
+                tunnelingAudioSessionId
+            ),
+            format = format,
+            codecMimeType = codecMimeType,
+            rendererPath = "protected_hlg_graph"
+        )
+    }
+
+    override fun getCodecOperatingRateV23(
+        operatingRate: Float,
+        format: Format,
+        streamFormats: Array<Format>
+    ): Float {
+        return OfficialLikeHdrMediaFormat.getCodecOperatingRateV23(
+            rendererPath = "protected_hlg_graph",
+            format = format,
+            fallback = {
+                super.getCodecOperatingRateV23(
+                    operatingRate,
+                    format,
+                    streamFormats
+                )
+            }
+        )
+    }
+
+    override fun createPlaybackVideoGraphWrapper(
+        context: Context,
+        videoFrameReleaseControl: VideoFrameReleaseControl
+    ): PlaybackVideoGraphWrapper {
+        val videoFrameProcessorFactory = DefaultVideoFrameProcessor.Factory.Builder()
+            .setGlObjectsProvider(ProtectedHlgGlObjectsProvider())
+            .build()
+        val videoGraphFactory = SingleInputVideoGraph.Factory(videoFrameProcessorFactory)
+        return PlaybackVideoGraphWrapper.Builder(context, videoFrameReleaseControl)
+            .setEnablePlaylistMode(true)
+            .setVideoGraphFactory(videoGraphFactory)
+            .build()
+    }
+}
+
+private class OfficialLikeDirectHdrMediaCodecVideoRenderer(
+    context: Context,
+    mediaCodecSelector: MediaCodecSelector,
+    allowedVideoJoiningTimeMs: Long,
+    enableDecoderFallback: Boolean,
+    eventHandler: Handler,
+    eventListener: VideoRendererEventListener
+) : MediaCodecVideoRenderer(
+    Builder(context)
+        .setMediaCodecSelector(mediaCodecSelector)
+        .setAllowedJoiningTimeMs(allowedVideoJoiningTimeMs)
+        .setEnableDecoderFallback(enableDecoderFallback)
+        .setEventHandler(eventHandler)
+        .setEventListener(eventListener)
+        .setMaxDroppedFramesToNotify(DefaultRenderersFactory.MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY)
+) {
+
+    override fun getMediaFormat(
+        format: Format,
+        codecMimeType: String,
+        codecMaxValues: MediaCodecVideoRenderer.CodecMaxValues,
+        codecOperatingRate: Float,
+        deviceNeedsNoPostProcessWorkaround: Boolean,
+        tunnelingAudioSessionId: Int
+    ): MediaFormat {
+        return OfficialLikeHdrMediaFormat.configure(
+            mediaFormat = super.getMediaFormat(
+                format,
+                codecMimeType,
+                codecMaxValues,
+                codecOperatingRate,
+                deviceNeedsNoPostProcessWorkaround,
+                tunnelingAudioSessionId
+            ),
+            format = format,
+            codecMimeType = codecMimeType,
+            rendererPath = "direct_secure_surface"
+        )
+    }
+
+    override fun getCodecOperatingRateV23(
+        operatingRate: Float,
+        format: Format,
+        streamFormats: Array<Format>
+    ): Float {
+        return OfficialLikeHdrMediaFormat.getCodecOperatingRateV23(
+            rendererPath = "direct_secure_surface",
+            format = format,
+            fallback = {
+                super.getCodecOperatingRateV23(
+                    operatingRate,
+                    format,
+                    streamFormats
+                )
+            }
+        )
     }
 }
 
@@ -83,4 +279,75 @@ private class ToneMappingMediaCodecVideoRenderer(
             it.setRequestOpenGlToneMapping(true)
         }
     }
+}
+
+private object OfficialLikeHdrMediaFormat {
+
+    private val TAG = HdrToneMappingRenderersFactory::class.simpleName
+
+    fun configure(
+        mediaFormat: MediaFormat,
+        format: Format,
+        codecMimeType: String,
+        rendererPath: String
+    ): MediaFormat {
+        if (!looksLikeF1UhdHlgHevc(format, codecMimeType)) {
+            return mediaFormat
+        }
+
+        mediaFormat.setInteger(KEY_PRIORITY, 0)
+        mediaFormat.setInteger(KEY_ROTATION_DEGREES, 0)
+        if (format.frameRate > 0f) {
+            mediaFormat.setFloat(KEY_FRAME_RATE, format.frameRate)
+        }
+        Log.i(
+            TAG,
+            "Applied official-like secure HLG MediaCodec format flags " +
+                "rendererPath=$rendererPath sampleMime=${format.sampleMimeType} codecMime=$codecMimeType " +
+                "size=${format.width}x${format.height} frameRate=${format.frameRate} " +
+                "priority=0 operatingRate=unset"
+        )
+        return mediaFormat
+    }
+
+    fun getCodecOperatingRateV23(
+        rendererPath: String,
+        format: Format,
+        fallback: () -> Float
+    ): Float {
+        if (!looksLikeF1UhdHlgHevc(format, format.sampleMimeType.orEmpty())) {
+            return fallback()
+        }
+
+        Log.i(
+            TAG,
+            "Suppressing Media3 MediaCodec operating-rate hint for official-like secure HLG path " +
+                "rendererPath=$rendererPath format=${format.id} size=${format.width}x${format.height} " +
+                "frameRate=${format.frameRate}"
+        )
+        return CODEC_OPERATING_RATE_UNSET
+    }
+
+    private fun looksLikeF1UhdHlgHevc(format: Format, codecMimeType: String): Boolean {
+        val sampleMime = format.sampleMimeType
+        val descriptor = listOfNotNull(format.id, format.label, format.codecs)
+            .joinToString(separator = " ")
+        val isHevc = sampleMime.equals(HEVC_MIME_TYPE, ignoreCase = true) ||
+            codecMimeType.equals(HEVC_MIME_TYPE, ignoreCase = true) ||
+            descriptor.contains("HEVC", ignoreCase = true) ||
+            descriptor.contains("hvc", ignoreCase = true)
+        val isUhd = format.width >= 3000 && format.height >= 1600 ||
+            descriptor.contains("UHD", ignoreCase = true) ||
+            descriptor.contains("2160", ignoreCase = true)
+        val isHlg = format.colorInfo?.colorTransfer == C.COLOR_TRANSFER_HLG ||
+            descriptor.contains("HDR", ignoreCase = true) ||
+            descriptor.contains("HLG", ignoreCase = true)
+        return isHevc && isUhd && isHlg
+    }
+
+    private const val HEVC_MIME_TYPE = "video/hevc"
+    private const val CODEC_OPERATING_RATE_UNSET = -1f
+    private const val KEY_ROTATION_DEGREES = "rotation-degrees"
+    private const val KEY_PRIORITY = "priority"
+    private const val KEY_FRAME_RATE = "frame-rate"
 }

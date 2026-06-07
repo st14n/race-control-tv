@@ -92,6 +92,8 @@ class F1Client @Inject constructor(
                         .url(url)
                         .get()
                         .header("User-Agent", DeviceInfo.userAgent)
+                        .header("Origin", "https://f1tv.formula1.com")
+                        .header("Referer", "https://f1tv.formula1.com/")
                         .header("x-f1-device-info", candidate.deviceInfo)
                         .header("ascendonToken", token.toString())
                         .header("entitlementToken", entitlementToken.orEmpty())
@@ -168,14 +170,19 @@ class F1Client @Inject constructor(
                         laURL = response.resultObj.laURL
                     )
                     if (preferHdrManifest && !acceptedHdrCandidate) {
-                        if (fallbackViewing == null) {
+                        // Only keep true standard responses as the last-resort fallback.
+                        // Rejected HDR override probes must not become the final viewing,
+                        // otherwise a mismatched SDR response can short-circuit the rest
+                        // of the HDR candidate search.
+                        if (candidate.overrideStreamType == null && fallbackViewing == null) {
                             fallbackViewing = viewing
                         }
                         Log.i(
                             TAG,
-                            "Candidate returned non-UHD/non-HDR streamType=${response.resultObj.streamType}; " +
+                            "Candidate rejected for HDR playback streamType=${response.resultObj.streamType}; " +
                                 "overrideStreamType=${candidate.overrideStreamType} drmType=${response.resultObj.drmType} " +
                                 "laUrlPresent=${!response.resultObj.laURL.isNullOrBlank()}; " +
+                                "keepingAsFallback=${candidate.overrideStreamType == null}; " +
                                 "continuing search for a Widevine UHD variant"
                         )
                         continue
@@ -204,6 +211,8 @@ class F1Client @Inject constructor(
                 .url(ENTITLEMENT_URL)
                 .get()
                 .header("User-Agent", DeviceInfo.userAgent)
+                .header("Origin", "https://f1tv.formula1.com")
+                .header("Referer", "https://f1tv.formula1.com/")
                 .header("x-f1-device-info", DeviceInfo.f1DeviceInfo)
                 .header("ascendonToken", token.toString())
                 .header("CD-DeviceType", CD_DEVICE_TYPE)
@@ -295,7 +304,7 @@ class F1Client @Inject constructor(
 
         Log.i(
             TAG,
-            "HDR manifest preference requested; probing Exo-compatible HDR Widevine overrides before SDR fallback"
+            "HDR manifest preference requested; probing DASH Widevine HDR before HLS CMAF Widevine HDR"
         )
 
         return hdrCandidates + standardCandidates
@@ -348,10 +357,10 @@ class F1Client @Inject constructor(
 
     private fun hdrOverrideStreamTypes(streamType: Settings.StreamType): List<String> {
         val dashWidevine = listOf(
-            "HDR_UHD_DASH",
-            "HDR_UHD_DASH_SINGLE",
             "HDR_UHD_DASHWV",
-            "HDR_UHD_DASHWV_SINGLE"
+            "HDR_UHD_DASHWV_SINGLE",
+            "HDR_UHD_DASH",
+            "HDR_UHD_DASH_SINGLE"
         )
         val hlsWidevine = listOf(
             // WV first/only for the internal player. Plain HDR_UHD_CMAF returned
@@ -361,9 +370,10 @@ class F1Client @Inject constructor(
         )
         return when (streamType) {
             Settings.StreamType.DASH -> dashWidevine + hlsWidevine
-            Settings.StreamType.DASH_HLS -> hlsWidevine + dashWidevine
-            // HDR HLS is the preferred 2026 path. DASH is only a later probe/fallback.
-            Settings.StreamType.HLS -> hlsWidevine + dashWidevine
+            Settings.StreamType.DASH_HLS -> dashWidevine + hlsWidevine
+            // Media3's DASH Widevine path is the next HDR presentation hypothesis after
+            // HLS CMAF-WV still rendered green on Google TV Streamer.
+            Settings.StreamType.HLS -> dashWidevine + hlsWidevine
         }
     }
 }

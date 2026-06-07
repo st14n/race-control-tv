@@ -8,9 +8,14 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
+import android.view.LayoutInflater
 import android.view.KeyEvent
+import android.view.Surface
+import android.view.SurfaceHolder
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
+import android.view.SurfaceView
 import android.widget.Toast
 import androidx.annotation.Keep
 import androidx.fragment.app.DialogFragment
@@ -41,8 +46,12 @@ import fr.groggy.racecontrol.tv.f1tv.F1TvViewing
 import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.ui.player.CustomRadioSyncDialog
 import fr.groggy.racecontrol.tv.ui.player.ExoPlayerPlaybackTransportControlGlue
+import fr.groggy.racecontrol.tv.ui.channel.playback.protectedhdr.ProtectedEglSurfaceProbe
+import fr.groggy.racecontrol.tv.ui.channel.playback.protectedhdr.ProtectedHdrStreamClassifier
 import fr.groggy.racecontrol.tv.utils.DeviceInfo
+import fr.groggy.racecontrol.tv.ui.channel.playback.protectedhdr.ProtectedHdrCapabilitiesProbe
 import javax.inject.Inject
+import kotlin.math.abs
 import java.util.Locale
 
 @Keep
@@ -58,6 +67,8 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         private const val CUSTOM_RADIO_RETRY_DELAY_MS = 500L
         private const val OVERLAY_AUTO_CLOSE_DELAY_MS = 10_000L
         private const val UHD_STARTUP_BUFFERING_TIMEOUT_MS = 12_000L
+        private const val UHD_HDR_PRESENTATION_FRAME_RATE = 50f
+        private const val DISPLAY_MODE_REFRESH_TOLERANCE = 0.25f
         private const val CUSTOM_RADIO_SYNC_DIALOG_TAG = "custom_radio_sync"
         private const val CUSTOM_RADIO_USER_AGENT =
             "Mozilla/5.0 (Linux; Android 14; Google TV Streamer Build/UTT3.240625.001.K5; wv) " +
@@ -69,6 +80,8 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         private const val ARG_CHANNEL_ID = "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_CHANNEL_ID"
         private const val ARG_IS_LIVE_SESSION = "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_IS_LIVE_SESSION"
         private const val ARG_SEASON_YEAR = "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_SEASON_YEAR"
+        private const val ARG_FORCE_DIRECT_MEDIA3_HDR_SURFACE =
+            "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_FORCE_DIRECT_MEDIA3_HDR_SURFACE"
 
         fun putSessionId(intent: Intent, sessionId: String) = intent.putExtra(ARG_SESSION_ID, sessionId)
         fun putChannelId(intent: Intent, channelId: String?) = intent.putExtra(ARG_CHANNEL_ID, channelId)
@@ -92,9 +105,13 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             }
         }
 
-        fun newInstance(viewing: F1TvViewing) = ChannelPlaybackFragment().apply {
+        fun newInstance(
+            viewing: F1TvViewing,
+            forceDirectMedia3HdrSurface: Boolean = false
+        ) = ChannelPlaybackFragment().apply {
             arguments = Bundle().apply {
                 putParcelable(ARG_VIEWING, viewing)
+                putBoolean(ARG_FORCE_DIRECT_MEDIA3_HDR_SURFACE, forceDirectMedia3HdrSurface)
             }
         }
     }
@@ -120,6 +137,12 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     private var suppressOverlayReopenUntilElapsedMs: Long = 0L
     private var lastVideoHostWidth: Int = 0
     private var lastVideoHostHeight: Int = 0
+    private var hasStartedPlayer = false
+    private var boundPlaybackSurfaceView: SurfaceView? = null
+    private var boundPlaybackSurfaceHolder: SurfaceHolder? = null
+    private var playbackSurfaceBufferWidth: Int = 0
+    private var playbackSurfaceBufferHeight: Int = 0
+    private var hasProbedProtectedHlgEglSurface: Boolean = false
     private val overlayAutoCloseHandler = Handler(Looper.getMainLooper())
     private val overlayAutoCloseRunnable = Runnable {
         if (!isAdded) return@Runnable
@@ -141,58 +164,141 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         Log.d(TAG, "Video host resized to ${newWidth}x${newHeight}; updating surface")
         updateVideoSurfaceSize(player.videoSize.width, player.videoSize.height)
     }
+    private val playbackSurfaceHolderCallback = object : SurfaceHolder.Callback {
+        override fun surfaceCreated(holder: SurfaceHolder) {
+            val surfaceView = boundPlaybackSurfaceView ?: return
+            Log.i(TAG, "Playback SurfaceHolder surfaceCreated view=${System.identityHashCode(surfaceView)}")
+            applyPlaybackSurfaceBufferSize(surfaceView, "surfaceCreated")
+            probeProtectedHlgEglSurfaceIfNeeded(holder.surface, "surfaceCreated")
+            bindPlaybackVideoSurface(surfaceView, "surfaceCreated")
+            
+            if (!hasStartedPlayer) {
+                Log.i(TAG, "Surface created, now safe to start player and evaluate EGL capabilities.")
+                hasStartedPlayer = true
+                startPlayer()
+            }
+        }
+
+        override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+            val surfaceView = boundPlaybackSurfaceView ?: return
+            Log.i(
+                TAG,
+                "Playback SurfaceHolder surfaceChanged " +
+                    "view=${System.identityHashCode(surfaceView)} format=$format size=${width}x${height}"
+            )
+            applyPlaybackSurfaceBufferSize(surfaceView, "surfaceChanged")
+            probeProtectedHlgEglSurfaceIfNeeded(holder.surface, "surfaceChanged")
+            bindPlaybackVideoSurface(surfaceView, "surfaceChanged")
+        }
+
+        override fun surfaceDestroyed(holder: SurfaceHolder) {
+            Log.i(TAG, "Playback SurfaceHolder surfaceDestroyed - Explicitly releasing player to avoid DummySurface codec crash")
+            _player?.removeListener(this@ChannelPlaybackFragment)
+            _player?.release()
+            _player = null
+        }
+    }
 
     private val trackSelector: DefaultTrackSelector by lazy {
         DefaultTrackSelector(requireContext()).apply {
-            val isLegacySeason = findSeasonYear(requireActivity()) <= 2025
-            // Remove the default viewport/display-size cap so 4K tracks are eligible
-            // for auto-selection on a 4K display without extra configuration.
-            setParameters(
-                buildUponParameters()
-                    .setMaxVideoSize(
-                        if (isLegacySeason) 1920 else Int.MAX_VALUE,
-                        if (isLegacySeason) 1080 else Int.MAX_VALUE
-                    )
-                    .setMaxVideoBitrate(Int.MAX_VALUE)
-            )
+            setParameters(buildUponParameters().applyPlaybackVideoConstraints().build())
         }
+    }
+
+    private fun buildPlaybackTrackParameters(audioDisabled: Boolean = false) =
+        trackSelector.buildUponParameters()
+            .applyPlaybackVideoConstraints(audioDisabled = audioDisabled)
+            .build()
+
+    private fun DefaultTrackSelector.Parameters.Builder.applyPlaybackVideoConstraints(
+        audioDisabled: Boolean = false
+    ) = apply {
+            val isLegacySeason = findSeasonYear(requireActivity()) <= 2025
+            setMaxVideoSize(
+                if (isLegacySeason) 1920 else Int.MAX_VALUE,
+                if (isLegacySeason) 1080 else Int.MAX_VALUE
+            )
+            setMaxVideoBitrate(Int.MAX_VALUE)
+            setForceHighestSupportedBitrate(true)
+            setPreferredAudioLanguage(null)
+            setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, audioDisabled)
+        }
+
+    private fun setMainPlayerAudioDisabled(disabled: Boolean, reason: String) {
+        trackSelector.setParameters(buildPlaybackTrackParameters(audioDisabled = disabled))
+        Log.i(TAG, "Main player audio disabled=$disabled while preserving UHD/HDR video selector reason=$reason")
+    }
+
+    private val protectedHdrCapabilities by lazy {
+        ProtectedHdrCapabilitiesProbe.probe()
+    }
+
+    private fun isForceDirectMedia3HdrSurface(): Boolean {
+        return arguments?.getBoolean(ARG_FORCE_DIRECT_MEDIA3_HDR_SURFACE, false) == true
+    }
+
+    private fun shouldUseProtectedHlgGraph(viewing: F1TvViewing? = currentViewing ?: findViewing(this)): Boolean {
+        return !isForceDirectMedia3HdrSurface() &&
+            viewing?.let { looksLikeHdrUhdWidevine(it) } == true &&
+            protectedHdrCapabilities.canCreateProtectedHlgEglSurface
+    }
+
+    private fun shouldUseDirectMedia3HdrSurface(viewing: F1TvViewing? = currentViewing ?: findViewing(this)): Boolean {
+        return true
     }
 
     private val renderersFactory: RenderersFactory by lazy {
         val settings = settingsRepository.getCurrent()
+        val viewing = findViewing(this)
+        val enableProtectedHlgVideoGraph = shouldUseProtectedHlgGraph(viewing)
+        val enableOfficialLikeDirectHdrCodecConfig = shouldUseDirectMedia3HdrSurface(viewing)
+        Log.i(
+            TAG,
+            "Media3 renderer factory protectedHlgGraph=$enableProtectedHlgVideoGraph " +
+                "officialLikeDirectHdrCodecConfig=$enableOfficialLikeDirectHdrCodecConfig " +
+                "forceDirectMedia3HdrSurface=${isForceDirectMedia3HdrSurface()} " +
+                "streamType=${viewing?.streamType} requestedOverride=${viewing?.requestedOverrideStreamType}"
+        )
         HdrToneMappingRenderersFactory(
             requireContext(),
             enableHdrToSdrToneMapping =
-                !settings.disableHdrPlayback && DeviceInfo.shouldToneMapHdrToSdr(requireContext())
+                !settings.disableHdrPlayback && DeviceInfo.shouldToneMapHdrToSdr(requireContext()),
+            enableProtectedHlgVideoGraph = enableProtectedHlgVideoGraph,
+            enableOfficialLikeDirectHdrCodecConfig = enableOfficialLikeDirectHdrCodecConfig
         )
     }
 
-    private val player: ExoPlayer by lazy {
-        Log.d(TAG, "Initializing ExoPlayer (Media3)")
-        ExoPlayer.Builder(requireContext(), renderersFactory)
-            .setTrackSelector(trackSelector)
-            .build().also { p ->
-                p.playWhenReady = true
-                p.addAnalyticsListener(EventLogger())
-                p.addAnalyticsListener(object : AnalyticsListener {
-                    override fun onRenderedFirstFrame(
-                        eventTime: AnalyticsListener.EventTime,
-                        output: Any,
-                        renderTimeMs: Long
-                    ) {
-                        hasRenderedFirstFrameForCurrentSource = true
-                        Log.i(TAG, "onRenderedFirstFrame: output=$output renderTimeMs=${renderTimeMs}ms")
+    private var _player: ExoPlayer? = null
+    private val player: ExoPlayer
+        get() {
+            if (_player == null) {
+                Log.d(TAG, "Initializing ExoPlayer (Media3)")
+                _player = ExoPlayer.Builder(requireContext(), renderersFactory)
+                    .setTrackSelector(trackSelector)
+                    .build().also { p ->
+                        p.playWhenReady = true
+                        p.addAnalyticsListener(EventLogger())
+                        p.addAnalyticsListener(object : AnalyticsListener {
+                            override fun onRenderedFirstFrame(
+                                eventTime: AnalyticsListener.EventTime,
+                                output: Any,
+                                renderTimeMs: Long
+                            ) {
+                                hasRenderedFirstFrameForCurrentSource = true
+                                Log.i(TAG, "onRenderedFirstFrame: output=$output renderTimeMs=${renderTimeMs}ms")
+                            }
+                            override fun onPlayerError(
+                                eventTime: AnalyticsListener.EventTime,
+                                error: PlaybackException
+                            ) {
+                                Log.e(TAG, "Player error: ${error.errorCodeName} (${error.errorCode})", error)
+                            }
+                        })
+                        p.addListener(this)
                     }
-                    override fun onPlayerError(
-                        eventTime: AnalyticsListener.EventTime,
-                        error: PlaybackException
-                    ) {
-                        Log.e(TAG, "Player error: ${error.errorCodeName} (${error.errorCode})", error)
-                    }
-                })
-                p.addListener(this)
             }
-    }
+            return _player!!
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -206,16 +312,31 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             }
             false
         }
-        startPlayer()
+    }
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View? {
+        return super.onCreateView(inflater, container, savedInstanceState)?.also {
+            configurePlaybackVideoSurface(it, "onCreateView")
+        }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        configurePlaybackVideoSurface(view, "onViewCreated")?.let {
+            bindPlaybackVideoSurface(it, "onViewCreated")
+        }
         lastVideoHostWidth = view.width
         lastVideoHostHeight = view.height
         view.addOnLayoutChangeListener(videoHostLayoutChangeListener)
+        // We defer startPlayer() until surfaceCreated() so that we have a valid Window Surface
+        // to probe for EGL Widevine capabilities before ExoPlayer is lazily instantiated.
         view.post {
-            updateVideoSurfaceSize(player.videoSize.width, player.videoSize.height)
+            // Need to handle player size if it somehow already exists, but we removed startPlayer here.
+            _player?.let { updateVideoSurfaceSize(it.videoSize.width, it.videoSize.height) }
         }
     }
 
@@ -242,6 +363,9 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             )
             playbackGlue = glue
             glue.host = VideoSupportFragmentGlueHost(this)
+            boundPlaybackSurfaceView?.let {
+                bindPlaybackVideoSurface(it, "startPlayer")
+            }
             val viewing = findViewing(this) ?: run {
                 Log.e(TAG, "Viewing is null — cannot start playback")
                 (activity as? ChannelPlaybackActivity)?.playerError()
@@ -267,17 +391,34 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                 "laUrl=${viewing.laURL} url=${viewing.url}"
         )
         try {
+            boundPlaybackSurfaceView?.let {
+                bindPlaybackVideoSurface(it, "preparePlayer")
+            }
             val settings = settingsRepository.getCurrent()
             val mainItem = MediaSourceItemFactory.newMediaItem(viewing)
-            val mainSource = createMediaSource(
+            val rawMainSource = createMediaSource(
                 urlString = viewing.url.toString(),
                 streamType = viewing.streamType,
                 mediaItem = mainItem,
                 rewriteF1CmafHlsDrm = shouldRewriteF1CmafHlsDrm(viewing)
             )
-
+            val hasHdrWidevineVideo = looksLikeHdrUhdWidevine(viewing)
             val useExternalAudio = viewing.externalAudioUri != null &&
                 (settings.useExternalAudio || viewing.externalAudioRequired)
+            val useVideoOnlyHdrMain = hasHdrWidevineVideo && useExternalAudio
+            // Keep Media3 audio enabled here: the HDR main source is filtered to video-only,
+            // so disabling the audio track type would also disable the merged companion audio.
+            setMainPlayerAudioDisabled(
+                disabled = false,
+                reason = if (useVideoOnlyHdrMain) "hdr_companion_audio_merge" else "prepare"
+            )
+            val mainSource = if (useVideoOnlyHdrMain) {
+                Log.i(TAG, "Filtering main UHD/HDR source to video only; companion/external source supplies audio")
+                FilteringMediaSource(rawMainSource, C.TRACK_TYPE_VIDEO)
+            } else {
+                rawMainSource
+            }
+
             val mediaSource = if (useExternalAudio) {
                 Log.i(TAG, "External audio enabled — building MergingMediaSource")
                 val audioItem = MediaSourceItemFactory.newExternalAudioMediaItem(viewing)
@@ -287,15 +428,17 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                     audioItem,
                     rewriteF1CmafHlsDrm = false
                 )
-                val finalMainSource = if (viewing.externalAudioRequired) {
-                    Log.i(TAG, "Filtering main HDR source to video only; companion source supplies audio")
+                val finalMainSource = if (useVideoOnlyHdrMain) {
+                    mainSource
+                } else if (viewing.externalAudioRequired) {
+                    Log.i(TAG, "Filtering main UHD/HDR source to video only; companion/custom source supplies audio")
                     FilteringMediaSource(mainSource, C.TRACK_TYPE_VIDEO)
                 } else {
                     mainSource
                 }
                 val audioOnlySource = FilteringMediaSource(audioSource, C.TRACK_TYPE_AUDIO)
-                // HDR CMAF embedded AAC is broken on some Android TV devices. For that case,
-                // the main HLS source is video-only and the companion source supplies audio.
+                // UHD/HDR embedded AAC is broken on some Android TV devices. For that case,
+                // the main source is video-only and the companion source supplies audio.
                 // Use period-time adjustment because F1's HLS and DASH live windows do not always
                 // share identical period offsets; without this, the DASH audio can be present but silent.
                 val offsetMs = settings.audioOffsetMs
@@ -327,6 +470,117 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             Log.e(TAG, "Error preparing player", e)
             (activity as? ChannelPlaybackActivity)?.playerError()
         }
+    }
+
+    private fun configurePlaybackVideoSurface(root: View? = view, source: String): SurfaceView? {
+        val playbackSurfaceView = findSurfaceView(root) ?: runCatching { surfaceView }.getOrNull()
+        if (playbackSurfaceView == null) {
+            Log.w(TAG, "Video SurfaceView unavailable during playback-surface setup source=$source")
+            return null
+        }
+        playbackSurfaceView.keepScreenOn = true
+        playbackSurfaceView.holder.setFormat(android.graphics.PixelFormat.OPAQUE)
+        val directHdrSurface = shouldUseDirectMedia3HdrSurface()
+        boundPlaybackSurfaceView = playbackSurfaceView
+        ensurePlaybackSurfaceHolderCallback(playbackSurfaceView)
+        val path = if (directHdrSurface) {
+            "official-like direct secure Media3 HDR SurfaceView"
+        } else {
+            "protected/secure SurfaceView"
+        }
+        Log.i(
+            TAG,
+            "Configured $path for playback " +
+                "source=$source view=${System.identityHashCode(playbackSurfaceView)} " +
+                "surfaceSecure=implicitly-managed-by-codec"
+        )
+        return playbackSurfaceView
+    }
+
+    private fun bindPlaybackVideoSurface(surfaceView: SurfaceView, source: String) {
+        val surface = surfaceView.holder.surface
+        if (!surface.isValid) {
+            Log.w(TAG, "Surface is not valid yet in bindPlaybackVideoSurface, source=$source")
+            return
+        }
+        probeProtectedHlgEglSurfaceIfNeeded(surface, source)
+        Log.i(TAG, "Binding explicit Surface to ExoPlayer (bypassing internal DummySurface listeners) source=$source")
+        player.setVideoSurface(surface)
+        applyPlaybackSurfaceBufferSize(surfaceView, source)
+        boundPlaybackSurfaceView = surfaceView
+        val path = if (shouldUseDirectMedia3HdrSurface()) {
+            "official-like direct secure Media3 HDR SurfaceView"
+        } else {
+            "protected/secure SurfaceView"
+        }
+        Log.i(
+            TAG,
+            "Bound ExoPlayer to $path " +
+                "source=$source view=${System.identityHashCode(surfaceView)}"
+        )
+    }
+
+    private fun configurePlaybackSurfaceBufferSize(videoWidth: Int, videoHeight: Int, source: String) {
+        if (videoWidth <= 0 || videoHeight <= 0) return
+        if (playbackSurfaceBufferWidth == videoWidth && playbackSurfaceBufferHeight == videoHeight) {
+            boundPlaybackSurfaceView?.let { applyPlaybackSurfaceBufferSize(it, "$source-reapply") }
+            return
+        }
+        playbackSurfaceBufferWidth = videoWidth
+        playbackSurfaceBufferHeight = videoHeight
+        boundPlaybackSurfaceView?.let { applyPlaybackSurfaceBufferSize(it, source) }
+    }
+
+    private fun applyPlaybackSurfaceBufferSize(surfaceView: SurfaceView, source: String) {
+        // Explicitly NOT setting a fixed size. The official app relies on the EGL pipeline
+        // (GlEffectsFrameProcessor) to scale the 4K hardware frames down to the 1080p layout buffer.
+        // Forcing setFixedSize(3840, 2160) causes the MediaTek secure hardware composer
+        // to crash/output green frames when HDR engages due to bandwidth/memory limits.
+    }
+
+    private fun ensurePlaybackSurfaceHolderCallback(surfaceView: SurfaceView) {
+        val holder = surfaceView.holder
+        if (holder == boundPlaybackSurfaceHolder) return
+        boundPlaybackSurfaceHolder?.removeCallback(playbackSurfaceHolderCallback)
+        holder.addCallback(playbackSurfaceHolderCallback)
+        boundPlaybackSurfaceHolder = holder
+        Log.i(
+            TAG,
+            "Registered playback SurfaceHolder callback view=${System.identityHashCode(surfaceView)}"
+        )
+    }
+
+    private fun probeProtectedHlgEglSurfaceIfNeeded(surface: Surface, source: String) {
+        if (hasProbedProtectedHlgEglSurface) return
+        val viewing = currentViewing ?: findViewing(this) ?: return
+        
+        // We MUST NOT call shouldUseProtectedHlgGraph here because it checks hasProbedProtectedHlgEglSurface!
+        // Just probe it if it looks like Widevine HDR.
+        if (!looksLikeHdrUhdWidevine(viewing)) {
+            return
+        }
+        
+        val result = ProtectedEglSurfaceProbe.probe(surface, source)
+        if (result.attempted) {
+            hasProbedProtectedHlgEglSurface = true
+        }
+    }
+
+    private fun findSurfaceView(root: View?): SurfaceView? {
+        return when (root) {
+            is SurfaceView -> root
+            is ViewGroup -> {
+                for (index in 0 until root.childCount) {
+                    findSurfaceView(root.getChildAt(index))?.let { return it }
+                }
+                null
+            }
+            else -> null
+        }
+    }
+
+    private fun looksLikeHdrUhdWidevine(viewing: F1TvViewing): Boolean {
+        return ProtectedHdrStreamClassifier.looksLikeHdrUhdWidevine(viewing)
     }
 
     /**
@@ -418,9 +672,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             hasAutoInjectedCustomRadio = true
             val settings = settingsRepository.getCurrent()
             if (
-                settings.autoSelectCustomRadio &&
-                isCustomRadioAvailableForCurrentSession(settings) &&
-                buildCustomRadioPlan(settings).isNotEmpty()
+                shouldAutoInjectCustomRadio(settings)
             ) {
                 injectCustomRadio()
             }
@@ -477,6 +729,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                 "pixelRatio=${videoSize.pixelWidthHeightRatio} " +
                 "unappliedRotationDegrees=${videoSize.unappliedRotationDegrees}"
         )
+        configurePlaybackSurfaceBufferSize(videoSize.width, videoSize.height, "onVideoSizeChanged")
         updateVideoSurfaceSize(videoSize.width, videoSize.height)
     }
 
@@ -507,18 +760,38 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         super.onPause()
         cancelOverlayAutoCloseTimer()
         pausePlaybackFromTransportControls(logSource = "onPause")
+        
+        val activity = requireActivity()
+        if (activity.isFinishing || activity.isChangingConfigurations) {
+            Log.i(TAG, "onPause: Activity finishing or changing config. Releasing player early to beat SurfaceFlinger teardown!")
+            _player?.removeListener(this@ChannelPlaybackFragment)
+            _player?.release()
+            _player = null
+        }
     }
 
     override fun onResume() {
         super.onResume()
+        if (!hasStartedPlayer) return
         if (player.playWhenReady) {
             resumePlaybackFromTransportControls(logSource = "onResume")
         } else {
             val radio = customRadioPlayer ?: return
             if (customRadioMuted || customRadioInjected) {
-                // VLC keeps its audioDelay across pause/resume — just resume playback
                 radio.play()
             }
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        Log.i(TAG, "onStop: explicitly releasing player early to prevent MediaTek secure codec corruption upon surfaceDestroyed")
+        _player?.removeListener(this)
+        _player?.release()
+        _player = null
+        if (!requireActivity().isChangingConfigurations) {
+            Log.i(TAG, "onStop: finishing playback activity as it was pushed to background")
+            requireActivity().finish()
         }
     }
 
@@ -528,13 +801,20 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         cancelOverlayAutoCloseTimer()
         playbackGlue = null
         releaseCustomRadioPlayer()
-        player.removeListener(this)
-        player.release()
+        _player?.removeListener(this)
+        _player?.release()
+        _player = null
         super.onDestroy()
     }
 
     override fun onDestroyView() {
         view?.removeOnLayoutChangeListener(videoHostLayoutChangeListener)
+        boundPlaybackSurfaceHolder?.removeCallback(playbackSurfaceHolderCallback)
+        boundPlaybackSurfaceHolder = null
+        boundPlaybackSurfaceView = null
+        playbackSurfaceBufferWidth = 0
+        playbackSurfaceBufferHeight = 0
+        hasProbedProtectedHlgEglSurface = false
         lastVideoHostWidth = 0
         lastVideoHostHeight = 0
         super.onDestroyView()
@@ -598,12 +878,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             customRadioInjected = true
             customRadioPlayer!!.setVolume(100)
             playbackGlue?.refreshSubtitle()
-            player.setTrackSelectionParameters(
-                player.trackSelectionParameters.buildUpon()
-                    .setPreferredAudioLanguage(null)
-                    .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true)
-                    .build()
-            )
+            setMainPlayerAudioDisabled(disabled = true, reason = "custom_radio_unmute")
             logCustomRadioTelemetry("unmuted", detail = "Unmuted existing stream, no delay")
             return
         }
@@ -620,12 +895,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         customRadioInjected = true
         playbackGlue?.refreshSubtitle()
         // Mute embedded audio on the main player — GP Radio takes over
-        player.setTrackSelectionParameters(
-            player.trackSelectionParameters.buildUpon()
-                .setPreferredAudioLanguage(null)
-                .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true)
-                .build()
-        )
+        setMainPlayerAudioDisabled(disabled = true, reason = "custom_radio_start")
         showCustomRadioWaitingMessage(customRadioOffsetMs)
         startCustomRadioPlayer()
     }
@@ -650,12 +920,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             customRadioStartedAtElapsedMs = 0L
         }
         playbackGlue?.refreshSubtitle()
-        player.setTrackSelectionParameters(
-            player.trackSelectionParameters.buildUpon()
-                .setPreferredAudioLanguage(null)
-                .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
-                .build()
-        )
+        setMainPlayerAudioDisabled(disabled = false, reason = "custom_radio_stop")
     }
 
     internal fun showCustomRadioSyncDialog() {
@@ -836,6 +1101,26 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         }
 
         return false
+    }
+
+    private fun shouldAutoInjectCustomRadio(
+        settings: Settings = settingsRepository.getCurrent()
+    ): Boolean {
+        if (!settings.autoSelectCustomRadio) return false
+        val viewing = currentViewing
+        if (viewing != null && looksLikeHdrUhdWidevine(viewing)) {
+            Log.i(
+                TAG,
+                "Skipping auto custom radio for protected HDR playback " +
+                    "streamType=${viewing.streamType} requestedOverride=${viewing.requestedOverrideStreamType}"
+            )
+            return false
+        }
+        if (viewing?.externalAudioRequired == true || viewing?.externalAudioUri != null) {
+            Log.i(TAG, "Auto custom radio allowed with external/companion audio; main player audio will be disabled")
+        }
+        if (!isCustomRadioAvailableForCurrentSession(settings)) return false
+        return buildCustomRadioPlan(settings).isNotEmpty()
     }
 
     private fun buildCustomRadioPlan(settings: Settings): List<CustomRadioPlanEntry> {

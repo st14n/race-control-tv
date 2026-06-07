@@ -95,6 +95,7 @@ object MediaSourceItemFactory {
                 builder.setDrmConfiguration(
                     MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
                         .setLicenseUri(licenseUri)
+                        .setForceDefaultLicenseUri(true)
                         .setLicenseRequestHeaders(
                             mapOf(
                                 "x-f1-device-info" to DeviceInfo.f1DeviceInfo,
@@ -102,7 +103,6 @@ object MediaSourceItemFactory {
                                 "entitlementToken" to entitlementtoken
                             )
                         )
-                        .setMultiSession(true)
                         .build()
                 )
             } else if (isDash) {
