@@ -510,7 +510,7 @@ avsync "Alloc tunnel playback_0 resources"
 
 These confirmed tunneling was active but did not solve the visual issue.
 
-## Latest Tests & Final Fallback Decision (2026-06-07)
+## Latest Tests & Current Native-Media3 Direction (2026-06-07)
 
 ### Test Run 1: Sabrina Spoofing with Forced HDR Manifest
 - **Action**: Spoofed the Chromecast with Google TV (`sabrina`) identity in `DeviceInfo.kt` to trigger the backend whitelist, while requesting the forced HDR manifest.
@@ -520,11 +520,72 @@ These confirmed tunneling was active but did not solve the visual issue.
 - **Action**: Set the playback `SurfaceView` format to `OPAQUE` (to prevent alpha blending compilation bugs with secure buffers), removed `android:colorMode="hdr"` from the Manifest (to prevent forcing 10-bit window-composition mode on the activity), and changed the window backgrounds to black in the styles.
 - **Result**: Still produced a solid green screen as soon as HDR rendering kicked in.
 
-### Final Conclusion
-The standard Media3 video pipeline cannot successfully present the Widevine L1 HLG UHD stream on the Google TV Streamer due to a hardware decoder/compositor driver level incompatibility when feeding raw secure surfaces directly to MediaCodec. The official app only avoids this by bypassing Media3 and using a proprietary, native Tiledmedia/ClearVR rendering stack.
+### Superseded Fallback Conclusion
+An earlier conclusion said to disable HDR manifests on Google TV Streamer / `kirkwood`. That is not the current goal and is not what the active code does. The user explicitly wants true UHD/HDR fixed, not avoided, and `DeviceInfo.shouldRequestHdrManifest()` currently still requests HDR when the display reports HLG support.
 
-### Resolution
-To prevent the app from serving broken green screens to Google TV Streamer users, we explicitly disable requesting HDR manifests on these devices. They will instead receive a clean, fully-functioning 1080p SDR stream.
+### Latest Verified Failure (Before Graph State Fixes)
+Tested build before the latest graph-routing fix:
 
-We achieve this by checking the device's hardware name in `DeviceInfo.shouldRequestHdrManifest` and returning `false` if the device is a `"google tv streamer"` or `"kirkwood"`. Other whitelisted HDR devices (like Chromecast Sabrina) will continue to receive the HDR stream.
+- Requested and received `HDR_UHD_DASHWV`.
+- Selected `_HDR-UHD_HEVC_2` at 3840x2160/50.
+- Used `c2.mtk.hevc.decoder.secure`.
+- Suppressed Media3 `operating-rate` so MediaTek logged `RealTime: priority 0, operating rate 0.000000`.
+- Applied `SurfaceControl.Transaction.setDataSpace(..., DATASPACE_BT2020_HLG)` to the `SurfaceView` layer before decode and again on video-size change.
+- Explicitly set MediaCodec color keys to BT.2020 / HLG / limited range.
+- MediaCodec output still reported `color-standard=6`, `color-transfer=7`, `android._dataspace=302383104`.
+- Media3 reported `onRenderedFirstFrame`.
+- User still saw solid green when HDR mode engaged.
 
+Important correction: that run did **not** use the Media3 protected-HLG graph. The routing still opened `OfficialLikeHdrPlaybackFragment`, the bare direct `Surface` path. Logs showed:
+
+```text
+ProtectedHdrCapabilitiesProbe: protectedContent=false bt2020Hlg=false canCreateProtectedHlgEglSurface=false
+Committing official-like bare Surface HDR fragment
+Installing official-like direct secure HDR MediaCodec renderer
+```
+
+### Media3 Protected-HLG Graph Approach & EGL_BAD_MATCH
+We then successfully engaged the Media3 protected-HLG VideoGraph by bypassing the probe check. However, this immediately led to crashes on the second frame:
+1. `onRenderedFirstFrame` fired successfully.
+2. The second frame threw `EGL_BAD_MATCH (0x3009)` inside `FinalShaderProgramWrapper.renderFrameToOutputSurface`.
+
+**Root cause of `EGL_BAD_MATCH`:** 
+The app was calling `player.setVideoSurfaceView(surfaceView)` repeatedly (on `surfaceCreated`, `startPlayer`, `preparePlayer`, `surfaceChanged`). Each call triggered the graph's `setOutputSurfaceInfo()` method, which hot-swapped the EGL surface while the GL pipeline was mid-stream. This caused the EGL context to become desynced from the active EGL surface, leading to the driver throwing `0x3009`. 
+
+**Fix applied:**
+- Added `boundHlgGraphSurfaceView` to track the surface bound to the graph.
+- Skipped redundant `setVideoSurfaceView()` calls if the identity of the `SurfaceView` hadn't changed.
+- Created a **plain EGL window surface** (without `EGL_GL_COLORSPACE_BT2020_HLG_EXT` attributes) for the graph output, relying entirely on the Android layer's `DATASPACE_BT2020_HLG` hint to inform SurfaceFlinger of the HDR content, which aligns with how the official app works.
+
+### Latest Test Outcome & Graph Death (2026-06-07)
+After applying the `setVideoSurfaceView` idempotency fix and plain EGL surface generation, the user tested the build on the TV:
+- **Result:** The video never started playing and eventually closed the player.
+- **Log analysis:** The playback encountered a `Player error: ERROR_CODE_FAILED_RUNTIME_CHECK (1004)` almost immediately upon start.
+- **Root Cause:** Deep in the logs, `MediaCodec` threw `Failed to initialize c2.mtk.hevc.decoder.secure, error 0xfffffff4 (NO_MEMORY)`. 
+  - This happens because the `PlaybackVideoGraphWrapper` creates an internal OpenGL `SurfaceTexture` for the decoder to write to.
+  - Because `EGL_EXT_protected_content` is not exposed on this display's default EGL context, the graph's EGL context and input texture are **not secure**.
+  - The MediaTek secure decoder (`c2.mtk.hevc.decoder.secure`) detects that its output target is an unsecure texture and aborts initialization with `NO_MEMORY` (a common obfuscation for DRM memory routing failures).
+- **Conclusion:** The Media3 VideoGraph (`setVideoSurfaceView`) approach is **dead** for UHD/HDR Widevine L1 on this device. We cannot emulate Tiledmedia's protected GL rendering pipeline using standard Media3 tools if the platform driver refuses to provide a protected EGL context to our app.
+
+### Latest Code Removal: Reverting Surface Format Overrides
+Based on deeper investigation of the decompiled Tiledmedia SDK:
+- The official app's `TiledmediaView` and its helper `TMSurfaceView` create a plain `SurfaceView` and call `setSecure(true)`.
+- It does **not** call `setFormat(PixelFormat.OPAQUE)`.
+- It does **not** explicitly call `setDataSpace(DATASPACE_BT2020_HLG)`.
+- We realized that forcing `PixelFormat.OPAQUE` or an explicit dataspace might break the DRM and hardware composer's implicit negotiation for secure YUV buffers, leading to the green screen.
+- **Action Taken:** Removed `playbackSurfaceView.holder.setFormat(android.graphics.PixelFormat.OPAQUE)` and `HdrSurfaceHints.applyBt2020HlgDataSpace` from `ChannelPlaybackFragment.kt`. Left `playbackSurfaceView.setSecure(true)` intact. The Direct Media3 route will now pass a completely vanilla secure `SurfaceView` to ExoPlayer.
+
+### Remaining No-License Possibility Matrix
+
+Still plausible enough to test:
+
+- Testing the cleaned-up direct secure `SurfaceView` route (now completely devoid of pixel format and dataspace overrides). The official app proves that a vanilla secure `SurfaceView` works perfectly.
+- HLS CMAF-WV versus DASH-WV. Both reached HLG/BT.2020 decode; DASH-WV is the preferred path.
+
+Not viable without changing product constraints:
+
+- Bitmovin Android SDK, unless a valid license is obtained.
+- Tiledmedia/ClearVR SDK, unless legitimately obtained. This remains closest to the official app path.
+- LibVLC/mpv/FFmpeg user-space decoding for the real F1 UHD stream, because Widevine L1 protected UHD/HDR output cannot be decoded in app-visible software buffers.
+- Android `TextureView` for true HDR. Android documentation explicitly points HDR playback toward `SurfaceView`; `TextureView` has limited HDR support on Android 13+ and tends toward SDR/transcode behavior.
+- A simple platform `MediaPlayer` swap. It does not solve the custom DASH/Widevine license/header/audio requirements that Media3 is already handling.

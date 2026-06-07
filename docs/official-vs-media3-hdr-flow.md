@@ -42,18 +42,20 @@ Surface/display experiments that have now been ruled out:
 - MediaTek synchronous MediaCodec queueing tested.
 - Media3 tunneling tested earlier and removed after it did not fix the green output.
 
-Latest failed run proof points:
+Latest failed run proof points (via Media3 VideoGraph):
 
-- Logs include the older protected-surface diagnostic markers, including video-only HDR filtering and app-forced timing experiments.
-- Track selection still chooses `_HDR-UHD_HEVC_2`.
-- Codec output switches to HLG/BT.2020:
+- The app was updated to force Media3's `PlaybackVideoGraphWrapper` to insert an EGL surface layer before presentation, mimicking the official app's GL path.
+- Initial attempts caused `EGL_BAD_MATCH (0x3009)` after the first frame rendered, due to multiple redundant `setVideoSurfaceView` calls corrupting the active EGL surface binding.
+- After fixing the surface binding sequence and falling back to a plain EGL window surface (relying on Android's `DATASPACE_BT2020_HLG` for HDR output instead of explicit EGL colorspace attributes), the app no longer crashed on `EGL_BAD_MATCH`.
+- However, the most recent test failed to start playback completely, throwing `Player error: ERROR_CODE_FAILED_RUNTIME_CHECK (1004)`. The app fell back to `SDR_HD_DASHWV_SINGLE` (SDR stream) and continued playing that instead.
+- Track selection still prefers `_HDR-UHD_HEVC_2`.
+- When HDR decode *was* active in earlier builds, codec output successfully switched to HLG/BT.2020:
   - `color-standard = 6`
   - `color-transfer = 7`
   - `android._dataspace = 302383104`
 - Media3 reports `surfaceSize 3840x2160`.
-- Media3 reports `onRenderedFirstFrame`.
-- User still sees black until HDR engages, then full green.
-- Repeated `CCodecBufferChannel: no present fence` appears after HLG frame output.
+- The user observed solid green when HDR mode engaged in earlier tests, and immediate stream failure in the latest test.
+- Repeated `CCodecBufferChannel: no present fence` appeared after HLG frame output in earlier tests.
 
 Conclusion for our flow:
 
@@ -62,7 +64,7 @@ Conclusion for our flow:
 - Decoder selection is working.
 - Secure surface allocation is working.
 - 4K surface size is working.
-- The remaining failure is the protected HLG presentation handoff from secure MediaCodec output through the normal Android/Media3 `SurfaceView` path.
+- The remaining failure is the protected HLG presentation handoff from secure MediaCodec output through the normal Android/Media3 `SurfaceView` path, currently manifesting as either green video or early runtime failures (1004) when forced through Media3's GL video graph.
 
 ## Official Working Flow
 
@@ -228,3 +230,19 @@ Important constraint:
 - Media3's built-in `VideoDecoderGLSurfaceView` is not enough for this protected Widevine L1 stream because it consumes `VideoDecoderOutputBuffer`, not secure `MediaCodec` output surfaces.
 - A real path 1 implementation must either own the native decode/display path or integrate a renderer SDK that does.
 - The new protected-HLG graph may still fail if the device/DRM stack rejects secure decoder output into Media3's GL input surface. The direct Media3 HDR fallback remains in place for that case.
+
+## 2026-06-07 Media3 Deep-Dive Update
+
+Latest installed debug build: `com.st14n.f1.debug`, `versionName=1.0.2-DEBUG`, installed at `2026-06-07 14:28:02`.
+
+What changed after the protected-graph test failure:
+
+- The Media3 VideoGraph (`setVideoSurfaceView`) approach failed with `NO_MEMORY` from the MediaTek secure decoder (`c2.mtk.hevc.decoder.secure`). This confirmed that the decoder refuses to output to an unsecure OpenGL `SurfaceTexture`, and since the device does not expose `EGL_EXT_protected_content` on the default EGL display, the graph's context cannot be made secure. The VideoGraph approach is effectively dead for this device.
+- Deeper investigation of the decompiled official app (Tiledmedia SDK) revealed that while it uses `SurfaceView`, it does **not** override the `PixelFormat` or explicitly apply the `DATASPACE_BT2020_HLG` dataspace to the surface. It only calls `setSecure(true)`.
+- We hypothesized that forcing `PixelFormat.OPAQUE` or `DATASPACE_BT2020_HLG` on the Leanback `SurfaceView` might interfere with the Android Window Manager and MediaTek hardware composer's implicit negotiation for the secure YUV buffers, causing the green screen.
+- We removed the `PixelFormat.OPAQUE` and `applyBt2020HlgDataSpace` overrides from `ChannelPlaybackFragment.kt`. The direct Media3 fallback now provides a completely vanilla secure `SurfaceView` to ExoPlayer, identically to how the official app passes it to the MediaCodec.
+
+Next diagnostic fork:
+
+- Test the new build with the plain secure `SurfaceView` path. If the green screen is resolved, then the manual pixel format and dataspace overrides were the culprit breaking the secure hardware presentation path.
+- If it still results in a green screen, the issue may lie deeper in how ExoPlayer configures the `MediaCodec` parameters (e.g., specific format flags or operating rates that differ subtly from the official app's proprietary renderer), or in an undocumented initialization sequence.
