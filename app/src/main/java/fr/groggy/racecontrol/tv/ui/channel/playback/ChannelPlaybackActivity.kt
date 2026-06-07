@@ -4,10 +4,14 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
+import android.graphics.Color
+import android.graphics.PixelFormat
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.util.Log
 import android.view.GestureDetector
 import android.view.MotionEvent
+import android.view.WindowManager
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.FragmentActivity
@@ -22,6 +26,8 @@ import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannel
 import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType
 import fr.groggy.racecontrol.tv.f1tv.F1TvClient
 import fr.groggy.racecontrol.tv.f1tv.F1TvViewing
+import fr.groggy.racecontrol.tv.ui.channel.playback.protectedhdr.ProtectedHdrRendererRouter
+import fr.groggy.racecontrol.tv.ui.channel.playback.protectedhdr.ProtectedHdrStreamClassifier
 import fr.groggy.racecontrol.tv.ui.player.ChannelSelectionDialog
 import fr.groggy.racecontrol.tv.ui.session.browse.Channel
 import fr.groggy.racecontrol.tv.ui.signin.SignInActivity
@@ -39,6 +45,8 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
 
     /** The [F1TvViewing] currently loaded into the player, used for 4K fallback detection. */
     private var currentViewing: F1TvViewing? = null
+    private var currentAttemptUsesProtectedHlgGraph: Boolean = false
+    private var retriedDirectMedia3HdrSurface: Boolean = false
 
     private val playbackTouchGestureDetector by lazy(LazyThreadSafetyMode.NONE) {
         GestureDetector(
@@ -56,9 +64,11 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
     }
 
     private val preferHdrManifestForDevice: Boolean by lazy(LazyThreadSafetyMode.NONE) {
-        !settingsRepository.getCurrent().disableHdrPlayback &&
+        val preferHdr = !settingsRepository.getCurrent().disableHdrPlayback &&
             DeviceInfo.shouldRequestHdrManifest(this) &&
             allowsUhdPlaybackForSeason()
+        Log.i(TAG, "preferHdrManifestForDevice=$preferHdr")
+        preferHdr
     }
 
     companion object {
@@ -84,10 +94,21 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        configureOpaquePlaybackWindow()
         super.onCreate(savedInstanceState)
         lifecycleScope.launch {
             attachViewingIfNeeded(Settings.StreamType.HLS, preferHdrManifest = preferHdrManifestForDevice)
         }
+    }
+
+    private fun configureOpaquePlaybackWindow() {
+        window.setFormat(PixelFormat.OPAQUE)
+        window.setBackgroundDrawable(ColorDrawable(Color.BLACK))
+        window.addFlags(
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+                WindowManager.LayoutParams.FLAG_FULLSCREEN
+        )
+        Log.i(TAG, "Configured opaque secure playback window")
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -238,9 +259,8 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
     }
 
     /**
-     * F1's current HDR CMAF HLS embedded audio can be unreliable in Media3 on Android TV.
-     * Keep the UHD/HDR HLS video and pair it only with a same-channel standard HLS audio
-     * companion. Do not merge DASH audio with HLS video; that path caused silent playback.
+     * F1's current UHD/HDR embedded audio can be unreliable in Media3 on Android TV.
+     * Keep the UHD/HDR video and pair it with a same-channel standard audio companion.
      */
     private suspend fun tryAttachStandardAudioCompanion(
         viewing: F1TvViewing,
@@ -250,7 +270,7 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
     ): F1TvViewing = try {
         Log.i(
             TAG,
-            "Fetching standard same-channel audio companion for HDR CMAF playback " +
+            "Fetching standard same-channel audio companion for UHD/HDR playback " +
                 "contentId=$contentId channelId=$currentChannelId"
         )
         val audioViewing = viewingService.getViewing(
@@ -261,7 +281,7 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         )
         Log.i(
             TAG,
-            "Attached standard audio companion for HDR video-only playback " +
+            "Attached standard audio companion for UHD/HDR video-only playback " +
                 "url=${audioViewing.url} type=${audioViewing.streamType} laUrl=${audioViewing.laURL} " +
                 "dash=${looksLikeDash(audioViewing.streamType, audioViewing.url.toString())}"
         )
@@ -281,13 +301,13 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
     }
 
     private fun needsHdrEmbeddedAudioWorkaround(viewing: F1TvViewing): Boolean {
-        return viewing.url.toString().contains("CMAF", ignoreCase = true) ||
-            viewing.streamType?.contains("CMAF", ignoreCase = true) == true ||
-            viewing.requestedOverrideStreamType?.contains("CMAF", ignoreCase = true) == true
+        return ProtectedHdrStreamClassifier.looksLikeHdrUhdWidevine(viewing)
     }
 
     private fun onViewingCreated(viewing: F1TvViewing) {
         currentViewing = viewing
+        currentAttemptUsesProtectedHlgGraph = false
+        retriedDirectMedia3HdrSurface = false
         Log.d(
             TAG,
             "Proceeding to create player with " +
@@ -300,8 +320,19 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
             Log.d(TAG, "Opening with external player.")
             openWithExternalPlayer(viewing)
         } else {
+            val protectedHdrDecision = ProtectedHdrRendererRouter.decide(viewing)
+            if (protectedHdrDecision.shouldUseProtectedRenderer) {
+                Log.i(TAG, "Opening with protected HDR renderer reason=${protectedHdrDecision.reason}")
+                openWithProtectedHdrRenderer(viewing)
+                return
+            }
+            Log.i(
+                TAG,
+                "Protected HDR renderer unavailable; falling back to Media3 internal player " +
+                    "reason=${protectedHdrDecision.reason}"
+            )
             Log.d(TAG, "Opening with internal player.")
-            openWithInternalPlayer(viewing) // Pass viewing object
+            openWithInternalPlayer(viewing)
         }
     }
 
@@ -329,12 +360,43 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         }
     }
 
-    // Removed streamType parameter
-    private fun openWithInternalPlayer(viewing: F1TvViewing) {
-        Log.d(TAG, "Committing internal player fragment.")
+    private fun openWithInternalPlayer(
+        viewing: F1TvViewing,
+        forceDirectMedia3HdrSurface: Boolean = false,
+        usesProtectedHlgGraph: Boolean = false
+    ) {
+        currentAttemptUsesProtectedHlgGraph = usesProtectedHlgGraph
+        Log.d(
+            TAG,
+            "Committing internal player fragment " +
+                "forceDirectMedia3HdrSurface=$forceDirectMedia3HdrSurface " +
+                "usesProtectedHlgGraph=$usesProtectedHlgGraph "
+        )
         supportFragmentManager.commit {
-            // Pass the whole viewing object to newInstance
-            replace(R.id.fragment_container, ChannelPlaybackFragment.newInstance(viewing), ChannelPlaybackFragment.TAG)
+            replace(
+                R.id.fragment_container,
+                ChannelPlaybackFragment.newInstance(
+                    viewing,
+                    forceDirectMedia3HdrSurface = forceDirectMedia3HdrSurface
+                ),
+                ChannelPlaybackFragment.TAG
+            )
+            setReorderingAllowed(true)
+        }
+    }
+
+    private fun openWithProtectedHdrRenderer(viewing: F1TvViewing) {
+        Log.i(
+            TAG,
+            "Committing official-like bare Surface HDR fragment " +
+                "streamType=${viewing.streamType} requestedOverride=${viewing.requestedOverrideStreamType}"
+        )
+        supportFragmentManager.commit {
+            replace(
+                R.id.fragment_container,
+                OfficialLikeHdrPlaybackFragment.newInstance(viewing),
+                ChannelPlaybackFragment.TAG
+            )
             setReorderingAllowed(true)
         }
     }
@@ -371,7 +433,9 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
     fun playerError() {
         val failedViewing = currentViewing
         val triedHdrManifest = failedViewing?.let {
-            looksLikeUhdOrHdr(it.streamType) || looksLikeUhdOrHdr(it.requestedOverrideStreamType)
+            ProtectedHdrStreamClassifier.looksLikeHdrUhdWidevine(it) ||
+                looksLikeUhdOrHdr(it.streamType) ||
+                looksLikeUhdOrHdr(it.requestedOverrideStreamType)
         } == true
 
         Log.e(
@@ -388,6 +452,24 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
                 "seasonYear=${ChannelPlaybackFragment.findSeasonYear(this)} " +
                 "triedHdrManifest=$triedHdrManifest"
         )
+        if (
+            failedViewing != null &&
+            triedHdrManifest &&
+            currentAttemptUsesProtectedHlgGraph &&
+            !retriedDirectMedia3HdrSurface &&
+            !isFinishing &&
+            !isDestroyed
+        ) {
+            retriedDirectMedia3HdrSurface = true
+            currentAttemptUsesProtectedHlgGraph = false
+            Log.i(
+                TAG,
+                "HDR/UHD protected HLG graph failed - retrying same HDR manifest with direct Media3 surface fallback"
+            )
+            openWithInternalPlayer(failedViewing, forceDirectMedia3HdrSurface = true)
+            return
+        }
+
         currentViewing = null
 
         if (triedHdrManifest && !isFinishing && !isDestroyed) {

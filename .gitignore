@@ -39,6 +39,7 @@ official_jadx/
 unpacked_jadx/
 jadx_full/
 jadx_unpacked/
+analysis/
 
 # Archives
 *.zip

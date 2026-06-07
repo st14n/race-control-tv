@@ -17,11 +17,11 @@ object DeviceInfo {
     private val TAG = DeviceInfo::class.simpleName
 
     private const val SPOOFED_BRAND = "Google"
-    private const val SPOOFED_PRODUCT = "kirkwood"
-    private const val SPOOFED_MODEL = "Google TV Streamer"
-    private const val SPOOFED_ANDROID_RELEASE = "14"
-    private const val SPOOFED_BUILD_ID = "UTTK.250729.004"
-    private const val SPOOFED_F1_DEVICE_INFO_MODEL = "google tv streamer"
+    private const val SPOOFED_PRODUCT = "sabrina"
+    private const val SPOOFED_MODEL = "Chromecast"
+    private const val SPOOFED_ANDROID_RELEASE = "12"
+    private const val SPOOFED_BUILD_ID = "STTE.231215.005"
+    private const val SPOOFED_F1_DEVICE_INFO_MODEL = "sabrina"
     private const val SPOOFED_APP_VERSION = "30482001"
     private const val SPOOFED_PLAYER_VERSION = "3.112.0"
 
@@ -103,13 +103,20 @@ object DeviceInfo {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
     }
 
+    private fun isGoogleTvStreamer(): Boolean {
+        val identity = listOf(
+            Build.BRAND,
+            Build.MANUFACTURER,
+            Build.MODEL,
+            Build.DEVICE,
+            Build.PRODUCT
+        ).joinToString(separator = " ").lowercase()
+        return "google tv streamer" in identity || "kirkwood" in identity
+    }
+
     fun shouldRequestHdrManifest(context: Context): Boolean {
         val supportsHlg = supportsHlgDisplay(context)
         val supportsToneMapping = supportsHdrToSdrToneMapping()
-        // Request the HDR manifest only when the output display advertises HLG.
-        // Tone mapping support is still used later for rendering fallback, but it
-        // should not by itself opt the app into the HDR/CMAF feed because some
-        // Android TV decoders render that path as a green video plane.
         val shouldRequestHdr = supportsHlg
         Log.i(
             TAG,

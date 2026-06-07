@@ -36,7 +36,11 @@
         </activity>
         <activity
             android:name=".ui.channel.playback.ChannelPlaybackActivity"
-            android:configChanges="keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize" />
+            android:theme="@style/PlaybackTheme"
+            android:launchMode="singleTop"
+            android:screenOrientation="userLandscape"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode|colorMode|density"
+            android:hardwareAccelerated="true" />
         <activity android:name=".ui.season.browse.SeasonBrowseActivity" />
         <activity android:name=".ui.session.browse.SessionBrowseActivity" />
         <activity android:name=".ui.signin.SignInActivity" />
