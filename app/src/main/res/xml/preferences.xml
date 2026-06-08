@@ -42,16 +42,16 @@
             android:summary="@string/settings_display_thumbnails_enabled_summary"
             android:defaultValue="true" />
 
-        <SwitchPreference
-            android:key="disable_hdr_playback"
-            android:title="@string/settings_disable_hdr_playback_title"
-            android:summary="@string/settings_disable_hdr_playback_summary"
+        <SwitchPreferenceCompat
+            android:key="disable_uhd_manifests"
+            android:title="@string/settings_disable_uhd_manifests_title"
+            android:summary="@string/settings_disable_uhd_manifests_summary"
             android:defaultValue="false" />
 
         <SwitchPreferenceCompat
             app:key="force_sdr_tone_mapping"
-            app:title="@string/settings_force_sdr_tone_mapping_title"
-            app:summary="@string/settings_force_sdr_tone_mapping_summary"
+            app:title="@string/settings_disable_hdr_on_4k_streams_title"
+            app:summary="@string/settings_disable_hdr_on_4k_streams_summary"
             app:defaultValue="false" />
 
         <ListPreference

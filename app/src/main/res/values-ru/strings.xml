@@ -1,35 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="login">Адрес Email</string>
-    <string name="password">Пароль</string>
-    <string name="signin">Вход</string>
-    <string name="signin_required_f1_tv_pro_account">Для входа необходима учетная запись F1Tv/F1TvPro</string>
-    <string name="invalid_credentials">Неверные учетные данные</string>
-    <string name="rejected_credentials">Неправильный email или пароль</string>
+    <string name="login">ÐÐ´Ñ€ÐµÑ Email</string>
+    <string name="password">ÐŸÐ°Ñ€Ð¾Ð»ÑŒ</string>
+    <string name="signin">Ð’Ñ…Ð¾Ð´</string>
+    <string name="signin_required_f1_tv_pro_account">Ð”Ð»Ñ Ð²Ñ…Ð¾Ð´Ð° Ð½ÐµÐ¾Ð±Ñ…Ð¾Ð´Ð¸Ð¼Ð° ÑƒÑ‡ÐµÑ‚Ð½Ð°Ñ Ð·Ð°Ð¿Ð¸ÑÑŒ F1Tv/F1TvPro</string>
+    <string name="invalid_credentials">ÐÐµÐ²ÐµÑ€Ð½Ñ‹Ðµ ÑƒÑ‡ÐµÑ‚Ð½Ñ‹Ðµ Ð´Ð°Ð½Ð½Ñ‹Ðµ</string>
+    <string name="rejected_credentials">ÐÐµÐ¿Ñ€Ð°Ð²Ð¸Ð»ÑŒÐ½Ñ‹Ð¹ email Ð¸Ð»Ð¸ Ð¿Ð°Ñ€Ð¾Ð»ÑŒ</string>
     <string name="rejected_credentials_message">
-        Несмотря на ввод корректных email и пароля это может быть следствием проблемы <b>F1 API BUG</b>.\n\n
-        1. В этом случае попробуйте выполнить следующее: <b>откройте веб-сайт F1TV на компьютере</b>,
-        войдите в учетную запись используя Ваш email и пароль
-        вернитесь в приложение и повторите попытку входа.\n
-        2. Кроме того, причиной может быть блокировка Вашего IP адреса (код 401). В этом случае попробуйте
-        переключиться на другое сетевое соединение. Также Вы можете обратиться за помощью в службу технической поддержки F1Tv.
+        ÐÐµÑÐ¼Ð¾Ñ‚Ñ€Ñ Ð½Ð° Ð²Ð²Ð¾Ð´ ÐºÐ¾Ñ€Ñ€ÐµÐºÑ‚Ð½Ñ‹Ñ… email Ð¸ Ð¿Ð°Ñ€Ð¾Ð»Ñ ÑÑ‚Ð¾ Ð¼Ð¾Ð¶ÐµÑ‚ Ð±Ñ‹Ñ‚ÑŒ ÑÐ»ÐµÐ´ÑÑ‚Ð²Ð¸ÐµÐ¼ Ð¿Ñ€Ð¾Ð±Ð»ÐµÐ¼Ñ‹ <b>F1 API BUG</b>.\n\n
+        1. Ð’ ÑÑ‚Ð¾Ð¼ ÑÐ»ÑƒÑ‡Ð°Ðµ Ð¿Ð¾Ð¿Ñ€Ð¾Ð±ÑƒÐ¹Ñ‚Ðµ Ð²Ñ‹Ð¿Ð¾Ð»Ð½Ð¸Ñ‚ÑŒ ÑÐ»ÐµÐ´ÑƒÑŽÑ‰ÐµÐµ: <b>Ð¾Ñ‚ÐºÑ€Ð¾Ð¹Ñ‚Ðµ Ð²ÐµÐ±-ÑÐ°Ð¹Ñ‚ F1TV Ð½Ð° ÐºÐ¾Ð¼Ð¿ÑŒÑŽÑ‚ÐµÑ€Ðµ</b>,
+        Ð²Ð¾Ð¹Ð´Ð¸Ñ‚Ðµ Ð² ÑƒÑ‡ÐµÑ‚Ð½ÑƒÑŽ Ð·Ð°Ð¿Ð¸ÑÑŒ Ð¸ÑÐ¿Ð¾Ð»ÑŒÐ·ÑƒÑ Ð’Ð°Ñˆ email Ð¸ Ð¿Ð°Ñ€Ð¾Ð»ÑŒ
+        Ð²ÐµÑ€Ð½Ð¸Ñ‚ÐµÑÑŒ Ð² Ð¿Ñ€Ð¸Ð»Ð¾Ð¶ÐµÐ½Ð¸Ðµ Ð¸ Ð¿Ð¾Ð²Ñ‚Ð¾Ñ€Ð¸Ñ‚Ðµ Ð¿Ð¾Ð¿Ñ‹Ñ‚ÐºÑƒ Ð²Ñ…Ð¾Ð´Ð°.\n
+        2. ÐšÑ€Ð¾Ð¼Ðµ Ñ‚Ð¾Ð³Ð¾, Ð¿Ñ€Ð¸Ñ‡Ð¸Ð½Ð¾Ð¹ Ð¼Ð¾Ð¶ÐµÑ‚ Ð±Ñ‹Ñ‚ÑŒ Ð±Ð»Ð¾ÐºÐ¸Ñ€Ð¾Ð²ÐºÐ° Ð’Ð°ÑˆÐµÐ³Ð¾ IP Ð°Ð´Ñ€ÐµÑÐ° (ÐºÐ¾Ð´ 401). Ð’ ÑÑ‚Ð¾Ð¼ ÑÐ»ÑƒÑ‡Ð°Ðµ Ð¿Ð¾Ð¿Ñ€Ð¾Ð±ÑƒÐ¹Ñ‚Ðµ
+        Ð¿ÐµÑ€ÐµÐºÐ»ÑŽÑ‡Ð¸Ñ‚ÑŒÑÑ Ð½Ð° Ð´Ñ€ÑƒÐ³Ð¾Ðµ ÑÐµÑ‚ÐµÐ²Ð¾Ðµ ÑÐ¾ÐµÐ´Ð¸Ð½ÐµÐ½Ð¸Ðµ. Ð¢Ð°ÐºÐ¶Ðµ Ð’Ñ‹ Ð¼Ð¾Ð¶ÐµÑ‚Ðµ Ð¾Ð±Ñ€Ð°Ñ‚Ð¸Ñ‚ÑŒÑÑ Ð·Ð° Ð¿Ð¾Ð¼Ð¾Ñ‰ÑŒÑŽ Ð² ÑÐ»ÑƒÐ¶Ð±Ñƒ Ñ‚ÐµÑ…Ð½Ð¸Ñ‡ÐµÑÐºÐ¾Ð¹ Ð¿Ð¾Ð´Ð´ÐµÑ€Ð¶ÐºÐ¸ F1Tv.
     </string>
 
     <string name="unable_to_play_video_session_expired">Your session is expired, please login again</string>
-    <string name="unable_to_play_video_message">Что-то пошло не так при попытке проигрывания видео</string>
-    <string name="audio_selection_dialog_title">Звук</string>
-    <string name="video_selection_dialog_title">Видео</string>
-    <string name="video_selection_quality_auto">Автоматически</string>
+    <string name="unable_to_play_video_message">Ð§Ñ‚Ð¾-Ñ‚Ð¾ Ð¿Ð¾ÑˆÐ»Ð¾ Ð½Ðµ Ñ‚Ð°Ðº Ð¿Ñ€Ð¸ Ð¿Ð¾Ð¿Ñ‹Ñ‚ÐºÐµ Ð¿Ñ€Ð¾Ð¸Ð³Ñ€Ñ‹Ð²Ð°Ð½Ð¸Ñ Ð²Ð¸Ð´ÐµÐ¾</string>
+    <string name="audio_selection_dialog_title">Ð—Ð²ÑƒÐº</string>
+    <string name="video_selection_dialog_title">Ð’Ð¸Ð´ÐµÐ¾</string>
+    <string name="video_selection_quality_auto">ÐÐ²Ñ‚Ð¾Ð¼Ð°Ñ‚Ð¸Ñ‡ÐµÑÐºÐ¸</string>
     <string name="unable_to_open_with_external_player">No supported external player detected, please install a supported player such as VLC and try again, or disable the open with external player feature</string>
     <string name="watching_on_external_player">You are watching the content with an external player</string>
 
-    <string name="choose_a_season">Выбор сезона</string>
+    <string name="choose_a_season">Ð’Ñ‹Ð±Ð¾Ñ€ ÑÐµÐ·Ð¾Ð½Ð°</string>
 
-    <string name="teaser_image_text">Текущий сезон: %1$d</string>
-    <string name="teaser_image_description">Текущий сезон</string>
+    <string name="teaser_image_text">Ð¢ÐµÐºÑƒÑ‰Ð¸Ð¹ ÑÐµÐ·Ð¾Ð½: %1$d</string>
+    <string name="teaser_image_description">Ð¢ÐµÐºÑƒÑ‰Ð¸Ð¹ ÑÐµÐ·Ð¾Ð½</string>
 
-    <string name="home_all">Показать всё</string>
-    <string name="home_archive">Архив</string>
+    <string name="home_all">ÐŸÐ¾ÐºÐ°Ð·Ð°Ñ‚ÑŒ Ð²ÑÑ‘</string>
+    <string name="home_archive">ÐÑ€Ñ…Ð¸Ð²</string>
 
     <string name="settings_content_description">Settings</string>
     <string name="settings_category_player_title">Player</string>
@@ -38,52 +38,55 @@
     <string name="settings_bypass_channel_selection_summary">If ON after select a event you will be immediately redirected to the player in the general broadcast</string>
     <string name="settings_display_thumbnails_enabled_title">Display Thumbnails</string>
     <string name="settings_display_thumbnails_enabled_summary">Thumbnails may contain spoilers. Turning this OFF will disable thumbnail images</string>
-    <string name="settings_disable_hdr_playback_title">Отключить воспроизведение HDR</string>
-    <string name="settings_disable_hdr_playback_summary">Принудительно использует SDR и пропускает HDR-манифесты даже на устройствах, которые могут воспроизводить поток 4K HDR или выполнять его tone mapping.</string>
-    <string name="settings_open_with_external_player_title">Open with external player (beta)</string>
+            <string name="settings_open_with_external_player_title">Open with external player (beta)</string>
     <string name="settings_reset_to_default_title">Reset settings to default</string>
     <string name="settings_open_with_external_player_summary">If ON we will use an external player to play content instead the built in player</string>
     <string name="settings_category_other_title">Other</string>
     <string name="settings_donations_title">Donations</string>
-    <string name="settings_donations_summary">Поддержите проект!</string>
+    <string name="settings_donations_summary">ÐŸÐ¾Ð´Ð´ÐµÑ€Ð¶Ð¸Ñ‚Ðµ Ð¿Ñ€Ð¾ÐµÐºÑ‚!</string>
     <string name="settings_logout_title">Logout</string>
-    <string name="donations_explanation_summary">Отсканируйте QR-код ниже телефоном, чтобы поддержать проект</string>
-    <string name="custom_radio_audio_label">Радио</string>
-    <string name="custom_radio_overlay_label">%1$s / %2$sс с задержкой</string>
-    <string name="settings_use_external_audio_title">Внешнее аудио (канал PRES)</string>
-    <string name="settings_use_external_audio_summary">Смешивать международный комментарий с текущим потоком (требуется перезапуск)</string>
-    <string name="settings_audio_offset_ms_title">Смещение синхронизации аудио</string>
-    <string name="custom_radio_sync_action">Синхронизация радио</string>
-    <string name="custom_radio_sync_title">Синхронизация радио [%1$s задержки]</string>
-    <string name="custom_radio_sync_decrease">0,5 с вперед</string>
-    <string name="custom_radio_sync_increase">0,5 с назад</string>
-    <string name="audio_selection_close">Закрыть</string>
-    <string name="custom_radio_sync_close">Закрыть</string>
-    <string name="custom_radio_waiting_message">Ожидание %1$s с для синхронизации.</string>
-    <string name="reauth_message">Повторная аутентификация…</string>
-    <string name="settings_category_account_title">Аккаунт</string>
-    <string name="settings_current_account_title">Текущий аккаунт</string>
-    <string name="settings_current_account_saved_summary">Сохранено для входа: %1$s</string>
-    <string name="settings_current_account_none_summary">Вход не выполнен</string>
+    <string name="donations_explanation_summary">ÐžÑ‚ÑÐºÐ°Ð½Ð¸Ñ€ÑƒÐ¹Ñ‚Ðµ QR-ÐºÐ¾Ð´ Ð½Ð¸Ð¶Ðµ Ñ‚ÐµÐ»ÐµÑ„Ð¾Ð½Ð¾Ð¼, Ñ‡Ñ‚Ð¾Ð±Ñ‹ Ð¿Ð¾Ð´Ð´ÐµÑ€Ð¶Ð°Ñ‚ÑŒ Ð¿Ñ€Ð¾ÐµÐºÑ‚</string>
+    <string name="custom_radio_audio_label">Ð Ð°Ð´Ð¸Ð¾</string>
+    <string name="custom_radio_overlay_label">%1$s / %2$sÑ Ñ Ð·Ð°Ð´ÐµÑ€Ð¶ÐºÐ¾Ð¹</string>
+    <string name="settings_use_external_audio_title">Ð’Ð½ÐµÑˆÐ½ÐµÐµ Ð°ÑƒÐ´Ð¸Ð¾ (ÐºÐ°Ð½Ð°Ð» PRES)</string>
+    <string name="settings_use_external_audio_summary">Ð¡Ð¼ÐµÑˆÐ¸Ð²Ð°Ñ‚ÑŒ Ð¼ÐµÐ¶Ð´ÑƒÐ½Ð°Ñ€Ð¾Ð´Ð½Ñ‹Ð¹ ÐºÐ¾Ð¼Ð¼ÐµÐ½Ñ‚Ð°Ñ€Ð¸Ð¹ Ñ Ñ‚ÐµÐºÑƒÑ‰Ð¸Ð¼ Ð¿Ð¾Ñ‚Ð¾ÐºÐ¾Ð¼ (Ñ‚Ñ€ÐµÐ±ÑƒÐµÑ‚ÑÑ Ð¿ÐµÑ€ÐµÐ·Ð°Ð¿ÑƒÑÐº)</string>
+    <string name="settings_audio_offset_ms_title">Ð¡Ð¼ÐµÑ‰ÐµÐ½Ð¸Ðµ ÑÐ¸Ð½Ñ…Ñ€Ð¾Ð½Ð¸Ð·Ð°Ñ†Ð¸Ð¸ Ð°ÑƒÐ´Ð¸Ð¾</string>
+    <string name="custom_radio_sync_action">Ð¡Ð¸Ð½Ñ…Ñ€Ð¾Ð½Ð¸Ð·Ð°Ñ†Ð¸Ñ Ñ€Ð°Ð´Ð¸Ð¾</string>
+    <string name="custom_radio_sync_title">Ð¡Ð¸Ð½Ñ…Ñ€Ð¾Ð½Ð¸Ð·Ð°Ñ†Ð¸Ñ Ñ€Ð°Ð´Ð¸Ð¾ [%1$s Ð·Ð°Ð´ÐµÑ€Ð¶ÐºÐ¸]</string>
+    <string name="custom_radio_sync_decrease">0,5 Ñ Ð²Ð¿ÐµÑ€ÐµÐ´</string>
+    <string name="custom_radio_sync_increase">0,5 Ñ Ð½Ð°Ð·Ð°Ð´</string>
+    <string name="audio_selection_close">Ð—Ð°ÐºÑ€Ñ‹Ñ‚ÑŒ</string>
+    <string name="custom_radio_sync_close">Ð—Ð°ÐºÑ€Ñ‹Ñ‚ÑŒ</string>
+    <string name="custom_radio_waiting_message">ÐžÐ¶Ð¸Ð´Ð°Ð½Ð¸Ðµ %1$s Ñ Ð´Ð»Ñ ÑÐ¸Ð½Ñ…Ñ€Ð¾Ð½Ð¸Ð·Ð°Ñ†Ð¸Ð¸.</string>
+    <string name="reauth_message">ÐŸÐ¾Ð²Ñ‚Ð¾Ñ€Ð½Ð°Ñ Ð°ÑƒÑ‚ÐµÐ½Ñ‚Ð¸Ñ„Ð¸ÐºÐ°Ñ†Ð¸Ñâ€¦</string>
+    <string name="settings_category_account_title">ÐÐºÐºÐ°ÑƒÐ½Ñ‚</string>
+    <string name="settings_current_account_title">Ð¢ÐµÐºÑƒÑ‰Ð¸Ð¹ Ð°ÐºÐºÐ°ÑƒÐ½Ñ‚</string>
+    <string name="settings_current_account_saved_summary">Ð¡Ð¾Ñ…Ñ€Ð°Ð½ÐµÐ½Ð¾ Ð´Ð»Ñ Ð²Ñ…Ð¾Ð´Ð°: %1$s</string>
+    <string name="settings_current_account_none_summary">Ð’Ñ…Ð¾Ð´ Ð½Ðµ Ð²Ñ‹Ð¿Ð¾Ð»Ð½ÐµÐ½</string>
     <string name="settings_f1_username_title">Email F1TV</string>
-    <string name="settings_f1_password_title">Пароль F1TV</string>
-    <string name="signin_setup_title">Настройка входа</string>
-    <string name="signin_setup_message">Один раз введите email и пароль F1TV, и приложение автоматически заполнит веб-страницу входа. Здесь также можно вставить собственный URL радиопотока.</string>
+    <string name="settings_f1_password_title">ÐŸÐ°Ñ€Ð¾Ð»ÑŒ F1TV</string>
+    <string name="signin_setup_title">ÐÐ°ÑÑ‚Ñ€Ð¾Ð¹ÐºÐ° Ð²Ñ…Ð¾Ð´Ð°</string>
+    <string name="signin_setup_message">ÐžÐ´Ð¸Ð½ Ñ€Ð°Ð· Ð²Ð²ÐµÐ´Ð¸Ñ‚Ðµ email Ð¸ Ð¿Ð°Ñ€Ð¾Ð»ÑŒ F1TV, Ð¸ Ð¿Ñ€Ð¸Ð»Ð¾Ð¶ÐµÐ½Ð¸Ðµ Ð°Ð²Ñ‚Ð¾Ð¼Ð°Ñ‚Ð¸Ñ‡ÐµÑÐºÐ¸ Ð·Ð°Ð¿Ð¾Ð»Ð½Ð¸Ñ‚ Ð²ÐµÐ±-ÑÑ‚Ñ€Ð°Ð½Ð¸Ñ†Ñƒ Ð²Ñ…Ð¾Ð´Ð°. Ð—Ð´ÐµÑÑŒ Ñ‚Ð°ÐºÐ¶Ðµ Ð¼Ð¾Ð¶Ð½Ð¾ Ð²ÑÑ‚Ð°Ð²Ð¸Ñ‚ÑŒ ÑÐ¾Ð±ÑÑ‚Ð²ÐµÐ½Ð½Ñ‹Ð¹ URL Ñ€Ð°Ð´Ð¸Ð¾Ð¿Ð¾Ñ‚Ð¾ÐºÐ°.</string>
     <string name="signin_setup_email_hint">Email F1TV</string>
-    <string name="signin_setup_password_hint">Пароль F1TV</string>
-    <string name="signin_setup_audio_url_hint">Собственный URL радио (необязательно)</string>
-    <string name="signin_setup_confirm">Сохранить и войти</string>
-    <string name="signin_setup_skip">Пропустить</string>
-    <string name="signin_setup_credentials_validation">Введите и email, и пароль, либо оставьте оба поля пустыми.</string>
-    <string name="settings_custom_radio_delay_title">Задержка синхронизации радио</string>
-    <string name="settings_custom_radio_url_title">Собственный URL радио</string>
-    <string name="settings_custom_radio_url_summary">Оставьте пустым, чтобы использовать потоки по умолчанию</string>
-    <string name="settings_auto_select_custom_radio_title">Предпочитать собственное радио при наличии</string>
-    <string name="settings_auto_select_custom_radio_summary">Автоматически заменяет аудио F1 встроенным или сохраненным радиопотоком, когда он доступен.</string>
-    <string name="settings_restrict_custom_radio_to_live_sessions_title">Использовать собственное радио только для прямых эфиров</string>
-    <string name="settings_restrict_custom_radio_to_live_sessions_summary">Запрещает автоматически или вручную выбирать собственное радио для VOD и повторов.</string>
-    <string name="custom_radio_live_only_message">Собственное радио доступно только для прямых эфиров.</string>
-    <string name="settings_app_locale_title">Язык приложения</string>
+    <string name="signin_setup_password_hint">ÐŸÐ°Ñ€Ð¾Ð»ÑŒ F1TV</string>
+    <string name="signin_setup_audio_url_hint">Ð¡Ð¾Ð±ÑÑ‚Ð²ÐµÐ½Ð½Ñ‹Ð¹ URL Ñ€Ð°Ð´Ð¸Ð¾ (Ð½ÐµÐ¾Ð±ÑÐ·Ð°Ñ‚ÐµÐ»ÑŒÐ½Ð¾)</string>
+    <string name="signin_setup_confirm">Ð¡Ð¾Ñ…Ñ€Ð°Ð½Ð¸Ñ‚ÑŒ Ð¸ Ð²Ð¾Ð¹Ñ‚Ð¸</string>
+    <string name="signin_setup_skip">ÐŸÑ€Ð¾Ð¿ÑƒÑÑ‚Ð¸Ñ‚ÑŒ</string>
+    <string name="signin_setup_credentials_validation">Ð’Ð²ÐµÐ´Ð¸Ñ‚Ðµ Ð¸ email, Ð¸ Ð¿Ð°Ñ€Ð¾Ð»ÑŒ, Ð»Ð¸Ð±Ð¾ Ð¾ÑÑ‚Ð°Ð²ÑŒÑ‚Ðµ Ð¾Ð±Ð° Ð¿Ð¾Ð»Ñ Ð¿ÑƒÑÑ‚Ñ‹Ð¼Ð¸.</string>
+    <string name="settings_custom_radio_delay_title">Ð—Ð°Ð´ÐµÑ€Ð¶ÐºÐ° ÑÐ¸Ð½Ñ…Ñ€Ð¾Ð½Ð¸Ð·Ð°Ñ†Ð¸Ð¸ Ñ€Ð°Ð´Ð¸Ð¾</string>
+    <string name="settings_custom_radio_url_title">Ð¡Ð¾Ð±ÑÑ‚Ð²ÐµÐ½Ð½Ñ‹Ð¹ URL Ñ€Ð°Ð´Ð¸Ð¾</string>
+    <string name="settings_custom_radio_url_summary">ÐžÑÑ‚Ð°Ð²ÑŒÑ‚Ðµ Ð¿ÑƒÑÑ‚Ñ‹Ð¼, Ñ‡Ñ‚Ð¾Ð±Ñ‹ Ð¸ÑÐ¿Ð¾Ð»ÑŒÐ·Ð¾Ð²Ð°Ñ‚ÑŒ Ð¿Ð¾Ñ‚Ð¾ÐºÐ¸ Ð¿Ð¾ ÑƒÐ¼Ð¾Ð»Ñ‡Ð°Ð½Ð¸ÑŽ</string>
+    <string name="settings_auto_select_custom_radio_title">ÐŸÑ€ÐµÐ´Ð¿Ð¾Ñ‡Ð¸Ñ‚Ð°Ñ‚ÑŒ ÑÐ¾Ð±ÑÑ‚Ð²ÐµÐ½Ð½Ð¾Ðµ Ñ€Ð°Ð´Ð¸Ð¾ Ð¿Ñ€Ð¸ Ð½Ð°Ð»Ð¸Ñ‡Ð¸Ð¸</string>
+    <string name="settings_auto_select_custom_radio_summary">ÐÐ²Ñ‚Ð¾Ð¼Ð°Ñ‚Ð¸Ñ‡ÐµÑÐºÐ¸ Ð·Ð°Ð¼ÐµÐ½ÑÐµÑ‚ Ð°ÑƒÐ´Ð¸Ð¾ F1 Ð²ÑÑ‚Ñ€Ð¾ÐµÐ½Ð½Ñ‹Ð¼ Ð¸Ð»Ð¸ ÑÐ¾Ñ…Ñ€Ð°Ð½ÐµÐ½Ð½Ñ‹Ð¼ Ñ€Ð°Ð´Ð¸Ð¾Ð¿Ð¾Ñ‚Ð¾ÐºÐ¾Ð¼, ÐºÐ¾Ð³Ð´Ð° Ð¾Ð½ Ð´Ð¾ÑÑ‚ÑƒÐ¿ÐµÐ½.</string>
+    <string name="settings_restrict_custom_radio_to_live_sessions_title">Ð˜ÑÐ¿Ð¾Ð»ÑŒÐ·Ð¾Ð²Ð°Ñ‚ÑŒ ÑÐ¾Ð±ÑÑ‚Ð²ÐµÐ½Ð½Ð¾Ðµ Ñ€Ð°Ð´Ð¸Ð¾ Ñ‚Ð¾Ð»ÑŒÐºÐ¾ Ð´Ð»Ñ Ð¿Ñ€ÑÐ¼Ñ‹Ñ… ÑÑ„Ð¸Ñ€Ð¾Ð²</string>
+    <string name="settings_restrict_custom_radio_to_live_sessions_summary">Ð—Ð°Ð¿Ñ€ÐµÑ‰Ð°ÐµÑ‚ Ð°Ð²Ñ‚Ð¾Ð¼Ð°Ñ‚Ð¸Ñ‡ÐµÑÐºÐ¸ Ð¸Ð»Ð¸ Ð²Ñ€ÑƒÑ‡Ð½ÑƒÑŽ Ð²Ñ‹Ð±Ð¸Ñ€Ð°Ñ‚ÑŒ ÑÐ¾Ð±ÑÑ‚Ð²ÐµÐ½Ð½Ð¾Ðµ Ñ€Ð°Ð´Ð¸Ð¾ Ð´Ð»Ñ VOD Ð¸ Ð¿Ð¾Ð²Ñ‚Ð¾Ñ€Ð¾Ð².</string>
+    <string name="custom_radio_live_only_message">Ð¡Ð¾Ð±ÑÑ‚Ð²ÐµÐ½Ð½Ð¾Ðµ Ñ€Ð°Ð´Ð¸Ð¾ Ð´Ð¾ÑÑ‚ÑƒÐ¿Ð½Ð¾ Ñ‚Ð¾Ð»ÑŒÐºÐ¾ Ð´Ð»Ñ Ð¿Ñ€ÑÐ¼Ñ‹Ñ… ÑÑ„Ð¸Ñ€Ð¾Ð².</string>
+    <string name="settings_app_locale_title">Ð¯Ð·Ñ‹Ðº Ð¿Ñ€Ð¸Ð»Ð¾Ð¶ÐµÐ½Ð¸Ñ</string>
 
     <string name="channel_selection_switch_channel">Switch channel</string>
+    <string name="settings_disable_uhd_manifests_title">Отключить манифесты UHD (4K)</string>
+    <string name="settings_disable_uhd_manifests_summary">Принудительное воспроизведение 1080p SDR и пропуск манифестов UHD/HDR, даже на устройствах, которые могут воспроизводить или преобразовывать тональность потока 4K HDR.</string>
+    <string name="settings_disable_hdr_on_4k_streams_title">Отключить HDR в потоках 4K (SDR Tone Mapping)</string>
+    <string name="settings_disable_hdr_on_4k_streams_summary">Если вы видите зеленый экран на потоках 4K, включите это для преобразования HDR-видео в SDR с сохранением разрешения 4K.</string>
 </resources>
+

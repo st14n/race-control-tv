@@ -262,7 +262,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     private val renderersFactory: RenderersFactory by lazy {
         val settings = settingsRepository.getCurrent()
         val viewing = findViewing(this)
-        val enableHdrToSdrToneMapping = settings.forceSdrToneMapping
+        val enableHdrToSdrToneMapping = settings.disableHdrOn4kStreams
         val enableProtectedHlgVideoGraph = shouldUseProtectedHlgGraph(viewing) && !enableHdrToSdrToneMapping
         val enableOfficialLikeDirectHdrCodecConfig = false
         Log.i(
@@ -554,7 +554,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         
         // Intentionally NOT applying BT.2020 HLG dataspace explicitly to avoid breaking MediaTek secure surfaces
 
-        val useVideoGraph = shouldUseProtectedHlgGraph() || settingsRepository.getCurrent().forceSdrToneMapping
+        val useVideoGraph = shouldUseProtectedHlgGraph() || settingsRepository.getCurrent().disableHdrOn4kStreams
         if (useVideoGraph) {
             // When the PlaybackVideoGraphWrapper (video effects graph) is active, we MUST use
             // setVideoSurfaceView() rather than setVideoSurface(raw surface).
@@ -1172,19 +1172,6 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         if (!settings.restrictCustomRadioToLiveSessions) return true
         if (findIsLiveSession(requireActivity())) return true
 
-        // Some currently-broadcasting F1 sessions arrive with ARG_IS_LIVE_SESSION=false.
-        // Once playback has a dynamic/live timeline, allow custom radio anyway.
-        val activePlayer = _player ?: return false
-        val timeline = activePlayer.currentTimeline
-        if (!timeline.isEmpty) {
-            val window = androidx.media3.common.Timeline.Window()
-            timeline.getWindow(activePlayer.currentMediaItemIndex.coerceAtLeast(0), window)
-            if (window.isLive || window.isDynamic) {
-                Log.i(TAG, "Custom radio allowed from player timeline isLive=${window.isLive} isDynamic=${window.isDynamic}")
-                return true
-            }
-        }
-
         return false
     }
 
@@ -1193,14 +1180,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     ): Boolean {
         if (!settings.autoSelectCustomRadio) return false
         val viewing = currentViewing
-        if (viewing != null && looksLikeHdrUhdWidevine(viewing)) {
-            Log.i(
-                TAG,
-                "Skipping auto custom radio for protected HDR playback " +
-                    "streamType=${viewing.streamType} requestedOverride=${viewing.requestedOverrideStreamType}"
-            )
-            return false
-        }
+
         if (viewing?.externalAudioRequired == true || viewing?.externalAudioUri != null) {
             Log.i(TAG, "Auto custom radio allowed with external/companion audio; main player audio will be disabled")
         }

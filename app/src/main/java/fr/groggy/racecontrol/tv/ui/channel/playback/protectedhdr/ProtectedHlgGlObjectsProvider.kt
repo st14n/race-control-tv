@@ -12,7 +12,9 @@ import androidx.media3.common.GlObjectsProvider
 import androidx.media3.common.GlTextureInfo
 import androidx.media3.effect.DefaultGlObjectsProvider
 
-class ProtectedHlgGlObjectsProvider : GlObjectsProvider {
+class ProtectedHlgGlObjectsProvider(
+    private val forceSdrOutput: Boolean = false
+) : GlObjectsProvider {
 
     private val delegate = DefaultGlObjectsProvider()
     private val protectedContexts = mutableListOf<EGLContext>()
@@ -52,9 +54,15 @@ class ProtectedHlgGlObjectsProvider : GlObjectsProvider {
             return delegate.createEglSurface(eglDisplay, surface, colorTransfer, isEncoderInputSurface)
         }
 
-        // Always attempt HLG output surface — colorTransfer from Media3 reflects internal 
+        // Always attempt HLG output surface by default — colorTransfer from Media3 reflects internal 
         // graph format, not the display color space we actually want.
-        val attempt = EglSurfaceAttempt("hlg-output", protectedContent = true, bt2020Hlg = true)
+        val attempt = if (forceSdrOutput) {
+            Log.i(TAG, "Creating SDR EGL window surface for output (tone-mapping active)")
+            EglSurfaceAttempt("sdr-output", protectedContent = true, bt2020Hlg = false)
+        } else {
+            Log.i(TAG, "Creating HLG EGL window surface for output")
+            EglSurfaceAttempt("hlg-output", protectedContent = true, bt2020Hlg = true)
+        }
 
         createEglWindowSurface(eglDisplay, surface, attempt)?.let { return it }
 

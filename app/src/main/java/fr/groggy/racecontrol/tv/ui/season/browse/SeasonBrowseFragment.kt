@@ -118,22 +118,24 @@ class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener 
     private fun onUpdatedSeason(season: Season) {
         title = season.name
         val existingListRows = eventsAdapter.unmodifiableList<ListRow>()
-        val events = season.events
+        val newEventRows = season.events
             .filter { it.sessions.isNotEmpty() }
             .map { toListRow(it, existingListRows) }
-        if (existingListRows.size != events.size ||
-            (0 until existingListRows.size).any { index -> !hasMatchingSessions(existingListRows[index], events[index]) }) {
-            eventsAdapter.setItems(events, eventListRowDiffCallback)
+
+        var needsUpdate = existingListRows.size != newEventRows.size
+        if (!needsUpdate) {
+            for (i in existingListRows.indices) {
+                if (existingListRows[i] !== newEventRows[i]) {
+                    needsUpdate = true
+                    break
+                }
+            }
+        }
+
+        if (needsUpdate) {
+            eventsAdapter.setItems(newEventRows, eventListRowDiffCallback)
         }
     }
-
-    private fun hasMatchingSessions(
-        existingListRow: ListRow,
-        sessionsListRow: ListRow
-    ) = (existingListRow.adapter.size() == sessionsListRow.adapter.size() // Do we have the same number of items
-            || (0 until existingListRow.adapter.size()).all { index -> // If so, do the sessions in each match in order?
-        existingListRow.adapter[index] as Session == sessionsListRow.adapter[index] as Session
-    })
 
     private fun toListRow(event: Event, existingListRows: List<ListRow>): ListRow {
         val existingListRow = existingListRows.find { it.headerItem.name == event.name }
@@ -145,7 +147,18 @@ class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener 
             val sessionsAdapter = existingListRow.adapter as ArrayObjectAdapter
             existingListRow to sessionsAdapter
         }
-        if (existingListRow == null || !hasMatchingSessions(existingListRow, listRow)) {
+        val existingSessions = sessionsAdapter.unmodifiableList<Session>()
+        var sessionsNeedUpdate = existingSessions.size != event.sessions.size
+        if (!sessionsNeedUpdate) {
+            for (i in existingSessions.indices) {
+                if (existingSessions[i] != event.sessions[i]) {
+                    sessionsNeedUpdate = true
+                    break
+                }
+            }
+        }
+
+        if (sessionsNeedUpdate) {
             sessionsAdapter.setItems(event.sessions, Session.diffCallback)
         }
         return listRow

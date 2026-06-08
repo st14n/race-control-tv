@@ -4,10 +4,10 @@ data class Settings(
     val bypassChannelSelection: Boolean,
     val displayThumbnailsEnabled: Boolean,
     val openWithExternalPlayer: Boolean,
-    /** Force SDR playback by disabling HDR manifest requests and HDR-to-SDR tone mapping. */
-    val disableHdrPlayback: Boolean,
+    /** Force SDR playback by disabling HDR manifest requests. */
+    val disableUhdManifests: Boolean,
     /** Force SDR tone-mapping for HDR video (keeps 4K resolution but tonemaps to SDR). */
-    val forceSdrToneMapping: Boolean,
+    val disableHdrOn4kStreams: Boolean,
     /** Merge the PRES/F1Live audio stream alongside the selected video channel. */
     val useExternalAudio: Boolean,
     /** Manual A/V sync offset in milliseconds (positive = audio ahead of video). */
@@ -39,14 +39,14 @@ data class Settings(
             bypassChannelSelection = false,
             displayThumbnailsEnabled = true,
             openWithExternalPlayer = false,
-            disableHdrPlayback = false,
-            forceSdrToneMapping = false,
+            disableUhdManifests = false,
+            disableHdrOn4kStreams = false,
             useExternalAudio = false,
             audioOffsetMs = 0L,
             customRadioDelayMs = 20_000L,
             customRadioUrl = "",
             autoSelectCustomRadio = true,
-            restrictCustomRadioToLiveSessions = true,
+            restrictCustomRadioToLiveSessions = false,
             f1Username = "",
             f1Password = ""
         )

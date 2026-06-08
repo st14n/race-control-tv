@@ -64,11 +64,11 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
     }
 
     private val preferHdrManifestForDevice: Boolean by lazy(LazyThreadSafetyMode.NONE) {
-        val preferHdr = !settingsRepository.getCurrent().disableHdrPlayback &&
+        val preferHdrManifest = !settingsRepository.getCurrent().disableUhdManifests &&
             DeviceInfo.shouldRequestHdrManifest(this) &&
             allowsUhdPlaybackForSeason()
-        Log.i(TAG, "preferHdrManifestForDevice=$preferHdr")
-        preferHdr
+        Log.i(TAG, "preferHdrManifestForDevice=$preferHdrManifest")
+        preferHdrManifest
     }
 
     companion object {
