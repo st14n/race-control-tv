@@ -257,19 +257,18 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             (isForceProtectedHlgGraph() || protectedHdrCapabilities.canCreateProtectedHlgEglSurface)
     }
 
-    private fun shouldUseDirectMedia3HdrSurface(viewing: F1TvViewing? = currentViewing ?: findViewing(this)): Boolean {
-        return !shouldUseProtectedHlgGraph(viewing) &&
-            viewing?.let { looksLikeHdrUhdWidevine(it) } == true
-    }
+
 
     private val renderersFactory: RenderersFactory by lazy {
         val settings = settingsRepository.getCurrent()
         val viewing = findViewing(this)
-        val enableProtectedHlgVideoGraph = shouldUseProtectedHlgGraph(viewing)
-        val enableOfficialLikeDirectHdrCodecConfig = shouldUseDirectMedia3HdrSurface(viewing)
+        val enableHdrToSdrToneMapping = settings.forceSdrToneMapping
+        val enableProtectedHlgVideoGraph = shouldUseProtectedHlgGraph(viewing) && !enableHdrToSdrToneMapping
+        val enableOfficialLikeDirectHdrCodecConfig = false
         Log.i(
             TAG,
             "Media3 renderer factory protectedHlgGraph=$enableProtectedHlgVideoGraph " +
+                "enableHdrToSdrToneMapping=$enableHdrToSdrToneMapping " +
                 "officialLikeDirectHdrCodecConfig=$enableOfficialLikeDirectHdrCodecConfig " +
                 "forceDirectMedia3HdrSurface=${isForceDirectMedia3HdrSurface()} " +
                 "forceProtectedHlgGraph=${isForceProtectedHlgGraph()} " +
@@ -277,8 +276,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         )
         HdrToneMappingRenderersFactory(
             requireContext(),
-            enableHdrToSdrToneMapping =
-                !settings.disableHdrPlayback && DeviceInfo.shouldToneMapHdrToSdr(requireContext()),
+            enableHdrToSdrToneMapping = enableHdrToSdrToneMapping,
             enableProtectedHlgVideoGraph = enableProtectedHlgVideoGraph,
             enableOfficialLikeDirectHdrCodecConfig = enableOfficialLikeDirectHdrCodecConfig
         )
@@ -529,15 +527,11 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         playbackSurfaceView.setZOrderMediaOverlay(false)
         // Note: Intentionally NOT forcing PixelFormat.OPAQUE or DATASPACE_BT2020_HLG here.
         // Forcing these can break the secure surface allocation on MediaTek (green screen),
-        // as the DRM decoder and hardware composer must negotiate the exact secure YUV format
         // implicitly through the secure buffer queue. The official Tiledmedia player avoids this.
-        val directHdrSurface = shouldUseDirectMedia3HdrSurface()
         boundPlaybackSurfaceView = playbackSurfaceView
         ensurePlaybackSurfaceHolderCallback(playbackSurfaceView)
         val path = if (shouldUseProtectedHlgGraph()) {
             "forced Media3 protected HLG graph SurfaceView"
-        } else if (directHdrSurface) {
-            "official-like direct secure Media3 HDR SurfaceView"
         } else {
             "protected/secure SurfaceView"
         }
@@ -560,7 +554,8 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         
         // Intentionally NOT applying BT.2020 HLG dataspace explicitly to avoid breaking MediaTek secure surfaces
 
-        if (shouldUseProtectedHlgGraph()) {
+        val useVideoGraph = shouldUseProtectedHlgGraph() || settingsRepository.getCurrent().forceSdrToneMapping
+        if (useVideoGraph) {
             // When the PlaybackVideoGraphWrapper (video effects graph) is active, we MUST use
             // setVideoSurfaceView() rather than setVideoSurface(raw surface).
             // setVideoSurface() bypasses the graph and connects the raw surface directly to the
@@ -592,14 +587,9 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         } else {
             Log.i(TAG, "Binding explicit Surface to ExoPlayer (bypassing internal DummySurface listeners) source=$source")
             player.setVideoSurface(surface)
-            val path = if (shouldUseDirectMedia3HdrSurface()) {
-                "official-like direct secure Media3 HDR SurfaceView"
-            } else {
-                "protected/secure SurfaceView"
-            }
             Log.i(
                 TAG,
-                "Bound ExoPlayer to $path " +
+                "Bound ExoPlayer to protected/secure SurfaceView " +
                     "source=$source view=${System.identityHashCode(surfaceView)}"
             )
         }

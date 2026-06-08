@@ -575,11 +575,59 @@ Based on deeper investigation of the decompiled Tiledmedia SDK:
 - We realized that forcing `PixelFormat.OPAQUE` or an explicit dataspace might break the DRM and hardware composer's implicit negotiation for secure YUV buffers, leading to the green screen.
 - **Action Taken:** Removed `playbackSurfaceView.holder.setFormat(android.graphics.PixelFormat.OPAQUE)` and `HdrSurfaceHints.applyBt2020HlgDataSpace` from `ChannelPlaybackFragment.kt`. Left `playbackSurfaceView.setSecure(true)` intact. The Direct Media3 route will now pass a completely vanilla secure `SurfaceView` to ExoPlayer.
 
+### 2026-06-08 Test: MediaTek Surface Size Race Condition & Codec Overrides
+In the latest iteration, we identified two highly likely culprits for the green screen:
+1. **The MediaCodec Overrides**: Our `OfficialLikeDirectHdrMediaCodecVideoRenderer` was forcefully injecting `KEY_COLOR_TRANSFER_REQUEST`, `KEY_PRIORITY = 0`, and unsetting the `KEY_OPERATING_RATE`. The official app's player simply lets ExoPlayer extract the standard flags from the DASH manifest. Forcing `KEY_COLOR_TRANSFER_REQUEST` may have caused a double-mapping bug on the MediaTek decoder.
+2. **The Surface Size Race Condition**: ExoPlayer's `MediaCodecVideoRenderer` processes the first frame asynchronously. Leanback's `VideoSupportFragment` binds the `SurfaceView` at its initial layout size (1920x1080). If the decoder delivers the very first 3840x2160 HDR 10-bit YUV frame to the composer while the surface bounds are still 1080p, the MediaTek MT8696 hardware composer panics, corrupts the pipeline, and permanently locks the video plane to green. The subsequent resize triggered by ExoPlayer's `onVideoSizeChanged` is too late.
+
+**Fix Applied (Awaiting Final User Verification):**
+- **Removed** `enableOfficialLikeDirectHdrCodecConfig` so ExoPlayer negotiates with `MediaCodec` natively without our overrides.
+- **Proactively forced** the `SurfaceView` fixed size to `3840x2160` inside `configurePlaybackVideoSurface` (before the player is even initialized) if `looksLikeHdrUhdWidevine(viewing)` is true. This guarantees the composer sees a 4K surface for the very first frame.
+
+### 2026-06-08 Comprehensive Surface Pipeline Cleanup (Second Pass)
+
+**Context:** Toast diagnostic confirmed `EGL false / attempted true`. Device does NOT expose `EGL_EXT_protected_content` extension string. `shouldUseProtectedRenderer=false` so app routes to `ChannelPlaybackFragment` direct SurfaceView path.
+
+**Critical bugs found and fixed in this session:**
+
+1. **Tunneling still enabled** — `setTunnelingEnabled(true)` was in `ChannelPlaybackFragment.applyPlaybackVideoConstraints()` despite the handoff docs saying it was "removed after testing". Tunneling conflicts with custom radio (which needs audio path control). Now removed with a comment explaining why.
+
+2. **Pixel format override** — `playbackSurfaceView.holder.setFormat(PixelFormat.TRANSPARENT)` was being called in `configurePlaybackVideoSurface`. This forces an explicit pixel format negotiation which may interfere with the MediaTek HWC's implicit secure-buffer pipeline. Removed.
+
+3. **Dataspace/format overrides still active** — `applyBt2020HlgDataSpace()` in `bindPlaybackVideoSurface` was calling `setFormat(RGBA_1010102)` and `SurfaceControl.Transaction.setDataSpace(BT2020_HLG)` for the direct HDR path. The official Tiledmedia app only calls `setSecure(true)` and does NOT override pixel format or SurfaceControl dataspace. These explicit overrides break the MediaTek HWC's implicit secure YUV buffer negotiation. Now gutted to a no-op with explanation.
+
+4. **OfficialLikeHdrPlaybackFragment** still had:
+   - `enableOfficialLikeDirectHdrCodecConfig = true` → MediaCodec overrides still active on that path
+   - `surfaceView.holder.setFormat(PixelFormat.OPAQUE)` → explicit pixel format
+   - `HdrSurfaceHints.applyBt2020HlgDataSpace()` called 4 times (surfaceCreated, surfaceChanged, videoSizeChanged, onCreateView-post)
+   - `holder.setSizeFromLayout()` resetting the proactive 4K fixed size back to 1080p
+   All removed. Now only `setSecure(true)` + `holder.setFixedSize(3840, 2160)`.
+
+5. **Proactive 4K surface fixed size** now conditioned to only apply on the direct surface path (not when protected HLG graph is active, which manages its own EGL surface size).
+
+**Build installed:** `com.st14n.f1.debug`, logcat cleared.
+
+**Expected toast in next test:**
+```
+EGL: false | Path: VANILLA-SV | Attempted: true
+```
+
+**Expected log markers in next test:**
+```
+Configured direct secure Media3 HDR SurfaceView (vanilla — no format/dataspace override) ...
+Preemptively setting SurfaceView fixed size to 3840x2160 ...
+Created official-like secure HDR SurfaceView (vanilla: only setSecure) ... fixedSize=3840x2160
+```
+
+**What the next test proves or disproves:**
+- If green screen is resolved: the pixel format / dataspace / tunneling / MediaCodec overrides were the culprit.
+- If still green: the issue is deeper in ExoPlayer's MediaCodec configuration or the MediaTek display pipeline itself, and we've exhausted the surface-manipulation angle.
+
 ### Remaining No-License Possibility Matrix
 
 Still plausible enough to test:
 
-- Testing the cleaned-up direct secure `SurfaceView` route (now completely devoid of pixel format and dataspace overrides). The official app proves that a vanilla secure `SurfaceView` works perfectly.
+- Testing the cleaned-up direct secure `SurfaceView` route (now completely devoid of pixel format, dataspace overrides, and MediaCodec overrides) with the **proactive 4K surface fixed-size**.
 - HLS CMAF-WV versus DASH-WV. Both reached HLG/BT.2020 decode; DASH-WV is the preferred path.
 
 Not viable without changing product constraints:

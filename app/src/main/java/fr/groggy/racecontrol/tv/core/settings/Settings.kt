@@ -6,6 +6,8 @@ data class Settings(
     val openWithExternalPlayer: Boolean,
     /** Force SDR playback by disabling HDR manifest requests and HDR-to-SDR tone mapping. */
     val disableHdrPlayback: Boolean,
+    /** Force SDR tone-mapping for HDR video (keeps 4K resolution but tonemaps to SDR). */
+    val forceSdrToneMapping: Boolean,
     /** Merge the PRES/F1Live audio stream alongside the selected video channel. */
     val useExternalAudio: Boolean,
     /** Manual A/V sync offset in milliseconds (positive = audio ahead of video). */
@@ -38,6 +40,7 @@ data class Settings(
             displayThumbnailsEnabled = true,
             openWithExternalPlayer = false,
             disableHdrPlayback = false,
+            forceSdrToneMapping = false,
             useExternalAudio = false,
             audioOffsetMs = 0L,
             customRadioDelayMs = 20_000L,
@@ -52,6 +55,7 @@ data class Settings(
         const val KEY_DISPLAY_THUMBNAILS_ENABLED = "display_thumbnails_enabled"
         const val KEY_OPEN_WITH_EXTERNAL_PLAYER = "open_with_external_player"
         const val KEY_DISABLE_HDR_PLAYBACK = "disable_hdr_playback"
+        const val KEY_FORCE_SDR_TONE_MAPPING = "force_sdr_tone_mapping"
         const val KEY_USE_EXTERNAL_AUDIO = "use_external_audio"
         const val KEY_AUDIO_OFFSET_MS = "audio_offset_ms"
         const val KEY_CUSTOM_RADIO_DELAY_MS = "custom_radio_delay_ms"

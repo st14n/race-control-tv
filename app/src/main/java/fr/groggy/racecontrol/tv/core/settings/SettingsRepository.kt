@@ -59,6 +59,7 @@ class SettingsRepository(
                 displayThumbnailsEnabled = getBoolean(Settings.KEY_DISPLAY_THUMBNAILS_ENABLED, Settings.DEFAULT.displayThumbnailsEnabled),
                 openWithExternalPlayer = getBoolean(Settings.KEY_OPEN_WITH_EXTERNAL_PLAYER, Settings.DEFAULT.openWithExternalPlayer),
                 disableHdrPlayback = getBoolean(Settings.KEY_DISABLE_HDR_PLAYBACK, Settings.DEFAULT.disableHdrPlayback),
+                forceSdrToneMapping = getBoolean(Settings.KEY_FORCE_SDR_TONE_MAPPING, Settings.DEFAULT.forceSdrToneMapping),
                 useExternalAudio = getBoolean(Settings.KEY_USE_EXTERNAL_AUDIO, Settings.DEFAULT.useExternalAudio),
                 audioOffsetMs = getString(Settings.KEY_AUDIO_OFFSET_MS, null)?.toLongOrNull()
                     ?: Settings.DEFAULT.audioOffsetMs,

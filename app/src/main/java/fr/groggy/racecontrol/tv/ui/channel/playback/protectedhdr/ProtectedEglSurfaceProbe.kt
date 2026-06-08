@@ -46,7 +46,7 @@ object ProtectedEglSurfaceProbe {
                     succeeded = false,
                     usedProtectedContext = false,
                     eglError = eglError(),
-                    reason = "unable to get EGL default display"
+                    reason = "eglGetDisplay failed"
                 )
             )
         }
@@ -70,35 +70,7 @@ object ProtectedEglSurfaceProbe {
         var usedProtectedContext = false
 
         try {
-            val extensions = EGL14.eglQueryString(display, EGL14.EGL_EXTENSIONS)
-                ?.split(' ')
-                ?.filter { it.isNotBlank() }
-                ?.toSet()
-                .orEmpty()
-            if ("EGL_EXT_protected_content" !in extensions) {
-                return logResult(
-                    source,
-                    ProtectedEglSurfaceProbeResult(
-                        attempted = true,
-                        succeeded = false,
-                        usedProtectedContext = false,
-                        eglError = EGL14.EGL_SUCCESS,
-                        reason = "EGL_EXT_protected_content is not exposed on the display"
-                    )
-                )
-            }
-            if ("EGL_EXT_gl_colorspace_bt2020_hlg" !in extensions) {
-                return logResult(
-                    source,
-                    ProtectedEglSurfaceProbeResult(
-                        attempted = true,
-                        succeeded = false,
-                        usedProtectedContext = false,
-                        eglError = EGL14.EGL_SUCCESS,
-                        reason = "EGL_EXT_gl_colorspace_bt2020_hlg is not exposed on the display"
-                    )
-                )
-            }
+            Log.i(TAG, "Attempting protected EGL context/surface creation (ignoring missing extension strings)")
 
             val config = chooseWindowConfig(display) ?: return logResult(
                 source,

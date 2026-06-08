@@ -48,6 +48,12 @@
             android:summary="@string/settings_disable_hdr_playback_summary"
             android:defaultValue="false" />
 
+        <SwitchPreferenceCompat
+            app:key="force_sdr_tone_mapping"
+            app:title="@string/settings_force_sdr_tone_mapping_title"
+            app:summary="@string/settings_force_sdr_tone_mapping_summary"
+            app:defaultValue="false" />
+
         <ListPreference
             android:key="audio_offset_ms"
             android:title="@string/settings_audio_offset_ms_title"
