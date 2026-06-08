@@ -37,8 +37,6 @@
     <string name="settings_bypass_channel_selection_summary">Indien AAN na het selecteren van een evenement, wordt u onmiddellijk doorgestuurd naar de speler in de algemene uitzending</string>
     <string name="settings_display_thumbnails_enabled_title">Miniaturen weergeven</string>
     <string name="settings_display_thumbnails_enabled_summary">Miniaturen kunnen spoilers bevatten. Als u dit uitschakelt, worden miniatuurafbeeldingen uitgeschakeld</string>
-    <string name="settings_disable_hdr_playback_title">HDR-weergave uitschakelen</string>
-    <string name="settings_disable_hdr_playback_summary">Forceert SDR-weergave en slaat HDR-manifests over, zelfs op apparaten die de 4K-HDR-stream kunnen afspelen of via tone mapping kunnen omzetten.</string>
     <string name="settings_open_with_external_player_title">Open in externe speler(beta)</string>
     <string name="settings_reset_to_default_title">Instellingen terugzetten naar standaard</string>
     <string name="settings_open_with_external_player_summary">Indien AAN gebruiken we een externe speler om inhoud af te spelen in plaats van de ingebouwde speler</string>
@@ -87,4 +85,9 @@
     <string name="settings_restrict_custom_radio_to_live_sessions_summary">Voorkomt dat aangepaste radio automatisch of handmatig wordt geselecteerd bij VOD- en replay-sessies.</string>
     <string name="custom_radio_live_only_message">Aangepaste radio is beperkt tot live-sessies.</string>
     <string name="settings_app_locale_title">App-taal</string>
+    <string name="settings_disable_uhd_manifests_title">UHD (4K)-manifesten uitschakelen</string>
+    <string name="settings_disable_uhd_manifests_summary">Forceer 1080p SDR-weergave en sla UHD/HDR-manifesten over, zelfs op apparaten die de 4K HDR-stream kunnen afspelen of tone-mappen.</string>
+    <string name="settings_disable_hdr_on_4k_streams_title">Schakel HDR uit op 4K-streams (SDR Tone Mapping)</string>
+    <string name="settings_disable_hdr_on_4k_streams_summary">Als u een groen scherm ervaart op 4K-streams, schakel dit dan in om HDR-video naar SDR te converteren met behoud van 4K-resolutie.</string>
 </resources>
+

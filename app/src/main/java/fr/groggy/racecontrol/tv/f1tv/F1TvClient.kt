@@ -45,7 +45,7 @@ class F1TvClient @Inject constructor(
     private val futureSessionResponseJsonAdapter = moshi.adapter(F1TvFutureSessionResponse::class.java)
     private val channelResponseJsonAdapter = moshi.adapter(F1TvChannelResponse::class.java)
     private val sessionArchiveJsonAdapter = moshi.adapter(SessionArchive::class.java)
-    private val archiveSortInstant = Instant.now()
+    private val archiveSortInstant = Instant.EPOCH
 
     suspend fun getSeason(archive: Archive): F1TvSeason {
         val response = get(LIST_SEASON.format(getCurrentLocale(), archive.year), seasonResponseJsonAdapter)

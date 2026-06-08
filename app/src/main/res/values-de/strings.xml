@@ -3,14 +3,14 @@
   <string name="login">E-Mail Adresse</string>
   <string name="password">Passwort</string>
   <string name="signin">Anmelden</string>
-  <string name="signin_required_f1_tv_pro_account">Ein F1TV Pro-Konto ist für die Anmeldung erforderlich</string>
-  <string name="invalid_credentials">Zugangsdaten ungültig</string>
+  <string name="signin_required_f1_tv_pro_account">Ein F1TV Pro-Konto ist fÃ¼r die Anmeldung erforderlich</string>
+  <string name="invalid_credentials">Zugangsdaten ungÃ¼ltig</string>
   <string name="rejected_credentials">Falsche E-Mail Adresse oder falsches Passwort</string>
   <string name="rejected_credentials_message">
         Manchmal kann dies aufgrund eines <b>F1 API BUGS</b> passieren, auch wenn Ihre E-Mail Adresse und Ihr Passwort korrekt sind.\n\n
-        1. Ein möglicher Workaround ist es die <b>F1TV Webseite auf Ihrem Computer aufzurufen</b>.
-        Melden Sie sich mit Ihrem Konto an und anschließend wieder ab und kommen Sie wieder zurück zu dieser App. Dies könnte eventuell helfen.\n
-        2. Es ist auch möglich, dass aus irgendeinem Grund Ihre IP-Adresse blockiert ist (401 Antwort). Eine Möglichkeit dies zu beheben ist das Wechseln des Netzwerkes.
+        1. Ein mÃ¶glicher Workaround ist es die <b>F1TV Webseite auf Ihrem Computer aufzurufen</b>.
+        Melden Sie sich mit Ihrem Konto an und anschlieÃŸend wieder ab und kommen Sie wieder zurÃ¼ck zu dieser App. Dies kÃ¶nnte eventuell helfen.\n
+        2. Es ist auch mÃ¶glich, dass aus irgendeinem Grund Ihre IP-Adresse blockiert ist (401 Antwort). Eine MÃ¶glichkeit dies zu beheben ist das Wechseln des Netzwerkes.
         Sie sollten sich in diesem Fall an den F1 Support wenden.
   </string>
 
@@ -19,10 +19,10 @@
   <string name="audio_selection_dialog_title">Audio</string>
   <string name="video_selection_dialog_title">Video</string>
   <string name="video_selection_quality_auto">Automatisch</string>
-  <string name="unable_to_open_with_external_player">Kein unterstützter externer Player erkannt, bitte installieren Sie einen unterstützten Player (z.B. VLC) und versuchen Sie es erneut, oder deaktivieren Sie die "Öffne mit externem Player" Option</string>
+  <string name="unable_to_open_with_external_player">Kein unterstÃ¼tzter externer Player erkannt, bitte installieren Sie einen unterstÃ¼tzten Player (z.B. VLC) und versuchen Sie es erneut, oder deaktivieren Sie die "Ã–ffne mit externem Player" Option</string>
   <string name="watching_on_external_player">Sie sehen sich diesen Inhalt mit einem externen Player an</string>
 
-  <string name="choose_a_season">Saison auswählen</string>
+  <string name="choose_a_season">Saison auswÃ¤hlen</string>
 
   <string name="teaser_image_text">Aktuelle Saison: %1$d</string>
   <string name="teaser_image_description">Aktuelle Saison</string>
@@ -32,57 +32,59 @@
 
   <string name="settings_content_description">Einstellungen</string>
   <string name="settings_category_player_title">Player</string>
-  <string name="settings_stream_type_title">Streaming-Format auswählen (Beta)</string>
-  <string name="settings_bypass_channel_selection_title">Kanalauswahl überspringen</string>
-  <string name="settings_bypass_channel_selection_summary">Wenn eingeschaltet, wird die Kanalauswahl nach dem Auswählen eines Events übersprungen und Sie gelangen direkt im Player des Hauptkanals</string>
+  <string name="settings_stream_type_title">Streaming-Format auswÃ¤hlen (Beta)</string>
+  <string name="settings_bypass_channel_selection_title">Kanalauswahl Ã¼berspringen</string>
+  <string name="settings_bypass_channel_selection_summary">Wenn eingeschaltet, wird die Kanalauswahl nach dem AuswÃ¤hlen eines Events Ã¼bersprungen und Sie gelangen direkt im Player des Hauptkanals</string>
   <string name="settings_display_thumbnails_enabled_title">Vorschaubilder anzeigen</string>
-  <string name="settings_display_thumbnails_enabled_summary">Vorschaubilder könnten Spoiler enthalten. Das Ausschalten dieser Option deaktiviert die Anzeige der Vorschaubilder</string>
-  <string name="settings_disable_hdr_playback_title">HDR-Wiedergabe deaktivieren</string>
-  <string name="settings_disable_hdr_playback_summary">Erzwingt SDR-Wiedergabe und überspringt HDR-Manifeste, selbst auf Geräten, die den 4K-HDR-Stream wiedergeben oder per Tone-Mapping umwandeln können.</string>
-  <string name="settings_open_with_external_player_title">Öffne mit externem Player (Beta)</string>
-  <string name="settings_reset_to_default_title">Einstellungen zum Standard zurücksetzen</string>
+  <string name="settings_display_thumbnails_enabled_summary">Vorschaubilder kÃ¶nnten Spoiler enthalten. Das Ausschalten dieser Option deaktiviert die Anzeige der Vorschaubilder</string>
+      <string name="settings_open_with_external_player_title">Ã–ffne mit externem Player (Beta)</string>
+  <string name="settings_reset_to_default_title">Einstellungen zum Standard zurÃ¼cksetzen</string>
   <string name="settings_open_with_external_player_summary">Wenn eingeschaltet wird anstatt der integrierte Player, ein externer Player genutzt um den Inhalt abzuspielen</string>
   <string name="settings_category_other_title">Sonstiges</string>
   <string name="settings_donations_title">Spenden</string>
-  <string name="settings_donations_summary">Unterstützen Sie das Projekt!</string>
+  <string name="settings_donations_summary">UnterstÃ¼tzen Sie das Projekt!</string>
   <string name="settings_logout_title">Abmelden</string>
-  <string name="donations_explanation_summary">Scannen Sie den QR-Code unten mit Ihrem Smartphone, um das Projekt zu unterstützen</string>
+  <string name="donations_explanation_summary">Scannen Sie den QR-Code unten mit Ihrem Smartphone, um das Projekt zu unterstÃ¼tzen</string>
   <string name="custom_radio_audio_label">Radio</string>
-  <string name="custom_radio_overlay_label">%1$s / %2$ss verzögert</string>
+  <string name="custom_radio_overlay_label">%1$s / %2$ss verzÃ¶gert</string>
   <string name="settings_use_external_audio_title">Externe Audio (PRES-Kanal)</string>
   <string name="settings_use_external_audio_summary">Mische den internationalen Kommentar mit dem aktuellen Stream (Neustart erforderlich)</string>
   <string name="settings_audio_offset_ms_title">Audio-Synchronisationsversatz</string>
   <string name="custom_radio_sync_action">Radio-Sync</string>
-  <string name="custom_radio_sync_title">Radio-Sync [%1$s verzögert]</string>
-  <string name="custom_radio_sync_decrease">0,5 s vorwärts</string>
-  <string name="custom_radio_sync_increase">0,5 s rückwärts</string>
-  <string name="audio_selection_close">Schließen</string>
-  <string name="custom_radio_sync_close">Schließen</string>
+  <string name="custom_radio_sync_title">Radio-Sync [%1$s verzÃ¶gert]</string>
+  <string name="custom_radio_sync_decrease">0,5 s vorwÃ¤rts</string>
+  <string name="custom_radio_sync_increase">0,5 s rÃ¼ckwÃ¤rts</string>
+  <string name="audio_selection_close">SchlieÃŸen</string>
+  <string name="custom_radio_sync_close">SchlieÃŸen</string>
   <string name="custom_radio_waiting_message">Warte %1$s Sekunden auf die Synchronisierung.</string>
-  <string name="reauth_message">Erneute Anmeldung…</string>
+  <string name="reauth_message">Erneute Anmeldungâ€¦</string>
   <string name="settings_category_account_title">Konto</string>
   <string name="settings_current_account_title">Aktuelles Konto</string>
-  <string name="settings_current_account_saved_summary">Für die Anmeldung gespeichert: %1$s</string>
+  <string name="settings_current_account_saved_summary">FÃ¼r die Anmeldung gespeichert: %1$s</string>
   <string name="settings_current_account_none_summary">Nicht angemeldet</string>
   <string name="settings_f1_username_title">F1TV E-Mail-Adresse</string>
   <string name="settings_f1_password_title">F1TV Passwort</string>
   <string name="signin_setup_title">Anmeldeeinrichtung</string>
-  <string name="signin_setup_message">Geben Sie Ihre F1TV-E-Mail und Ihr Passwort einmal ein, dann füllt die App das Web-Login automatisch aus. Sie können hier auch eine benutzerdefinierte Radio-URL einfügen.</string>
+  <string name="signin_setup_message">Geben Sie Ihre F1TV-E-Mail und Ihr Passwort einmal ein, dann fÃ¼llt die App das Web-Login automatisch aus. Sie kÃ¶nnen hier auch eine benutzerdefinierte Radio-URL einfÃ¼gen.</string>
   <string name="signin_setup_email_hint">F1TV E-Mail</string>
   <string name="signin_setup_password_hint">F1TV Passwort</string>
   <string name="signin_setup_audio_url_hint">Benutzerdefinierte Radio-URL (optional)</string>
   <string name="signin_setup_confirm">Speichern und anmelden</string>
-  <string name="signin_setup_skip">Überspringen</string>
+  <string name="signin_setup_skip">Ãœberspringen</string>
   <string name="signin_setup_credentials_validation">Geben Sie E-Mail und Passwort beide ein oder lassen Sie beide leer.</string>
-  <string name="settings_custom_radio_delay_title">Radio-Synchronisationsverzögerung</string>
+  <string name="settings_custom_radio_delay_title">Radio-SynchronisationsverzÃ¶gerung</string>
   <string name="settings_custom_radio_url_title">Benutzerdefinierte Radio-URL</string>
   <string name="settings_custom_radio_url_summary">Leer lassen, um die Standardstreams zu verwenden</string>
-  <string name="settings_auto_select_custom_radio_title">Benutzerdefiniertes Radio bevorzugen, wenn verfügbar</string>
-  <string name="settings_auto_select_custom_radio_summary">Ersetzt F1-Audio automatisch durch den integrierten oder gespeicherten Radiostream, wenn einer verfügbar ist.</string>
+  <string name="settings_auto_select_custom_radio_title">Benutzerdefiniertes Radio bevorzugen, wenn verfÃ¼gbar</string>
+  <string name="settings_auto_select_custom_radio_summary">Ersetzt F1-Audio automatisch durch den integrierten oder gespeicherten Radiostream, wenn einer verfÃ¼gbar ist.</string>
   <string name="settings_restrict_custom_radio_to_live_sessions_title">Benutzerdefiniertes Radio nur bei Live-Sessions verwenden</string>
   <string name="settings_restrict_custom_radio_to_live_sessions_summary">Verhindert die automatische oder manuelle Auswahl von benutzerdefiniertem Radio bei VOD- und Replay-Sessions.</string>
-  <string name="custom_radio_live_only_message">Benutzerdefiniertes Radio ist auf Live-Sessions beschränkt.</string>
+  <string name="custom_radio_live_only_message">Benutzerdefiniertes Radio ist auf Live-Sessions beschrÃ¤nkt.</string>
   <string name="settings_app_locale_title">App-Sprache</string>
 
   <string name="channel_selection_switch_channel">Switch channel</string>
+    <string name="settings_disable_uhd_manifests_title">UHD (4K)-Manifeste deaktivieren</string>
+    <string name="settings_disable_uhd_manifests_summary">Erzwinge 1080p SDR-Wiedergabe und überspringe UHD/HDR-Manifeste, selbst auf Geräten, die den 4K HDR-Stream abspielen oder Tone-Mapping durchführen können.</string>
+    <string name="settings_disable_hdr_on_4k_streams_title">HDR bei 4K-Streams deaktivieren (SDR Tone Mapping)</string>
+    <string name="settings_disable_hdr_on_4k_streams_summary">Wenn bei 4K-Streams ein grüner Bildschirm angezeigt wird, aktivieren Sie dies, um HDR-Videos in SDR zu konvertieren und dabei die 4K-Auflösung beizubehalten.</string>
 </resources>

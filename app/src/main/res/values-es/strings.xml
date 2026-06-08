@@ -1,28 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="login">Correo electrónico</string>
-    <string name="password">Contraseña</string>
-    <string name="signin">Iniciar sesión</string>
-    <string name="signin_required_f1_tv_pro_account">Es necesaria una cuenta F1Tv/F1TvPro para iniciar sesión</string>
-    <string name="invalid_credentials">Credenciales no válidos</string>
-    <string name="rejected_credentials">Email o contraseña incorrectos</string>
+    <string name="login">Correo electrÃ³nico</string>
+    <string name="password">ContraseÃ±a</string>
+    <string name="signin">Iniciar sesiÃ³n</string>
+    <string name="signin_required_f1_tv_pro_account">Es necesaria una cuenta F1Tv/F1TvPro para iniciar sesiÃ³n</string>
+    <string name="invalid_credentials">Credenciales no vÃ¡lidos</string>
+    <string name="rejected_credentials">Email o contraseÃ±a incorrectos</string>
     <string name="rejected_credentials_message">
-        A veces esto puede ocurrir incluso si su nombre de usuario y contraseña son correctos debido a un BUG de la <b>F1 API</b>.\n\n
-        1. Si ese es el caso, una posible solución es <b>ir al sitio web de F1TV en tu ordenador</b>,
-        luego iniciar sesión en su cuenta y cerrar sesión y luego volver
-        a la app y funcionará.\n
-        2. También es posible, que por alguna razón, su IP esté bloqueada (401 response), en ese caso,
-        trate de cambiar de red, eso también podría funcionar. En ese caso, también debería contactar con
+        A veces esto puede ocurrir incluso si su nombre de usuario y contraseÃ±a son correctos debido a un BUG de la <b>F1 API</b>.\n\n
+        1. Si ese es el caso, una posible soluciÃ³n es <b>ir al sitio web de F1TV en tu ordenador</b>,
+        luego iniciar sesiÃ³n en su cuenta y cerrar sesiÃ³n y luego volver
+        a la app y funcionarÃ¡.\n
+        2. TambiÃ©n es posible, que por alguna razÃ³n, su IP estÃ© bloqueada (401 response), en ese caso,
+        trate de cambiar de red, eso tambiÃ©n podrÃ­a funcionar. En ese caso, tambiÃ©n deberÃ­a contactar con
         el soporte de F1.
     </string>
 
     <string name="unable_to_play_video_session_expired">Your session is expired, please login again</string>
-    <string name="unable_to_play_video_message">Algo fue mal cuando intentó reproducir este vídeo</string>
+    <string name="unable_to_play_video_message">Algo fue mal cuando intentÃ³ reproducir este vÃ­deo</string>
     <string name="audio_selection_dialog_title">Audio</string>
     <string name="video_selection_dialog_title">Video</string>
     <string name="video_selection_quality_auto">Auto</string>
-    <string name="unable_to_open_with_external_player">No se ha detectado ningún reproductor externo compatible, por favor, instale un reproductor compatible como VLC e inténtelo de nuevo, o desactive la función de abrir con reproductor externo</string>
-    <string name="watching_on_external_player">Estás viendo el contenido con un reproductor multimedia externo</string>
+    <string name="unable_to_open_with_external_player">No se ha detectado ningÃºn reproductor externo compatible, por favor, instale un reproductor compatible como VLC e intÃ©ntelo de nuevo, o desactive la funciÃ³n de abrir con reproductor externo</string>
+    <string name="watching_on_external_player">EstÃ¡s viendo el contenido con un reproductor multimedia externo</string>
 
     <string name="choose_a_season">Selecciona una temporada</string>
 
@@ -34,57 +34,60 @@
 
     <string name="settings_content_description">Ajustes</string>
     <string name="settings_category_player_title">Reproductor</string>
-    <string name="settings_stream_type_title">Selecciona formato de retransmisión (beta)</string>
-    <string name="settings_bypass_channel_selection_title">Selección de canal Bypass</string>
-    <string name="settings_bypass_channel_selection_summary">Si se activa después de seleccionar un evento, se le redirigirá inmediatamente al reproductor de la emisión general</string>
+    <string name="settings_stream_type_title">Selecciona formato de retransmisiÃ³n (beta)</string>
+    <string name="settings_bypass_channel_selection_title">SelecciÃ³n de canal Bypass</string>
+    <string name="settings_bypass_channel_selection_summary">Si se activa despuÃ©s de seleccionar un evento, se le redirigirÃ¡ inmediatamente al reproductor de la emisiÃ³n general</string>
     <string name="settings_display_thumbnails_enabled_title">Mostrar miniaturas</string>
     <string name="settings_display_thumbnails_enabled_summary">Las miniaturas pueden contener spoilers. Desactivalo para deshabilitar las miniaturas</string>
-    <string name="settings_disable_hdr_playback_title">Desactivar reproducción HDR</string>
-    <string name="settings_disable_hdr_playback_summary">Fuerza la reproducción SDR y omite los manifiestos HDR, incluso en dispositivos que pueden reproducir o aplicar tone mapping al stream 4K HDR.</string>
-    <string name="settings_open_with_external_player_title">Abrir con reproductor multimedia externo (beta)</string>
-    <string name="settings_reset_to_default_title">Restablecer la configuración por defecto</string>
-    <string name="settings_open_with_external_player_summary">Si está ON, usará una reprodtor multimedia externo para reproducir el contenido en lugar del incorporado</string>
+            <string name="settings_open_with_external_player_title">Abrir con reproductor multimedia externo (beta)</string>
+    <string name="settings_reset_to_default_title">Restablecer la configuraciÃ³n por defecto</string>
+    <string name="settings_open_with_external_player_summary">Si estÃ¡ ON, usarÃ¡ una reprodtor multimedia externo para reproducir el contenido en lugar del incorporado</string>
     <string name="settings_category_other_title">Otro</string>
     <string name="settings_donations_title">Donaciones</string>
-    <string name="settings_donations_summary">¡Apoya el proyecto!</string>
-    <string name="settings_logout_title">Cerrar sesión</string>
-    <string name="donations_explanation_summary">Escanea el siguiente código QR con tu teléfono para apoyar el proyecto</string>
+    <string name="settings_donations_summary">Â¡Apoya el proyecto!</string>
+    <string name="settings_logout_title">Cerrar sesiÃ³n</string>
+    <string name="donations_explanation_summary">Escanea el siguiente cÃ³digo QR con tu telÃ©fono para apoyar el proyecto</string>
     <string name="custom_radio_audio_label">Radio</string>
     <string name="custom_radio_overlay_label">%1$s / %2$ss retrasado</string>
     <string name="settings_use_external_audio_title">Audio externo (canal PRES)</string>
-    <string name="settings_use_external_audio_summary">Mezcla el comentario internacional con la transmisión actual (requiere reinicio)</string>
-    <string name="settings_audio_offset_ms_title">Desfase de sincronización de audio</string>
-    <string name="custom_radio_sync_action">Sincronización de radio</string>
-    <string name="custom_radio_sync_title">Sincronización de radio [%1$s de retraso]</string>
+    <string name="settings_use_external_audio_summary">Mezcla el comentario internacional con la transmisiÃ³n actual (requiere reinicio)</string>
+    <string name="settings_audio_offset_ms_title">Desfase de sincronizaciÃ³n de audio</string>
+    <string name="custom_radio_sync_action">SincronizaciÃ³n de radio</string>
+    <string name="custom_radio_sync_title">SincronizaciÃ³n de radio [%1$s de retraso]</string>
     <string name="custom_radio_sync_decrease">0,5 s hacia delante</string>
-    <string name="custom_radio_sync_increase">0,5 s hacia atrás</string>
+    <string name="custom_radio_sync_increase">0,5 s hacia atrÃ¡s</string>
     <string name="audio_selection_close">Cerrar</string>
     <string name="custom_radio_sync_close">Cerrar</string>
     <string name="custom_radio_waiting_message">Esperando %1$s segundos para sincronizar.</string>
-    <string name="reauth_message">Volviendo a iniciar sesión…</string>
+    <string name="reauth_message">Volviendo a iniciar sesiÃ³nâ€¦</string>
     <string name="settings_category_account_title">Cuenta</string>
     <string name="settings_current_account_title">Cuenta actual</string>
-    <string name="settings_current_account_saved_summary">Guardado para iniciar sesión: %1$s</string>
-    <string name="settings_current_account_none_summary">Sin iniciar sesión</string>
+    <string name="settings_current_account_saved_summary">Guardado para iniciar sesiÃ³n: %1$s</string>
+    <string name="settings_current_account_none_summary">Sin iniciar sesiÃ³n</string>
     <string name="settings_f1_username_title">Correo de F1TV</string>
-    <string name="settings_f1_password_title">Contraseña de F1TV</string>
-    <string name="signin_setup_title">Configuración de inicio de sesión</string>
-    <string name="signin_setup_message">Introduce una vez tu correo y contraseña de F1TV y la app completará el inicio de sesión web por ti. También puedes pegar una URL de radio personalizada.</string>
+    <string name="settings_f1_password_title">ContraseÃ±a de F1TV</string>
+    <string name="signin_setup_title">ConfiguraciÃ³n de inicio de sesiÃ³n</string>
+    <string name="signin_setup_message">Introduce una vez tu correo y contraseÃ±a de F1TV y la app completarÃ¡ el inicio de sesiÃ³n web por ti. TambiÃ©n puedes pegar una URL de radio personalizada.</string>
     <string name="signin_setup_email_hint">Correo de F1TV</string>
-    <string name="signin_setup_password_hint">Contraseña de F1TV</string>
+    <string name="signin_setup_password_hint">ContraseÃ±a de F1TV</string>
     <string name="signin_setup_audio_url_hint">URL de radio personalizada (opcional)</string>
-    <string name="signin_setup_confirm">Guardar e iniciar sesión</string>
+    <string name="signin_setup_confirm">Guardar e iniciar sesiÃ³n</string>
     <string name="signin_setup_skip">Omitir</string>
-    <string name="signin_setup_credentials_validation">Introduce correo y contraseña, o deja ambos vacíos.</string>
-    <string name="settings_custom_radio_delay_title">Retraso de sincronización de radio</string>
+    <string name="signin_setup_credentials_validation">Introduce correo y contraseÃ±a, o deja ambos vacÃ­os.</string>
+    <string name="settings_custom_radio_delay_title">Retraso de sincronizaciÃ³n de radio</string>
     <string name="settings_custom_radio_url_title">URL de radio personalizada</string>
-    <string name="settings_custom_radio_url_summary">Déjalo vacío para usar los streams predeterminados</string>
-    <string name="settings_auto_select_custom_radio_title">Preferir radio personalizada cuando esté disponible</string>
-    <string name="settings_auto_select_custom_radio_summary">Sustituye automáticamente el audio de F1 por la radio integrada o guardada cuando haya una disponible.</string>
+    <string name="settings_custom_radio_url_summary">DÃ©jalo vacÃ­o para usar los streams predeterminados</string>
+    <string name="settings_auto_select_custom_radio_title">Preferir radio personalizada cuando estÃ© disponible</string>
+    <string name="settings_auto_select_custom_radio_summary">Sustituye automÃ¡ticamente el audio de F1 por la radio integrada o guardada cuando haya una disponible.</string>
     <string name="settings_restrict_custom_radio_to_live_sessions_title">Usar radio personalizada solo en sesiones en directo</string>
-    <string name="settings_restrict_custom_radio_to_live_sessions_summary">Impide seleccionar la radio personalizada, automática o manualmente, en sesiones VOD y repeticiones.</string>
-    <string name="custom_radio_live_only_message">La radio personalizada está limitada a las sesiones en directo.</string>
+    <string name="settings_restrict_custom_radio_to_live_sessions_summary">Impide seleccionar la radio personalizada, automÃ¡tica o manualmente, en sesiones VOD y repeticiones.</string>
+    <string name="custom_radio_live_only_message">La radio personalizada estÃ¡ limitada a las sesiones en directo.</string>
     <string name="settings_app_locale_title">Idioma de la app</string>
 
     <string name="channel_selection_switch_channel">Mudar canal</string>
+    <string name="settings_disable_uhd_manifests_title">Desactivar manifiestos UHD (4K)</string>
+    <string name="settings_disable_uhd_manifests_summary">Forzar la reproducción en 1080p SDR y omitir los manifiestos UHD/HDR, incluso en dispositivos que pueden reproducir o hacer mapeo tonal del flujo 4K HDR.</string>
+    <string name="settings_disable_hdr_on_4k_streams_title">Desactivar HDR en transmisiones 4K (SDR Tone Mapping)</string>
+    <string name="settings_disable_hdr_on_4k_streams_summary">Si experimenta una pantalla verde en transmisiones 4K, habilite esto para convertir video HDR a SDR manteniendo la resolución 4K.</string>
 </resources>
+

@@ -202,7 +202,7 @@ private class ProtectedHlgGraphMediaCodecVideoRenderer(
         videoFrameReleaseControl: VideoFrameReleaseControl
     ): PlaybackVideoGraphWrapper {
         val videoFrameProcessorFactory = DefaultVideoFrameProcessor.Factory.Builder()
-            .setGlObjectsProvider(ProtectedHlgGlObjectsProvider())
+            .setGlObjectsProvider(ProtectedHlgGlObjectsProvider(forceSdrOutput = false))
             .build()
         val videoGraphFactory = SingleInputVideoGraph.Factory(videoFrameProcessorFactory)
         return PlaybackVideoGraphWrapper.Builder(context, videoFrameReleaseControl)
@@ -315,7 +315,14 @@ private class ToneMappingMediaCodecVideoRenderer(
         context: Context,
         videoFrameReleaseControl: VideoFrameReleaseControl
     ): PlaybackVideoGraphWrapper {
-        return super.createPlaybackVideoGraphWrapper(context, videoFrameReleaseControl).also {
+        val videoFrameProcessorFactory = DefaultVideoFrameProcessor.Factory.Builder()
+            .setGlObjectsProvider(ProtectedHlgGlObjectsProvider(forceSdrOutput = true))
+            .build()
+        val videoGraphFactory = SingleInputVideoGraph.Factory(videoFrameProcessorFactory)
+        return PlaybackVideoGraphWrapper.Builder(context, videoFrameReleaseControl)
+            .setEnablePlaylistMode(true)
+            .setVideoGraphFactory(videoGraphFactory)
+            .build().also {
             it.setRequestOpenGlToneMapping(true)
         }
     }
