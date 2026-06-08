@@ -114,6 +114,17 @@ object DeviceInfo {
         return "google tv streamer" in identity || "kirkwood" in identity
     }
 
+    fun shouldPreferSdrUhdFallbackForHdrPlayback(): Boolean {
+        val preferSdrUhd = isGoogleTvStreamer()
+        Log.i(
+            TAG,
+            "shouldPreferSdrUhdFallbackForHdrPlayback preferSdrUhd=$preferSdrUhd " +
+                "brand=${Build.BRAND} manufacturer=${Build.MANUFACTURER} " +
+                "model=${Build.MODEL} device=${Build.DEVICE} product=${Build.PRODUCT}"
+        )
+        return preferSdrUhd
+    }
+
     fun shouldRequestHdrManifest(context: Context): Boolean {
         val supportsHlg = supportsHlgDisplay(context)
         val supportsToneMapping = supportsHdrToSdrToneMapping()

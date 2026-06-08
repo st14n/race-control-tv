@@ -19,12 +19,14 @@ object ProtectedHdrRendererRouter {
         val reason = when {
             !looksLikeProtectedHdr ->
                 "stream is not UHD/HDR Widevine"
+            capabilities.canCreateProtectedHlgEglSurface ->
+                "trying Media3 protected HLG video graph; EGL preflight says protected HLG is available"
             else ->
-                "using official-like bare Surface HDR fragment to isolate pipeline"
+                "trying Media3 HLG video graph despite EGL preflight=false; provider will fall back and log exact EGL failures"
         }
 
         val decision = ProtectedHdrRendererDecision(
-            shouldUseProtectedRenderer = looksLikeProtectedHdr,
+            shouldUseProtectedRenderer = looksLikeProtectedHdr && capabilities.canCreateProtectedHlgEglSurface,
             reason = reason,
             capabilities = capabilities
         )
@@ -32,7 +34,11 @@ object ProtectedHdrRendererRouter {
             TAG,
             "Protected HDR renderer decision " +
                 "streamType=${viewing.streamType} requestedOverride=${viewing.requestedOverrideStreamType} " +
-                "shouldUseProtectedRenderer=${decision.shouldUseProtectedRenderer} reason=$reason"
+                "shouldUseProtectedRenderer=${decision.shouldUseProtectedRenderer} " +
+                "protectedContent=${capabilities.hasProtectedContent} " +
+                "bt2020Hlg=${capabilities.hasBt2020HlgColorSpace} " +
+                "canCreateProtectedHlg=${capabilities.canCreateProtectedHlgEglSurface} " +
+                "reason=$reason"
         )
         return decision
     }

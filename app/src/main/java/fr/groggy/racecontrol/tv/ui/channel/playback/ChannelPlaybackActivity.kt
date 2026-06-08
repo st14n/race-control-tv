@@ -94,21 +94,10 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        configureOpaquePlaybackWindow()
         super.onCreate(savedInstanceState)
         lifecycleScope.launch {
             attachViewingIfNeeded(Settings.StreamType.HLS, preferHdrManifest = preferHdrManifestForDevice)
         }
-    }
-
-    private fun configureOpaquePlaybackWindow() {
-        window.setFormat(PixelFormat.OPAQUE)
-        window.setBackgroundDrawable(ColorDrawable(Color.BLACK))
-        window.addFlags(
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
-                WindowManager.LayoutParams.FLAG_FULLSCREEN
-        )
-        Log.i(TAG, "Configured opaque secure playback window")
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -363,21 +352,24 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
     private fun openWithInternalPlayer(
         viewing: F1TvViewing,
         forceDirectMedia3HdrSurface: Boolean = false,
-        usesProtectedHlgGraph: Boolean = false
+        usesProtectedHlgGraph: Boolean = false,
+        forceProtectedHlgGraph: Boolean = false
     ) {
         currentAttemptUsesProtectedHlgGraph = usesProtectedHlgGraph
         Log.d(
             TAG,
             "Committing internal player fragment " +
                 "forceDirectMedia3HdrSurface=$forceDirectMedia3HdrSurface " +
-                "usesProtectedHlgGraph=$usesProtectedHlgGraph "
+                "usesProtectedHlgGraph=$usesProtectedHlgGraph " +
+                "forceProtectedHlgGraph=$forceProtectedHlgGraph "
         )
         supportFragmentManager.commit {
             replace(
                 R.id.fragment_container,
                 ChannelPlaybackFragment.newInstance(
                     viewing,
-                    forceDirectMedia3HdrSurface = forceDirectMedia3HdrSurface
+                    forceDirectMedia3HdrSurface = forceDirectMedia3HdrSurface,
+                    forceProtectedHlgGraph = forceProtectedHlgGraph
                 ),
                 ChannelPlaybackFragment.TAG
             )
@@ -388,17 +380,14 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
     private fun openWithProtectedHdrRenderer(viewing: F1TvViewing) {
         Log.i(
             TAG,
-            "Committing official-like bare Surface HDR fragment " +
+            "Committing Media3 protected HLG graph renderer " +
                 "streamType=${viewing.streamType} requestedOverride=${viewing.requestedOverrideStreamType}"
         )
-        supportFragmentManager.commit {
-            replace(
-                R.id.fragment_container,
-                OfficialLikeHdrPlaybackFragment.newInstance(viewing),
-                ChannelPlaybackFragment.TAG
-            )
-            setReorderingAllowed(true)
-        }
+        openWithInternalPlayer(
+            viewing = viewing,
+            usesProtectedHlgGraph = true,
+            forceProtectedHlgGraph = true
+        )
     }
 
     private fun handleError(@StringRes errorMessage: Int, cancelAction: () -> Unit) {

@@ -9,10 +9,13 @@ import androidx.media3.common.C
 import androidx.media3.common.Effect
 import androidx.media3.common.Format
 import androidx.media3.effect.DefaultVideoFrameProcessor
+import androidx.media3.effect.RgbAdjustment
 import androidx.media3.effect.SingleInputVideoGraph
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.Renderer
+import androidx.media3.exoplayer.mediacodec.MediaCodecAdapter
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import androidx.media3.exoplayer.mediacodec.SynchronousMediaCodecAdapter
 import androidx.media3.exoplayer.video.MediaCodecVideoRenderer
 import androidx.media3.exoplayer.video.PlaybackVideoGraphWrapper
 import androidx.media3.exoplayer.video.VideoFrameReleaseControl
@@ -45,6 +48,15 @@ class HdrToneMappingRenderersFactory(
             Build.PRODUCT
         ).joinToString(separator = " ").lowercase()
         return "google tv streamer" in identity || "kirkwood" in identity
+    }
+
+    private fun codecAdapterFactory(): MediaCodecAdapter.Factory {
+        return if (shouldForceSynchronousCodecQueueing()) {
+            Log.i(TAG, "Forcing synchronous codec queueing for Google TV Streamer")
+            SynchronousMediaCodecAdapter.Factory()
+        } else {
+            MediaCodecAdapter.Factory.DEFAULT
+        }
     }
 
     override fun buildVideoRenderers(
@@ -83,6 +95,7 @@ class HdrToneMappingRenderersFactory(
                         Log.i(TAG, "Installing Media3 protected HLG video graph renderer")
                         ProtectedHlgGraphMediaCodecVideoRenderer(
                             context = appContext,
+                            codecAdapterFactory = codecAdapterFactory(),
                             mediaCodecSelector = mediaCodecSelector,
                             allowedVideoJoiningTimeMs = allowedVideoJoiningTimeMs,
                             enableDecoderFallback = enableDecoderFallback,
@@ -93,6 +106,7 @@ class HdrToneMappingRenderersFactory(
                     enableHdrToSdrToneMapping -> {
                         ToneMappingMediaCodecVideoRenderer(
                             context = appContext,
+                            codecAdapterFactory = codecAdapterFactory(),
                             mediaCodecSelector = mediaCodecSelector,
                             allowedVideoJoiningTimeMs = allowedVideoJoiningTimeMs,
                             enableDecoderFallback = enableDecoderFallback,
@@ -101,9 +115,10 @@ class HdrToneMappingRenderersFactory(
                         )
                     }
                     else -> {
-                        Log.i(TAG, "Installing official-like direct secure HDR MediaCodec renderer")
+                        Log.i(TAG, "Installing official-like direct MediaCodec configuration renderer")
                         OfficialLikeDirectHdrMediaCodecVideoRenderer(
                             context = appContext,
+                            codecAdapterFactory = codecAdapterFactory(),
                             mediaCodecSelector = mediaCodecSelector,
                             allowedVideoJoiningTimeMs = allowedVideoJoiningTimeMs,
                             enableDecoderFallback = enableDecoderFallback,
@@ -119,6 +134,7 @@ class HdrToneMappingRenderersFactory(
 
 private class ProtectedHlgGraphMediaCodecVideoRenderer(
     context: Context,
+    codecAdapterFactory: MediaCodecAdapter.Factory,
     mediaCodecSelector: MediaCodecSelector,
     allowedVideoJoiningTimeMs: Long,
     enableDecoderFallback: Boolean,
@@ -126,6 +142,7 @@ private class ProtectedHlgGraphMediaCodecVideoRenderer(
     eventListener: VideoRendererEventListener
 ) : MediaCodecVideoRenderer(
     Builder(context)
+        .setCodecAdapterFactory(codecAdapterFactory)
         .setMediaCodecSelector(mediaCodecSelector)
         .setAllowedJoiningTimeMs(allowedVideoJoiningTimeMs)
         .setEnableDecoderFallback(enableDecoderFallback)
@@ -197,6 +214,7 @@ private class ProtectedHlgGraphMediaCodecVideoRenderer(
 
 private class OfficialLikeDirectHdrMediaCodecVideoRenderer(
     context: Context,
+    codecAdapterFactory: MediaCodecAdapter.Factory,
     mediaCodecSelector: MediaCodecSelector,
     allowedVideoJoiningTimeMs: Long,
     enableDecoderFallback: Boolean,
@@ -204,6 +222,7 @@ private class OfficialLikeDirectHdrMediaCodecVideoRenderer(
     eventListener: VideoRendererEventListener
 ) : MediaCodecVideoRenderer(
     Builder(context)
+        .setCodecAdapterFactory(codecAdapterFactory)
         .setMediaCodecSelector(mediaCodecSelector)
         .setAllowedJoiningTimeMs(allowedVideoJoiningTimeMs)
         .setEnableDecoderFallback(enableDecoderFallback)
@@ -256,6 +275,7 @@ private class OfficialLikeDirectHdrMediaCodecVideoRenderer(
 
 private class ToneMappingMediaCodecVideoRenderer(
     context: Context,
+    codecAdapterFactory: MediaCodecAdapter.Factory,
     mediaCodecSelector: MediaCodecSelector,
     allowedVideoJoiningTimeMs: Long,
     enableDecoderFallback: Boolean,
@@ -263,6 +283,7 @@ private class ToneMappingMediaCodecVideoRenderer(
     eventListener: VideoRendererEventListener
 ) : MediaCodecVideoRenderer(
     Builder(context)
+        .setCodecAdapterFactory(codecAdapterFactory)
         .setMediaCodecSelector(mediaCodecSelector)
         .setAllowedJoiningTimeMs(allowedVideoJoiningTimeMs)
         .setEnableDecoderFallback(enableDecoderFallback)
@@ -270,6 +291,25 @@ private class ToneMappingMediaCodecVideoRenderer(
         .setEventListener(eventListener)
         .setMaxDroppedFramesToNotify(DefaultRenderersFactory.MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY)
 ) {
+
+    init {
+        // Use an almost-identity RGB effect so Media3 cannot optimize the graph away as a no-op.
+        // This is required to force Media3 to actually create and use the PlaybackVideoGraphWrapper
+        // for OpenGL-based tone mapping.
+        setVideoEffects(
+            listOf<Effect>(
+                RgbAdjustment.Builder()
+                    .setRedScale(0.9999f)
+                    .setGreenScale(1.0f)
+                    .setBlueScale(1.0f)
+                    .build()
+            )
+        )
+        Log.i(
+            HdrToneMappingRenderersFactory::class.simpleName,
+            "Installed near-identity RGB effect to force Tone Mapping graph output path"
+        )
+    }
 
     override fun createPlaybackVideoGraphWrapper(
         context: Context,

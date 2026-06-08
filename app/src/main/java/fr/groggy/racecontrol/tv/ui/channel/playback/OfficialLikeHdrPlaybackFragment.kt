@@ -2,7 +2,6 @@ package fr.groggy.racecontrol.tv.ui.channel.playback
 
 import android.app.Activity
 import android.graphics.Color
-import android.graphics.PixelFormat
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -59,11 +58,15 @@ class OfficialLikeHdrPlaybackFragment : Fragment(), Player.Listener {
     }
 
     private val renderersFactory by lazy {
+        // Do NOT enable MediaCodec codec config overrides (enableOfficialLikeDirectHdrCodecConfig).
+        // The official Tiledmedia app lets ExoPlayer negotiate with MediaCodec natively.
+        // Injecting KEY_COLOR_TRANSFER_REQUEST and unsetting operating-rate can cause a
+        // double-mapping bug on the MediaTek secure decoder, producing a green screen.
         HdrToneMappingRenderersFactory(
             requireContext(),
             enableHdrToSdrToneMapping = false,
             enableProtectedHlgVideoGraph = false,
-            enableOfficialLikeDirectHdrCodecConfig = true
+            enableOfficialLikeDirectHdrCodecConfig = false
         )
     }
 
@@ -82,6 +85,10 @@ class OfficialLikeHdrPlaybackFragment : Fragment(), Player.Listener {
                         output: Any,
                         renderTimeMs: Long
                     ) {
+                        HdrPresentationDiagnostics.logDisplaySnapshot(
+                            requireContext(),
+                            "officialLike-renderedFirstFrame"
+                        )
                         Log.i(TAG, "onRenderedFirstFrame output=$output renderTimeMs=${renderTimeMs}ms")
                     }
 
@@ -102,7 +109,20 @@ class OfficialLikeHdrPlaybackFragment : Fragment(), Player.Listener {
                 "Official-like HDR SurfaceHolder created " +
                     "surfaceValid=${holder.surface.isValid} view=${System.identityHashCode(playbackSurfaceView)}"
             )
-            holder.setSizeFromLayout()
+            // Request 50 Hz with CHANGE_FRAME_RATE_ALWAYS so SurfaceFlinger is allowed to do a
+            // *seamed* (brief display blank) refresh rate switch to 50 Hz.
+            // Without this, the default OnlySeamless keeps the display at 60 Hz on this MediaTek
+            // chip. The HWC MM plane for 50 fps HLG content cannot initialise at 60 Hz and
+            // produces green video. The official app uses SeamedAndSeamless in SurfaceFlinger.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                holder.surface.setFrameRate(
+                    50f,
+                    Surface.FRAME_RATE_COMPATIBILITY_DEFAULT,
+                    Surface.CHANGE_FRAME_RATE_ALWAYS
+                )
+                Log.i(TAG, "Set Surface frame rate 50 Hz CHANGE_FRAME_RATE_ALWAYS (SeamedAndSeamless)")
+            }
+            HdrPresentationDiagnostics.logDisplaySnapshot(requireContext(), "officialLike-surfaceCreated")
             bindPlaybackSurface(holder.surface, "surfaceCreated")
             prepareWhenSurfaceReady("surfaceCreated")
         }
@@ -113,7 +133,7 @@ class OfficialLikeHdrPlaybackFragment : Fragment(), Player.Listener {
                 "Official-like HDR SurfaceHolder changed " +
                     "format=$format size=${width}x${height} view=${System.identityHashCode(playbackSurfaceView)}"
             )
-            holder.setSizeFromLayout()
+            HdrPresentationDiagnostics.logDisplaySnapshot(requireContext(), "officialLike-surfaceChanged")
             bindPlaybackSurface(holder.surface, "surfaceChanged")
             prepareWhenSurfaceReady("surfaceChanged")
         }
@@ -143,7 +163,7 @@ class OfficialLikeHdrPlaybackFragment : Fragment(), Player.Listener {
     ): View {
         val context = requireContext()
         return FrameLayout(context).apply {
-            setBackgroundColor(Color.BLACK)
+            background = null
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -155,18 +175,24 @@ class OfficialLikeHdrPlaybackFragment : Fragment(), Player.Listener {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
                         surfaceView.setSecure(true)
                     }
+                    HdrSurfaceHints.applyAndroid14SurfaceLifecycle(surfaceView, "officialLike-onCreateView")
                     surfaceView.setZOrderOnTop(false)
                     surfaceView.setZOrderMediaOverlay(false)
                     surfaceView.holder.addCallback(surfaceCallback)
-                    surfaceView.holder.setFormat(PixelFormat.OPAQUE)
-                    surfaceView.holder.setSizeFromLayout()
+                    // Do NOT call setFormat(PixelFormat.OPAQUE) or setDataSpace here.
+                    // The official Tiledmedia app only calls setSecure(true) and does NOT override
+                    // the holder pixel format. Forcing OPAQUE or explicit dataspace hints can
+                    // break the MediaTek HWC's implicit secure-YUV buffer negotiation, causing
+                    // a permanent green video plane.
+                    //
+                    // the HWC panics and locks the video plane to green permanently.
                     surfaceView.layoutParams = FrameLayout.LayoutParams(
                         FrameLayout.LayoutParams.MATCH_PARENT,
                         FrameLayout.LayoutParams.MATCH_PARENT
                     )
                     Log.i(
                         TAG,
-                        "Created official-like secure HDR SurfaceView " +
+                        "Created official-like secure HDR SurfaceView (vanilla: only setSecure) " +
                             "view=${System.identityHashCode(surfaceView)} surfaceSecure=true"
                     )
                 }
@@ -357,7 +383,7 @@ class OfficialLikeHdrPlaybackFragment : Fragment(), Player.Listener {
             "Official-like HDR videoSize ${videoSize.width}x${videoSize.height} " +
                 "pixelRatio=${videoSize.pixelWidthHeightRatio}"
         )
-        playbackSurfaceView?.holder?.setSizeFromLayout()
+        HdrPresentationDiagnostics.logDisplaySnapshot(requireContext(), "officialLike-videoSizeChanged")
     }
 
     companion object {
