@@ -18,15 +18,26 @@ import org.threeten.bp.Year
 @AndroidEntryPoint
 class SessionBrowseActivity : FragmentActivity() {
     companion object {
+        private const val IS_LIVE_SESSION = "fr.groggy.racecontrol.tv.ui.session.browse.IS_LIVE_SESSION"
+
         fun intent(
             context: Context,
             sessionId: String,
             contentId: String,
             seasonYear: Int = Year.now().value
+        ): Intent = intent(context, sessionId, contentId, isLiveSession = false, seasonYear = seasonYear)
+
+        fun intent(
+            context: Context,
+            sessionId: String,
+            contentId: String,
+            isLiveSession: Boolean,
+            seasonYear: Int
         ): Intent {
             val intent = Intent(context, SessionBrowseActivity::class.java)
             SessionGridFragment.putContentId(intent, contentId)
             SessionGridFragment.putSessionId(intent, sessionId)
+            intent.putExtra(IS_LIVE_SESSION, isLiveSession)
             SessionGridFragment.putSeasonYear(intent, seasonYear)
             return intent
         }
@@ -40,6 +51,7 @@ class SessionBrowseActivity : FragmentActivity() {
             ?: return finish()
         val sessionId = SessionGridFragment.findSessionId(this)
             ?: return finish()
+        val isLiveSession = intent.getBooleanExtra(IS_LIVE_SESSION, false)
         val seasonYear = SessionGridFragment.findSeasonYear(this)
         val viewModel: SessionBrowseViewModel by viewModels()
 
@@ -52,7 +64,7 @@ class SessionBrowseActivity : FragmentActivity() {
                             sessionId,
                             session.channel?.value,
                             session.contentId,
-                            session.isLiveSession,
+                            isLiveSession || session.isLiveSession,
                             seasonYear
                         )
                         startActivity(intent)
@@ -65,7 +77,7 @@ class SessionBrowseActivity : FragmentActivity() {
                             sessionId,
                             null,
                             session.contentId,
-                            session.isLiveSession,
+                            isLiveSession || session.isLiveSession,
                             seasonYear
                         )
                         startActivity(intent)

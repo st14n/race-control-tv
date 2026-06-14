@@ -91,11 +91,12 @@ object MediaSourceItemFactory {
             }
 
             if (licenseUri != null) {
-                Log.i(TAG, "Configuring Widevine DRM with license URI: $licenseUri")
+                Log.i(TAG, "Configuring Widevine DRM with license URI: $licenseUri multiSession=true")
                 builder.setDrmConfiguration(
                     MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
                         .setLicenseUri(licenseUri)
                         .setForceDefaultLicenseUri(true)
+                        .setMultiSession(true)
                         .setLicenseRequestHeaders(
                             mapOf(
                                 "x-f1-device-info" to DeviceInfo.f1DeviceInfo,

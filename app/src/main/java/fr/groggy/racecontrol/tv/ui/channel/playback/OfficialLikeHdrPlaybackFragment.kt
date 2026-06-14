@@ -1,9 +1,10 @@
 package fr.groggy.racecontrol.tv.ui.channel.playback
 
 import android.app.Activity
-import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.Surface
@@ -21,6 +22,7 @@ import androidx.media3.common.VideoSize
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.dash.DefaultDashChunkSource
 import androidx.media3.exoplayer.dash.DashMediaSource
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.ClippingMediaSource
@@ -50,6 +52,8 @@ class OfficialLikeHdrPlaybackFragment : Fragment(), Player.Listener {
     private var playbackSurface: Surface? = null
     private var prepared = false
     private var currentViewing: F1TvViewing? = null
+    private var nativeHdrPresentationWatchdogRunnable: Runnable? = null
+    private val handler = Handler(Looper.getMainLooper())
 
     private val trackSelector: DefaultTrackSelector by lazy {
         DefaultTrackSelector(requireContext()).apply {
@@ -90,6 +94,7 @@ class OfficialLikeHdrPlaybackFragment : Fragment(), Player.Listener {
                             "officialLike-renderedFirstFrame"
                         )
                         Log.i(TAG, "onRenderedFirstFrame output=$output renderTimeMs=${renderTimeMs}ms")
+                        scheduleNativeHdrPresentationWatchdog()
                     }
 
                     override fun onPlayerError(
@@ -109,19 +114,6 @@ class OfficialLikeHdrPlaybackFragment : Fragment(), Player.Listener {
                 "Official-like HDR SurfaceHolder created " +
                     "surfaceValid=${holder.surface.isValid} view=${System.identityHashCode(playbackSurfaceView)}"
             )
-            // Request 50 Hz with CHANGE_FRAME_RATE_ALWAYS so SurfaceFlinger is allowed to do a
-            // *seamed* (brief display blank) refresh rate switch to 50 Hz.
-            // Without this, the default OnlySeamless keeps the display at 60 Hz on this MediaTek
-            // chip. The HWC MM plane for 50 fps HLG content cannot initialise at 60 Hz and
-            // produces green video. The official app uses SeamedAndSeamless in SurfaceFlinger.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                holder.surface.setFrameRate(
-                    50f,
-                    Surface.FRAME_RATE_COMPATIBILITY_DEFAULT,
-                    Surface.CHANGE_FRAME_RATE_ALWAYS
-                )
-                Log.i(TAG, "Set Surface frame rate 50 Hz CHANGE_FRAME_RATE_ALWAYS (SeamedAndSeamless)")
-            }
             HdrPresentationDiagnostics.logDisplaySnapshot(requireContext(), "officialLike-surfaceCreated")
             bindPlaybackSurface(holder.surface, "surfaceCreated")
             prepareWhenSurfaceReady("surfaceCreated")
@@ -172,10 +164,7 @@ class OfficialLikeHdrPlaybackFragment : Fragment(), Player.Listener {
                 SurfaceView(context).also { surfaceView ->
                     playbackSurfaceView = surfaceView
                     surfaceView.keepScreenOn = true
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
-                        surfaceView.setSecure(true)
-                    }
-                    HdrSurfaceHints.applyAndroid14SurfaceLifecycle(surfaceView, "officialLike-onCreateView")
+                    surfaceView.setSecure(true)
                     surfaceView.setZOrderOnTop(false)
                     surfaceView.setZOrderMediaOverlay(false)
                     surfaceView.holder.addCallback(surfaceCallback)
@@ -212,6 +201,7 @@ class OfficialLikeHdrPlaybackFragment : Fragment(), Player.Listener {
     }
 
     override fun onDestroyView() {
+        cancelNativeHdrPresentationWatchdog()
         playbackSurfaceView?.holder?.removeCallback(surfaceCallback)
         playbackSurface?.let(player::clearVideoSurface)
         playbackSurface = null
@@ -220,9 +210,53 @@ class OfficialLikeHdrPlaybackFragment : Fragment(), Player.Listener {
     }
 
     override fun onDestroy() {
+        cancelNativeHdrPresentationWatchdog()
         player.release()
         Log.i(TAG, "Released official-like HDR player")
         super.onDestroy()
+    }
+
+    private fun scheduleNativeHdrPresentationWatchdog() {
+        val viewing = currentViewing ?: return
+        if (!ProtectedHdrStreamClassifier.looksLikeHdrUhdWidevine(viewing)) return
+        if (nativeHdrPresentationWatchdogRunnable != null) return
+
+        val runnable = Runnable {
+            nativeHdrPresentationWatchdogRunnable = null
+            if (!isAdded) return@Runnable
+            val snapshot = HdrPresentationDiagnostics.snapshot(
+                requireContext(),
+                "officialLike-nativeHdrPresentationWatchdog"
+            )
+            if (snapshot == null) {
+                Log.w(TAG, "Native HDR presentation watchdog inconclusive; no display snapshot")
+                return@Runnable
+            }
+            if (!snapshot.canDiagnoseNativeHdrPresentation) {
+                Log.i(
+                    TAG,
+                    "Native HDR presentation watchdog inconclusive on this Android/display API " +
+                        "snapshot=$snapshot"
+                )
+                return@Runnable
+            }
+            if (snapshot.confirmsNativeHlgPresentation) {
+                Log.i(TAG, "Native HDR presentation watchdog passed snapshot=$snapshot")
+                return@Runnable
+            }
+
+            val reason = snapshot.nativeHlgFailureReason()
+            Log.w(TAG, "Native HDR presentation watchdog failed reason=$reason snapshot=$snapshot")
+            (activity as? ChannelPlaybackActivity)?.hdrPresentationFailed(reason)
+        }
+        nativeHdrPresentationWatchdogRunnable = runnable
+        handler.postDelayed(runnable, NATIVE_HDR_PRESENTATION_WATCHDOG_MS)
+    }
+
+    private fun cancelNativeHdrPresentationWatchdog() {
+        val runnable = nativeHdrPresentationWatchdogRunnable ?: return
+        handler.removeCallbacks(runnable)
+        nativeHdrPresentationWatchdogRunnable = null
     }
 
     private fun prepareWhenSurfaceReady(source: String) {
@@ -264,7 +298,11 @@ class OfficialLikeHdrPlaybackFragment : Fragment(), Player.Listener {
                 "laUrl=${viewing.laURL} url=${viewing.url}"
         )
         try {
-            trackSelector.setParameters(buildTrackParameters(audioDisabled = false))
+            val useExternalAudio = viewing.externalAudioUri != null &&
+                (settingsRepository.getCurrent().useExternalAudio || viewing.externalAudioRequired)
+            val disableEmbeddedAudio =
+                ProtectedHdrStreamClassifier.looksLikeHdrUhdWidevine(viewing) && !useExternalAudio
+            trackSelector.setParameters(buildTrackParameters(audioDisabled = disableEmbeddedAudio))
             val mediaSource = buildPlaybackMediaSource(viewing)
             player.setMediaSource(mediaSource)
             player.prepare()
@@ -287,7 +325,8 @@ class OfficialLikeHdrPlaybackFragment : Fragment(), Player.Listener {
         val useExternalAudio = viewing.externalAudioUri != null &&
             (settingsRepository.getCurrent().useExternalAudio || viewing.externalAudioRequired)
         if (!useExternalAudio) {
-            return rawMainSource
+            Log.i(TAG, "Official-like HDR path using video-only source; no companion audio available")
+            return FilteringMediaSource(rawMainSource, C.TRACK_TYPE_VIDEO)
         }
 
         Log.i(TAG, "Official-like HDR path merging companion audio while keeping HDR source video-only")
@@ -311,6 +350,7 @@ class OfficialLikeHdrPlaybackFragment : Fragment(), Player.Listener {
         } else {
             audioOnlySource
         }
+
         return MergingMediaSource(
             true,
             false,
@@ -327,12 +367,34 @@ class OfficialLikeHdrPlaybackFragment : Fragment(), Player.Listener {
         val isDash = streamType?.contains("DASH", ignoreCase = true) == true ||
             urlString.contains(".mpd", ignoreCase = true)
         return if (isDash) {
-            Log.i(TAG, "Official-like HDR path using DashMediaSource for $urlString")
-            DashMediaSource.Factory(httpDataSourceFactory).createMediaSource(mediaItem)
+            val useF1DashUhdHdrFixes = shouldUseF1DashUhdHdrFixes(urlString, streamType)
+            Log.i(TAG, "Official-like HDR path using DashMediaSource for $urlString f1UhdHdrFixes=$useF1DashUhdHdrFixes")
+            val dashDataSourceFactory = if (useF1DashUhdHdrFixes) {
+                F1DashInitSegmentFixingDataSource.Factory(httpDataSourceFactory)
+            } else {
+                httpDataSourceFactory
+            }
+            val chunkSourceFactory = if (useF1DashUhdHdrFixes) {
+                DefaultDashChunkSource.Factory(F1DashChunkExtractorFactory(), dashDataSourceFactory, 1)
+            } else {
+                DefaultDashChunkSource.Factory(dashDataSourceFactory)
+            }
+            DashMediaSource.Factory(
+                chunkSourceFactory,
+                dashDataSourceFactory
+            )
+                .setManifestParser(F1DashManifestParser())
+                .createMediaSource(mediaItem)
         } else {
             Log.i(TAG, "Official-like HDR path using HlsMediaSource for $urlString")
             HlsMediaSource.Factory(httpDataSourceFactory).createMediaSource(mediaItem)
         }
+    }
+
+    private fun shouldUseF1DashUhdHdrFixes(urlString: String, streamType: String?): Boolean {
+        val identity = "$urlString ${streamType.orEmpty()}"
+        return identity.contains("HDR-UHD-DASH-WV", ignoreCase = true) ||
+            identity.contains("HDR_UHD_DASHWV", ignoreCase = true)
     }
 
     private fun buildTrackParameters(audioDisabled: Boolean = false) =
@@ -388,6 +450,7 @@ class OfficialLikeHdrPlaybackFragment : Fragment(), Player.Listener {
 
     companion object {
         private val TAG = OfficialLikeHdrPlaybackFragment::class.simpleName
+        private const val NATIVE_HDR_PRESENTATION_WATCHDOG_MS = 3_000L
         private const val ARG_VIEWING =
             "fr.groggy.racecontrol.tv.ui.channel.playback.OfficialLikeHdrPlaybackFragment.ARG_VIEWING"
 
