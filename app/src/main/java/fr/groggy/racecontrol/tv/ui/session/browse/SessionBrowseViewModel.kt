@@ -93,7 +93,10 @@ class SessionBrowseViewModel @Inject constructor(
 }
 
 private fun F1TvSession.isLiveNow(now: Instant = Instant.now()): Boolean {
-    return !period.start.isAfter(now) && !period.end.isBefore(now)
+    val timeWindowMatches = !period.start.isAfter(now) && !period.end.isBefore(now)
+    if (timeWindowMatches) return true
+    val subtype = contentSubtype.uppercase()
+    return "LIVE" in subtype || "RACE" in subtype || "PRACTICE" in subtype || "QUALIFYING" in subtype
 }
 
 sealed class Session {

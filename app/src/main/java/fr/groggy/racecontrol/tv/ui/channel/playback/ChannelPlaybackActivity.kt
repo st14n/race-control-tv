@@ -4,9 +4,6 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
-import android.graphics.Color
-import android.graphics.PixelFormat
-import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.util.Log
 import android.view.GestureDetector
@@ -45,8 +42,9 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
 
     /** The [F1TvViewing] currently loaded into the player, used for 4K fallback detection. */
     private var currentViewing: F1TvViewing? = null
-    private var currentAttemptUsesProtectedHlgGraph: Boolean = false
-    private var retriedDirectMedia3HdrSurface: Boolean = false
+    private var currentPlaybackAttempt: PlaybackAttempt = PlaybackAttempt.Standard
+    private var hasTriedToneMappedHdr: Boolean = false
+    private var isSwappingPlaybackFragment: Boolean = false
 
     private val playbackTouchGestureDetector by lazy(LazyThreadSafetyMode.NONE) {
         GestureDetector(
@@ -95,8 +93,32 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // CRITICAL FIX: The Android TV UI runs at 1080p by default. If the physical HDMI output
+        // is 1080p, the MediaTek secure hardware composer cannot scale the 4K secure DRM buffer
+        // down to 1080p, and instead outputs a green screen. 
+        // We MUST force the display mode to 4K (or the maximum available) to match the official app.
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            val display = windowManager.defaultDisplay
+            val modes = display.supportedModes
+            var bestMode = display.mode
+            for (mode in modes) {
+                // Prefer higher resolution, then higher refresh rate
+                if (mode.physicalWidth > bestMode.physicalWidth || 
+                   (mode.physicalWidth == bestMode.physicalWidth && mode.refreshRate > bestMode.refreshRate)) {
+                    bestMode = mode
+                }
+            }
+            if (bestMode.modeId != display.mode.modeId) {
+                val layoutParams = window.attributes
+                layoutParams.preferredDisplayModeId = bestMode.modeId
+                window.attributes = layoutParams
+                android.util.Log.i("ChannelPlaybackActivity", "Forcing preferred display mode to ${bestMode.physicalWidth}x${bestMode.physicalHeight}@${bestMode.refreshRate}Hz (modeId=${bestMode.modeId})")
+            }
+        }
+
         lifecycleScope.launch {
-            attachViewingIfNeeded(Settings.StreamType.HLS, preferHdrManifest = preferHdrManifestForDevice)
+            attachViewingIfNeeded(Settings.StreamType.DASH, preferHdrManifest = preferHdrManifestForDevice)
         }
     }
 
@@ -295,8 +317,8 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
 
     private fun onViewingCreated(viewing: F1TvViewing) {
         currentViewing = viewing
-        currentAttemptUsesProtectedHlgGraph = false
-        retriedDirectMedia3HdrSurface = false
+        currentPlaybackAttempt = PlaybackAttempt.Standard
+        hasTriedToneMappedHdr = false
         Log.d(
             TAG,
             "Proceeding to create player with " +
@@ -309,6 +331,39 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
             Log.d(TAG, "Opening with external player.")
             openWithExternalPlayer(viewing)
         } else {
+            val settings = settingsRepository.getCurrent()
+            val isHdrUhdWidevine = ProtectedHdrStreamClassifier.looksLikeHdrUhdWidevine(viewing)
+            if (
+                isHdrUhdWidevine &&
+                ChannelPlaybackFragment.findIsLiveSession(this) &&
+                DeviceInfo.shouldPreferSdrUhdFallbackForHdrPlayback()
+            ) {
+                Log.w(
+                    TAG,
+                    "Live UHD/HDR Widevine is disabled on this device profile; " +
+                        "using standard SDR feed to avoid known live green/black secure-surface output"
+                )
+                fallbackToStandardSdr("google_tv_streamer_live_hdr_known_bad")
+                return
+            }
+            if (isHdrUhdWidevine && shouldUseToneMappedHdrFirst(settings)) {
+                Log.i(
+                    TAG,
+                    "Opening UHD/HDR Widevine stream with HDR-to-SDR tone mapping " +
+                        "disableHdrOn4kStreams=${settings.disableHdrOn4kStreams}"
+                )
+                openToneMappedHdrPlayer(viewing, "initial_device_or_setting_policy")
+                return
+            }
+            if (isHdrUhdWidevine) {
+                Log.i(
+                    TAG,
+                    "Opening UHD/HDR Widevine stream with official-like bare secure SurfaceView path"
+                )
+                openWithOfficialLikeHdrPlayer(viewing)
+                return
+            }
+
             val protectedHdrDecision = ProtectedHdrRendererRouter.decide(viewing)
             if (protectedHdrDecision.shouldUseProtectedRenderer) {
                 Log.i(TAG, "Opening with protected HDR renderer reason=${protectedHdrDecision.reason}")
@@ -325,14 +380,71 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         }
     }
 
+    private fun shouldUseToneMappedHdrFirst(settings: Settings): Boolean {
+        return settings.disableHdrOn4kStreams || DeviceInfo.shouldToneMapHdrToSdr(this)
+    }
+
+    private enum class PlaybackAttempt {
+        Standard,
+        NativeHdr,
+        ToneMappedHdr,
+        ProtectedHlgGraph,
+        DirectMedia3Hdr
+    }
+
+    private fun openWithOfficialLikeHdrPlayer(viewing: F1TvViewing) {
+        currentPlaybackAttempt = PlaybackAttempt.NativeHdr
+        Log.i(
+            TAG,
+            "Committing official-like bare secure HDR player " +
+                "streamType=${viewing.streamType} requestedOverride=${viewing.requestedOverrideStreamType}"
+        )
+        isSwappingPlaybackFragment = true
+        supportFragmentManager.commit {
+            replace(
+                R.id.fragment_container,
+                OfficialLikeHdrPlaybackFragment.newInstance(viewing),
+                ChannelPlaybackFragment.TAG
+            )
+            setReorderingAllowed(true)
+            runOnCommit { isSwappingPlaybackFragment = false }
+        }
+    }
+
+    private fun openToneMappedHdrPlayer(viewing: F1TvViewing, reason: String) {
+        if (!DeviceInfo.supportsHdrToSdrToneMapping()) {
+            Log.w(TAG, "HDR-to-SDR tone mapping unavailable; falling back to standard SDR reason=$reason")
+            fallbackToStandardSdr("tone_mapping_unavailable:$reason")
+            return
+        }
+
+        hasTriedToneMappedHdr = true
+        Log.i(
+            TAG,
+            "Committing tone-mapped UHD/HDR player reason=$reason " +
+                "streamType=${viewing.streamType} requestedOverride=${viewing.requestedOverrideStreamType}"
+        )
+        openWithInternalPlayer(
+            viewing = viewing,
+            forceHdrToSdrToneMapping = true,
+            playbackAttempt = PlaybackAttempt.ToneMappedHdr
+        )
+    }
+
     private fun activePlaybackFragment(): ChannelPlaybackFragment? {
         return supportFragmentManager.findFragmentByTag(ChannelPlaybackFragment.TAG) as? ChannelPlaybackFragment
     }
 
+    internal fun isInternalPlaybackFragmentSwapInProgress(): Boolean {
+        return isSwappingPlaybackFragment
+    }
+
     private fun openWithExternalPlayer(viewing: F1TvViewing) {
+        isSwappingPlaybackFragment = true
         supportFragmentManager.commit {
             replace(R.id.fragment_container, OpenedWithExternalPlayerFragment(), ChannelPlaybackFragment.TAG)
             setReorderingAllowed(true)
+            runOnCommit { isSwappingPlaybackFragment = false }
         }
 
         try {
@@ -353,27 +465,34 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         viewing: F1TvViewing,
         forceDirectMedia3HdrSurface: Boolean = false,
         usesProtectedHlgGraph: Boolean = false,
-        forceProtectedHlgGraph: Boolean = false
+        forceProtectedHlgGraph: Boolean = false,
+        forceHdrToSdrToneMapping: Boolean = false,
+        playbackAttempt: PlaybackAttempt = PlaybackAttempt.Standard
     ) {
-        currentAttemptUsesProtectedHlgGraph = usesProtectedHlgGraph
+        currentPlaybackAttempt = playbackAttempt
         Log.d(
             TAG,
             "Committing internal player fragment " +
                 "forceDirectMedia3HdrSurface=$forceDirectMedia3HdrSurface " +
                 "usesProtectedHlgGraph=$usesProtectedHlgGraph " +
-                "forceProtectedHlgGraph=$forceProtectedHlgGraph "
+                "forceProtectedHlgGraph=$forceProtectedHlgGraph " +
+                "forceHdrToSdrToneMapping=$forceHdrToSdrToneMapping " +
+                "playbackAttempt=$playbackAttempt"
         )
+        isSwappingPlaybackFragment = true
         supportFragmentManager.commit {
             replace(
                 R.id.fragment_container,
                 ChannelPlaybackFragment.newInstance(
                     viewing,
                     forceDirectMedia3HdrSurface = forceDirectMedia3HdrSurface,
-                    forceProtectedHlgGraph = forceProtectedHlgGraph
+                    forceProtectedHlgGraph = forceProtectedHlgGraph,
+                    forceHdrToSdrToneMapping = forceHdrToSdrToneMapping
                 ),
                 ChannelPlaybackFragment.TAG
             )
             setReorderingAllowed(true)
+            runOnCommit { isSwappingPlaybackFragment = false }
         }
     }
 
@@ -386,8 +505,36 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         openWithInternalPlayer(
             viewing = viewing,
             usesProtectedHlgGraph = true,
-            forceProtectedHlgGraph = true
+            forceProtectedHlgGraph = true,
+            playbackAttempt = PlaybackAttempt.ProtectedHlgGraph
         )
+    }
+
+    fun hdrPresentationFailed(reason: String) {
+        runOnUiThread {
+            val failedViewing = currentViewing ?: return@runOnUiThread
+            if (!ProtectedHdrStreamClassifier.looksLikeHdrUhdWidevine(failedViewing)) {
+                Log.i(TAG, "Ignoring HDR presentation failure for non-HDR stream reason=$reason")
+                return@runOnUiThread
+            }
+            if (currentPlaybackAttempt != PlaybackAttempt.NativeHdr) {
+                Log.i(
+                    TAG,
+                    "Ignoring HDR presentation failure for attempt=$currentPlaybackAttempt reason=$reason"
+                )
+                return@runOnUiThread
+            }
+
+            Log.w(
+                TAG,
+                "Native UHD/HDR presentation looks bad; trying fallback ladder reason=$reason"
+            )
+            if (!hasTriedToneMappedHdr && DeviceInfo.shouldTryHdrToSdrToneMappingPlayback(this)) {
+                openToneMappedHdrPlayer(failedViewing, "native_hdr_presentation_failed:$reason")
+            } else {
+                fallbackToStandardSdr("native_hdr_presentation_failed:$reason")
+            }
+        }
     }
 
     private fun handleError(@StringRes errorMessage: Int, cancelAction: () -> Unit) {
@@ -439,45 +586,75 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
                 "laUrl=${failedViewing?.laURL} " +
                 "isLiveSession=${ChannelPlaybackFragment.findIsLiveSession(this)} " +
                 "seasonYear=${ChannelPlaybackFragment.findSeasonYear(this)} " +
+                "playbackAttempt=$currentPlaybackAttempt " +
                 "triedHdrManifest=$triedHdrManifest"
         )
+
         if (
             failedViewing != null &&
             triedHdrManifest &&
-            currentAttemptUsesProtectedHlgGraph &&
-            !retriedDirectMedia3HdrSurface &&
+            currentPlaybackAttempt != PlaybackAttempt.ToneMappedHdr &&
+            !hasTriedToneMappedHdr &&
+            DeviceInfo.shouldTryHdrToSdrToneMappingPlayback(this) &&
             !isFinishing &&
             !isDestroyed
         ) {
-            retriedDirectMedia3HdrSurface = true
-            currentAttemptUsesProtectedHlgGraph = false
+            Log.i(
+                TAG,
+                "HDR/UHD attempt failed - retrying same UHD manifest with HDR-to-SDR tone mapping"
+            )
+            openToneMappedHdrPlayer(failedViewing, "player_error:$currentPlaybackAttempt")
+            return
+        }
+
+        if (
+            failedViewing != null &&
+            triedHdrManifest &&
+            currentPlaybackAttempt == PlaybackAttempt.ProtectedHlgGraph &&
+            !isFinishing &&
+            !isDestroyed
+        ) {
             Log.i(
                 TAG,
                 "HDR/UHD protected HLG graph failed - retrying same HDR manifest with direct Media3 surface fallback"
             )
-            openWithInternalPlayer(failedViewing, forceDirectMedia3HdrSurface = true)
+            openWithInternalPlayer(
+                failedViewing,
+                forceDirectMedia3HdrSurface = true,
+                playbackAttempt = PlaybackAttempt.DirectMedia3Hdr
+            )
             return
         }
 
-        currentViewing = null
-
         if (triedHdrManifest && !isFinishing && !isDestroyed) {
-            Log.i(TAG, "HDR/UHD manifest failed - retrying with standard HLS/SDR stream")
-            val fragment = supportFragmentManager.findFragmentByTag(ChannelPlaybackFragment.TAG)
-            if (fragment != null) {
-                supportFragmentManager.commit {
-                    remove(fragment)
-                    runOnCommit {
-                        lifecycleScope.launch {
-                            attachViewingIfNeeded(Settings.StreamType.HLS, preferHdrManifest = false)
-                        }
-                    }
-                }
-                return
-            }
+            fallbackToStandardSdr("player_error:$currentPlaybackAttempt")
+            return
         }
 
         handleError(R.string.unable_to_play_video_message, ::finish)
+    }
+
+    private fun fallbackToStandardSdr(reason: String) {
+        currentViewing = null
+        currentPlaybackAttempt = PlaybackAttempt.Standard
+        Log.i(TAG, "Retrying with standard non-UHD HLS/SDR stream reason=$reason")
+        val fragment = supportFragmentManager.findFragmentByTag(ChannelPlaybackFragment.TAG)
+        if (fragment != null) {
+            isSwappingPlaybackFragment = true
+            supportFragmentManager.commit {
+                remove(fragment)
+                runOnCommit {
+                    isSwappingPlaybackFragment = false
+                    lifecycleScope.launch {
+                        attachViewingIfNeeded(Settings.StreamType.HLS, preferHdrManifest = false)
+                    }
+                }
+            }
+        } else {
+            lifecycleScope.launch {
+                attachViewingIfNeeded(Settings.StreamType.HLS, preferHdrManifest = false)
+            }
+        }
     }
 
     private fun looksLikeDash(streamType: String?, url: String): Boolean {

@@ -51,11 +51,15 @@ class HdrToneMappingRenderersFactory(
     }
 
     private fun codecAdapterFactory(): MediaCodecAdapter.Factory {
-        return if (shouldForceSynchronousCodecQueueing()) {
+        val baseFactory = if (shouldForceSynchronousCodecQueueing()) {
             Log.i(TAG, "Forcing synchronous codec queueing for Google TV Streamer")
             SynchronousMediaCodecAdapter.Factory()
         } else {
             MediaCodecAdapter.Factory.DEFAULT
+        }
+        return MediaCodecAdapter.Factory { configuration ->
+            val adapter = baseFactory.createAdapter(configuration)
+            TimestampShiftingMediaCodecAdapterWrapper(adapter)
         }
     }
 
@@ -239,15 +243,17 @@ private class OfficialLikeDirectHdrMediaCodecVideoRenderer(
         deviceNeedsNoPostProcessWorkaround: Boolean,
         tunnelingAudioSessionId: Int
     ): MediaFormat {
+        val originalFormat = super.getMediaFormat(
+            format,
+            codecMimeType,
+            codecMaxValues,
+            codecOperatingRate,
+            deviceNeedsNoPostProcessWorkaround,
+            tunnelingAudioSessionId
+        )
+
         return OfficialLikeHdrMediaFormat.configure(
-            mediaFormat = super.getMediaFormat(
-                format,
-                codecMimeType,
-                codecMaxValues,
-                codecOperatingRate,
-                deviceNeedsNoPostProcessWorkaround,
-                tunnelingAudioSessionId
-            ),
+            mediaFormat = originalFormat,
             format = format,
             codecMimeType = codecMimeType,
             rendererPath = "direct_secure_surface"
@@ -347,6 +353,23 @@ private object OfficialLikeHdrMediaFormat {
         if (format.frameRate > 0f) {
             mediaFormat.setFloat(KEY_FRAME_RATE, format.frameRate)
         }
+
+        // Ensure we pass the color metadata to MediaCodec! 
+        // Previously, stripping these keys caused MediaTek's C2MtkVdec to allocate 8-bit SDR buffers
+        // instead of 10-bit HDR buffers. Writing 10-bit HEVC into an 8-bit Gralloc buffer causes
+        // severe memory corruption and a green screen.
+        // We now allow ExoPlayer's parsed ColorInfo to correctly trigger 10-bit buffer allocation.
+
+        // EXTREMELY IMPORTANT: The MediaTek secure hardware decoder (C2MtkVdec) requires HEVC 4K
+        // to be strictly 16-pixel aligned (2176 height) during buffer allocation!
+        // If we pass 2160 (from the DASH manifest), it allocates 2160 buffers, decodes 2176 frames,
+        // misaligns the memory, and the Hardware Composer rejects it, causing a solid green screen.
+        // We override the MediaFormat keys to explicitly match the Official App's allocation size.
+        if (format.width == 3840 && format.height == 2160) {
+            mediaFormat.setInteger(MediaFormat.KEY_HEIGHT, 2176)
+            mediaFormat.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 3145728)
+        }
+
         Log.i(
             TAG,
             "Applied official-like secure HLG MediaCodec format flags " +
@@ -397,4 +420,57 @@ private object OfficialLikeHdrMediaFormat {
     private const val KEY_ROTATION_DEGREES = "rotation-degrees"
     private const val KEY_PRIORITY = "priority"
     private const val KEY_FRAME_RATE = "frame-rate"
+}
+
+private class TimestampShiftingMediaCodecAdapterWrapper(
+    private val delegate: MediaCodecAdapter
+) : MediaCodecAdapter by delegate {
+
+    private var baseTimeUs: Long = -1L
+
+    override fun queueInputBuffer(index: Int, offset: Int, size: Int, presentationTimeUs: Long, flags: Int) {
+        if (baseTimeUs == -1L && presentationTimeUs > 0) {
+            baseTimeUs = presentationTimeUs - 1000L
+        }
+        val shiftedTimeUs = if (baseTimeUs != -1L) presentationTimeUs - baseTimeUs else presentationTimeUs
+        delegate.queueInputBuffer(index, offset, size, shiftedTimeUs, flags)
+    }
+
+    private var csdSent = false
+
+    override fun queueSecureInputBuffer(
+        index: Int,
+        offset: Int,
+        info: androidx.media3.decoder.CryptoInfo,
+        presentationTimeUs: Long,
+        flags: Int
+    ) {
+        if (baseTimeUs == -1L && presentationTimeUs > 0) {
+            baseTimeUs = presentationTimeUs - 1000L
+        }
+        val shiftedTimeUs = if (baseTimeUs != -1L) presentationTimeUs - baseTimeUs else presentationTimeUs
+        
+        delegate.queueSecureInputBuffer(index, offset, info, shiftedTimeUs, flags)
+    }
+
+    override fun dequeueOutputBufferIndex(bufferInfo: android.media.MediaCodec.BufferInfo): Int {
+        val index = delegate.dequeueOutputBufferIndex(bufferInfo)
+        if (index >= 0 && baseTimeUs != -1L && bufferInfo.presentationTimeUs > 0) {
+            bufferInfo.presentationTimeUs += baseTimeUs
+        }
+        return index
+    }
+
+    override fun setOnFrameRenderedListener(listener: MediaCodecAdapter.OnFrameRenderedListener, handler: Handler) {
+        val wrappedListener = MediaCodecAdapter.OnFrameRenderedListener { adapter, presentationTimeUs, nanoTime ->
+            val restoredTimeUs = if (baseTimeUs != -1L && presentationTimeUs > 0) presentationTimeUs + baseTimeUs else presentationTimeUs
+            listener.onFrameRendered(adapter, restoredTimeUs, nanoTime)
+        }
+        delegate.setOnFrameRenderedListener(wrappedListener, handler)
+    }
+
+    override fun flush() {
+        baseTimeUs = -1L
+        delegate.flush()
+    }
 }

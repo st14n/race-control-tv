@@ -10,7 +10,6 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.KeyEvent
-import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.View
 import android.view.ViewGroup
@@ -28,10 +27,10 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.RenderersFactory
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.dash.DashMediaSource
+import androidx.media3.exoplayer.dash.DefaultDashChunkSource
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
-import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.source.ClippingMediaSource
 import androidx.media3.exoplayer.source.FilteringMediaSource
 import androidx.media3.exoplayer.source.MediaSource
@@ -46,9 +45,7 @@ import fr.groggy.racecontrol.tv.f1tv.F1TvViewing
 import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.ui.player.CustomRadioSyncDialog
 import fr.groggy.racecontrol.tv.ui.player.ExoPlayerPlaybackTransportControlGlue
-import fr.groggy.racecontrol.tv.ui.channel.playback.protectedhdr.ProtectedEglSurfaceProbe
 import fr.groggy.racecontrol.tv.ui.channel.playback.protectedhdr.ProtectedHdrStreamClassifier
-import fr.groggy.racecontrol.tv.utils.DeviceInfo
 import fr.groggy.racecontrol.tv.ui.channel.playback.protectedhdr.ProtectedHdrCapabilitiesProbe
 import javax.inject.Inject
 import kotlin.math.abs
@@ -67,6 +64,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         private const val CUSTOM_RADIO_RETRY_DELAY_MS = 500L
         private const val OVERLAY_AUTO_CLOSE_DELAY_MS = 10_000L
         private const val UHD_STARTUP_BUFFERING_TIMEOUT_MS = 12_000L
+        private const val UHD_TONE_MAPPING_FIRST_FRAME_TIMEOUT_MS = 5_000L
         private const val UHD_HDR_PRESENTATION_FRAME_RATE = 50f
         private const val DISPLAY_MODE_REFRESH_TOLERANCE = 0.25f
         private const val CUSTOM_RADIO_SYNC_DIALOG_TAG = "custom_radio_sync"
@@ -84,6 +82,8 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_FORCE_DIRECT_MEDIA3_HDR_SURFACE"
         private const val ARG_FORCE_PROTECTED_HLG_GRAPH =
             "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_FORCE_PROTECTED_HLG_GRAPH"
+        private const val ARG_FORCE_HDR_TO_SDR_TONE_MAPPING =
+            "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_FORCE_HDR_TO_SDR_TONE_MAPPING"
 
         fun putSessionId(intent: Intent, sessionId: String) = intent.putExtra(ARG_SESSION_ID, sessionId)
         fun putChannelId(intent: Intent, channelId: String?) = intent.putExtra(ARG_CHANNEL_ID, channelId)
@@ -110,12 +110,14 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         fun newInstance(
             viewing: F1TvViewing,
             forceDirectMedia3HdrSurface: Boolean = false,
-            forceProtectedHlgGraph: Boolean = false
+            forceProtectedHlgGraph: Boolean = false,
+            forceHdrToSdrToneMapping: Boolean = false
         ) = ChannelPlaybackFragment().apply {
             arguments = Bundle().apply {
                 putParcelable(ARG_VIEWING, viewing)
                 putBoolean(ARG_FORCE_DIRECT_MEDIA3_HDR_SURFACE, forceDirectMedia3HdrSurface)
                 putBoolean(ARG_FORCE_PROTECTED_HLG_GRAPH, forceProtectedHlgGraph)
+                putBoolean(ARG_FORCE_HDR_TO_SDR_TONE_MAPPING, forceHdrToSdrToneMapping)
             }
         }
     }
@@ -138,12 +140,14 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     private var currentViewing: F1TvViewing? = null
     private var hasRenderedFirstFrameForCurrentSource = false
     private var startupBufferingWatchdogRunnable: Runnable? = null
+    private var toneMappingFirstFrameWatchdogRunnable: Runnable? = null
     private var suppressOverlayReopenUntilElapsedMs: Long = 0L
     private var lastVideoHostWidth: Int = 0
     private var lastVideoHostHeight: Int = 0
     private var hasStartedPlayer = false
     private var boundPlaybackSurfaceView: SurfaceView? = null
     private var boundPlaybackSurfaceHolder: SurfaceHolder? = null
+    private var boundDirectSurfaceView: SurfaceView? = null
     private var playbackSurfaceBufferWidth: Int = 0
     private var playbackSurfaceBufferHeight: Int = 0
     private var hasProbedProtectedHlgEglSurface: Boolean = false
@@ -179,8 +183,6 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             val surfaceView = boundPlaybackSurfaceView ?: return
             Log.i(TAG, "Playback SurfaceHolder surfaceCreated view=${System.identityHashCode(surfaceView)}")
             HdrPresentationDiagnostics.logDisplaySnapshot(requireContext(), "channel-surfaceCreated")
-            applyPlaybackSurfaceBufferSize(surfaceView, "surfaceCreated")
-            probeProtectedHlgEglSurfaceIfNeeded(holder.surface, "surfaceCreated")
             bindPlaybackVideoSurface(surfaceView, "surfaceCreated")
             
             if (!hasStartedPlayer) {
@@ -198,8 +200,6 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                     "view=${System.identityHashCode(surfaceView)} format=$format size=${width}x${height}"
             )
             HdrPresentationDiagnostics.logDisplaySnapshot(requireContext(), "channel-surfaceChanged")
-            applyPlaybackSurfaceBufferSize(surfaceView, "surfaceChanged")
-            probeProtectedHlgEglSurfaceIfNeeded(holder.surface, "surfaceChanged")
             bindPlaybackVideoSurface(surfaceView, "surfaceChanged")
         }
 
@@ -251,8 +251,17 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         return arguments?.getBoolean(ARG_FORCE_PROTECTED_HLG_GRAPH, false) == true
     }
 
+    private fun isForceHdrToSdrToneMapping(): Boolean {
+        return arguments?.getBoolean(ARG_FORCE_HDR_TO_SDR_TONE_MAPPING, false) == true
+    }
+
+    private fun shouldUseHdrToSdrToneMapping(): Boolean {
+        return settingsRepository.getCurrent().disableHdrOn4kStreams || isForceHdrToSdrToneMapping()
+    }
+
     private fun shouldUseProtectedHlgGraph(viewing: F1TvViewing? = currentViewing ?: findViewing(this)): Boolean {
         return !isForceDirectMedia3HdrSurface() &&
+            !shouldUseHdrToSdrToneMapping() &&
             viewing?.let { looksLikeHdrUhdWidevine(it) } == true &&
             (isForceProtectedHlgGraph() || protectedHdrCapabilities.canCreateProtectedHlgEglSurface)
     }
@@ -262,7 +271,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     private val renderersFactory: RenderersFactory by lazy {
         val settings = settingsRepository.getCurrent()
         val viewing = findViewing(this)
-        val enableHdrToSdrToneMapping = settings.disableHdrOn4kStreams
+        val enableHdrToSdrToneMapping = settings.disableHdrOn4kStreams || isForceHdrToSdrToneMapping()
         val enableProtectedHlgVideoGraph = shouldUseProtectedHlgGraph(viewing) && !enableHdrToSdrToneMapping
         val enableOfficialLikeDirectHdrCodecConfig = false
         Log.i(
@@ -272,6 +281,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                 "officialLikeDirectHdrCodecConfig=$enableOfficialLikeDirectHdrCodecConfig " +
                 "forceDirectMedia3HdrSurface=${isForceDirectMedia3HdrSurface()} " +
                 "forceProtectedHlgGraph=${isForceProtectedHlgGraph()} " +
+                "forceHdrToSdrToneMapping=${isForceHdrToSdrToneMapping()} " +
                 "streamType=${viewing?.streamType} requestedOverride=${viewing?.requestedOverrideStreamType}"
         )
         HdrToneMappingRenderersFactory(
@@ -290,6 +300,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                 _player = ExoPlayer.Builder(requireContext(), renderersFactory)
                     .setTrackSelector(trackSelector)
                     .build().also { p ->
+                        // Fall back to default frame rate strategy since we manually set the display mode in ChannelPlaybackActivity.
                         p.playWhenReady = true
                         p.addAnalyticsListener(EventLogger())
                         p.addAnalyticsListener(object : AnalyticsListener {
@@ -299,6 +310,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                                 renderTimeMs: Long
                             ) {
                                 hasRenderedFirstFrameForCurrentSource = true
+                                cancelToneMappingFirstFrameWatchdog()
                                 HdrPresentationDiagnostics.logDisplaySnapshot(
                                     requireContext(),
                                     "channel-renderedFirstFrame"
@@ -320,6 +332,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
 
     private fun releasePlayerSafely(source: String) {
         cancelStartupBufferingWatchdog()
+        cancelToneMappingFirstFrameWatchdog()
         val playerToRelease = _player ?: run {
             Log.i(TAG, "releasePlayerSafely skipped; player already null source=$source")
             return
@@ -422,6 +435,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         currentViewing = viewing
         hasRenderedFirstFrameForCurrentSource = false
         cancelStartupBufferingWatchdog()
+        cancelToneMappingFirstFrameWatchdog()
         Log.i(
             TAG,
             "preparePlayer: " +
@@ -505,6 +519,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             player.setMediaSource(mediaSource)
             player.prepare()
             scheduleStartupBufferingWatchdog("prepare")
+            scheduleToneMappingFirstFrameWatchdog("prepare")
             Log.d(TAG, "Player prepared")
         } catch (e: Exception) {
             Log.e(TAG, "Error preparing player", e)
@@ -519,15 +534,12 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             return null
         }
         playbackSurfaceView.keepScreenOn = true
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
-            playbackSurfaceView.setSecure(true)
-        }
-        HdrSurfaceHints.applyAndroid14SurfaceLifecycle(playbackSurfaceView, "channelFragment-$source")
+        playbackSurfaceView.setSecure(true)
         playbackSurfaceView.setZOrderOnTop(false)
         playbackSurfaceView.setZOrderMediaOverlay(false)
-        // Note: Intentionally NOT forcing PixelFormat.OPAQUE or DATASPACE_BT2020_HLG here.
-        // Forcing these can break the secure surface allocation on MediaTek (green screen),
-        // implicitly through the secure buffer queue. The official Tiledmedia player avoids this.
+        // Keep the video plane vanilla after setSecure(true). The official TV path does not
+        // force PixelFormat or SurfaceControl dataspace; those overrides break the MediaTek
+        // secure YUV/HDR handoff and can produce the green video plane.
         boundPlaybackSurfaceView = playbackSurfaceView
         ensurePlaybackSurfaceHolderCallback(playbackSurfaceView)
         val path = if (shouldUseProtectedHlgGraph()) {
@@ -539,7 +551,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             TAG,
             "Configured $path for playback " +
                 "source=$source view=${System.identityHashCode(playbackSurfaceView)} " +
-                "surfaceSecure=implicitly-managed-by-codec"
+                "surfaceSecure=true"
         )
         return playbackSurfaceView
     }
@@ -550,11 +562,10 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             Log.w(TAG, "Surface is not valid yet in bindPlaybackVideoSurface, source=$source")
             return
         }
-        probeProtectedHlgEglSurfaceIfNeeded(surface, source)
         
         // Intentionally NOT applying BT.2020 HLG dataspace explicitly to avoid breaking MediaTek secure surfaces
 
-        val useVideoGraph = shouldUseProtectedHlgGraph() || settingsRepository.getCurrent().disableHdrOn4kStreams
+        val useVideoGraph = shouldUseProtectedHlgGraph() || shouldUseHdrToSdrToneMapping()
         if (useVideoGraph) {
             // When the PlaybackVideoGraphWrapper (video effects graph) is active, we MUST use
             // setVideoSurfaceView() rather than setVideoSurface(raw surface).
@@ -585,35 +596,33 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                 )
             }
         } else {
-            Log.i(TAG, "Binding explicit Surface to ExoPlayer (bypassing internal DummySurface listeners) source=$source")
-            player.setVideoSurface(surface)
-            Log.i(
-                TAG,
-                "Bound ExoPlayer to protected/secure SurfaceView " +
-                    "source=$source view=${System.identityHashCode(surfaceView)}"
-            )
+            if (surfaceView === boundDirectSurfaceView) {
+                Log.i(
+                    TAG,
+                    "Skipping redundant setVideoSurfaceView — same SurfaceView already bound to direct path " +
+                        "source=$source view=${System.identityHashCode(surfaceView)}"
+                )
+            } else {
+                Log.i(TAG, "Binding SurfaceView to ExoPlayer via setVideoSurfaceView (direct fallback path) source=$source")
+                player.setVideoSurfaceView(surfaceView)
+                boundDirectSurfaceView = surfaceView
+                Log.i(
+                    TAG,
+                    "Bound ExoPlayer to protected/secure SurfaceView via setVideoSurfaceView " +
+                        "source=$source view=${System.identityHashCode(surfaceView)}"
+                )
+            }
         }
-        applyPlaybackSurfaceBufferSize(surfaceView, source)
         boundPlaybackSurfaceView = surfaceView
     }
 
-    private fun configurePlaybackSurfaceBufferSize(videoWidth: Int, videoHeight: Int, source: String) {
+    private fun updateVideoSurfaceSize(videoWidth: Int, videoHeight: Int, source: String) {
         if (videoWidth <= 0 || videoHeight <= 0) return
-        if (playbackSurfaceBufferWidth == videoWidth && playbackSurfaceBufferHeight == videoHeight) {
-            boundPlaybackSurfaceView?.let { applyPlaybackSurfaceBufferSize(it, "$source-reapply") }
-            return
-        }
         playbackSurfaceBufferWidth = videoWidth
         playbackSurfaceBufferHeight = videoHeight
-        boundPlaybackSurfaceView?.let { applyPlaybackSurfaceBufferSize(it, source) }
     }
 
-    private fun applyPlaybackSurfaceBufferSize(surfaceView: SurfaceView, source: String) {
-        // Explicitly NOT setting a fixed size. The official app relies on the EGL pipeline
-        // (GlEffectsFrameProcessor) to scale the 4K hardware frames down to the 1080p layout buffer.
-        // Forcing setFixedSize(3840, 2160) causes the MediaTek secure hardware composer
-        // to crash/output green frames when HDR engages due to bandwidth/memory limits.
-    }
+
 
     private fun ensurePlaybackSurfaceHolderCallback(surfaceView: SurfaceView) {
         val holder = surfaceView.holder
@@ -627,21 +636,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         )
     }
 
-    private fun probeProtectedHlgEglSurfaceIfNeeded(surface: Surface, source: String) {
-        if (hasProbedProtectedHlgEglSurface) return
-        val viewing = currentViewing ?: findViewing(this) ?: return
-        
-        // We MUST NOT call shouldUseProtectedHlgGraph here because it checks hasProbedProtectedHlgEglSurface!
-        // Just probe it if it looks like Widevine HDR.
-        if (!looksLikeHdrUhdWidevine(viewing)) {
-            return
-        }
-        
-        val result = ProtectedEglSurfaceProbe.probe(surface, source)
-        if (result.attempted) {
-            hasProbedProtectedHlgEglSurface = true
-        }
-    }
+
 
     private fun findSurfaceView(root: View?): SurfaceView? {
         return when (root) {
@@ -673,8 +668,24 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         val isDash = streamType?.contains("DASH", ignoreCase = true) == true
             || urlString.contains(".mpd", ignoreCase = true)
         return if (isDash) {
-            Log.i(TAG, "Using DashMediaSource for $urlString")
-            DashMediaSource.Factory(httpDataSourceFactory).createMediaSource(mediaItem)
+            val useF1DashUhdHdrFixes = shouldUseF1DashUhdHdrFixes(urlString, streamType)
+            Log.i(TAG, "Using DashMediaSource for $urlString f1UhdHdrFixes=$useF1DashUhdHdrFixes")
+            val dashDataSourceFactory = if (useF1DashUhdHdrFixes) {
+                F1DashInitSegmentFixingDataSource.Factory(httpDataSourceFactory)
+            } else {
+                httpDataSourceFactory
+            }
+            val chunkSourceFactory = if (useF1DashUhdHdrFixes) {
+                DefaultDashChunkSource.Factory(F1DashChunkExtractorFactory(), dashDataSourceFactory, 1)
+            } else {
+                DefaultDashChunkSource.Factory(dashDataSourceFactory)
+            }
+            DashMediaSource.Factory(
+                chunkSourceFactory,
+                dashDataSourceFactory
+            )
+                .setManifestParser(F1DashManifestParser())
+                .createMediaSource(mediaItem)
         } else {
             Log.i(TAG, "Using HlsMediaSource for $urlString rewriteF1CmafHlsDrm=$rewriteF1CmafHlsDrm")
             val dataSourceFactory = if (rewriteF1CmafHlsDrm) {
@@ -685,6 +696,12 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             HlsMediaSource.Factory(dataSourceFactory)
                 .createMediaSource(mediaItem)
         }
+    }
+
+    private fun shouldUseF1DashUhdHdrFixes(urlString: String, streamType: String?): Boolean {
+        val identity = "$urlString ${streamType.orEmpty()}"
+        return identity.contains("HDR-UHD-DASH-WV", ignoreCase = true) ||
+            identity.contains("HDR_UHD_DASHWV", ignoreCase = true)
     }
 
     private fun shouldRewriteF1CmafHlsDrm(viewing: F1TvViewing): Boolean {
@@ -750,9 +767,15 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         Log.d(TAG, "Playback state → $state")
         when (playbackState) {
             Player.STATE_BUFFERING -> scheduleStartupBufferingWatchdog("buffering")
-            Player.STATE_READY,
+            Player.STATE_READY -> {
+                cancelStartupBufferingWatchdog()
+                scheduleToneMappingFirstFrameWatchdog("ready")
+            }
             Player.STATE_ENDED,
-            Player.STATE_IDLE -> cancelStartupBufferingWatchdog()
+            Player.STATE_IDLE -> {
+                cancelStartupBufferingWatchdog()
+                cancelToneMappingFirstFrameWatchdog()
+            }
         }
         if (playbackState == Player.STATE_READY && !hasAutoInjectedCustomRadio) {
             hasAutoInjectedCustomRadio = true
@@ -804,6 +827,57 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         startupBufferingWatchdogRunnable = null
     }
 
+    private fun scheduleToneMappingFirstFrameWatchdog(reason: String) {
+        val viewing = currentViewing ?: return
+        if (!shouldUseHdrToSdrToneMapping()) return
+        if (!looksLikeUhdOrHdr(viewing.streamType) && !looksLikeUhdOrHdr(viewing.requestedOverrideStreamType)) {
+            return
+        }
+        if (hasRenderedFirstFrameForCurrentSource) return
+        if (toneMappingFirstFrameWatchdogRunnable != null) return
+
+        val runnable = Runnable {
+            toneMappingFirstFrameWatchdogRunnable = null
+            if (!isAdded) return@Runnable
+            val activePlayer = _player ?: return@Runnable
+            if (hasRenderedFirstFrameForCurrentSource) return@Runnable
+
+            val state = activePlayer.playbackState
+            val isTryingToPresent = activePlayer.isPlaying ||
+                (state == Player.STATE_READY && activePlayer.playWhenReady)
+            if (!isTryingToPresent) {
+                Log.d(
+                    TAG,
+                    "HDR/UHD tone-mapping first-frame watchdog deferred " +
+                        "state=$state isPlaying=${activePlayer.isPlaying} " +
+                        "playWhenReady=${activePlayer.playWhenReady} reason=$reason"
+                )
+                return@Runnable
+            }
+
+            Log.w(
+                TAG,
+                "HDR/UHD tone-mapping first-frame watchdog fired " +
+                    "contentId=${viewing.contentId} channelId=${viewing.channelId} " +
+                    "streamType=${viewing.streamType} requestedOverride=${viewing.requestedOverrideStreamType} " +
+                    "state=$state isPlaying=${activePlayer.isPlaying} " +
+                    "playWhenReady=${activePlayer.playWhenReady} " +
+                    "position=${activePlayer.currentPosition} buffered=${activePlayer.bufferedPosition} " +
+                    "videoSize=${activePlayer.videoSize.width}x${activePlayer.videoSize.height} " +
+                    "reason=$reason timeoutMs=$UHD_TONE_MAPPING_FIRST_FRAME_TIMEOUT_MS"
+            )
+            (activity as? ChannelPlaybackActivity)?.playerError()
+        }
+        toneMappingFirstFrameWatchdogRunnable = runnable
+        overlayAutoCloseHandler.postDelayed(runnable, UHD_TONE_MAPPING_FIRST_FRAME_TIMEOUT_MS)
+    }
+
+    private fun cancelToneMappingFirstFrameWatchdog() {
+        val runnable = toneMappingFirstFrameWatchdogRunnable ?: return
+        overlayAutoCloseHandler.removeCallbacks(runnable)
+        toneMappingFirstFrameWatchdogRunnable = null
+    }
+
     private fun looksLikeUhdOrHdr(value: String?): Boolean {
         val normalized = value?.uppercase() ?: return false
         return "UHD" in normalized || "2160" in normalized || "HDR" in normalized
@@ -816,7 +890,6 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                 "pixelRatio=${videoSize.pixelWidthHeightRatio} " +
                 "unappliedRotationDegrees=${videoSize.unappliedRotationDegrees}"
         )
-        configurePlaybackSurfaceBufferSize(videoSize.width, videoSize.height, "onVideoSizeChanged")
         updateVideoSurfaceSize(videoSize.width, videoSize.height)
     }
 
@@ -873,6 +946,11 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         super.onStop()
         Log.i(TAG, "onStop: explicitly releasing player early to prevent MediaTek secure codec corruption upon surfaceDestroyed")
         releasePlayerSafely("onStop")
+        val playbackActivity = activity as? ChannelPlaybackActivity
+        if (playbackActivity?.isInternalPlaybackFragmentSwapInProgress() == true) {
+            Log.i(TAG, "onStop: playback fragment swap in progress; keeping playback activity alive")
+            return
+        }
         if (!requireActivity().isChangingConfigurations) {
             Log.i(TAG, "onStop: finishing playback activity as it was pushed to background")
             requireActivity().finish()
@@ -882,6 +960,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     override fun onDestroy() {
         Log.d(TAG, "onDestroy: releasing player")
         cancelStartupBufferingWatchdog()
+        cancelToneMappingFirstFrameWatchdog()
         cancelOverlayAutoCloseTimer()
         playbackGlue = null
         releaseCustomRadioPlayer()

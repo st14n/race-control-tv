@@ -1,8 +1,8 @@
 package fr.groggy.racecontrol.tv.ui.channel.playback
 
-import android.hardware.DataSpace
 import android.os.Build
 import android.util.Log
+import android.view.Surface
 import android.view.SurfaceControl
 import android.view.SurfaceView
 
@@ -28,30 +28,42 @@ object HdrSurfaceHints {
 
     fun applyBt2020HlgDataSpace(surfaceView: SurfaceView?, source: String) {
         if (surfaceView == null) return
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            Log.i(TAG, "BT.2020 HLG SurfaceControl dataspace unavailable on this API source=$source")
-            return
-        }
+        Log.i(
+            TAG,
+            "Skipping explicit BT.2020 HLG SurfaceControl dataspace " +
+                "source=$source view=${System.identityHashCode(surfaceView)}"
+        )
+    }
+
+    fun requestFrameRate(surfaceView: SurfaceView?, frameRate: Float, source: String) {
+        if (surfaceView == null) return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
 
         runCatching {
             val surfaceControl = surfaceView.surfaceControl ?: run {
-                Log.w(TAG, "Skipping BT.2020 HLG dataspace; SurfaceControl unavailable source=$source")
+                Log.w(TAG, "Skipping SurfaceControl frame-rate vote; SurfaceControl unavailable source=$source")
                 return
             }
             if (!surfaceControl.isValid) {
-                Log.w(TAG, "Skipping BT.2020 HLG dataspace; SurfaceControl invalid source=$source")
+                Log.w(TAG, "Skipping SurfaceControl frame-rate vote; SurfaceControl invalid source=$source")
                 return
             }
             SurfaceControl.Transaction()
-                .setDataSpace(surfaceControl, DataSpace.DATASPACE_BT2020_HLG)
+                .setFrameRate(
+                    surfaceControl,
+                    frameRate,
+                    Surface.FRAME_RATE_COMPATIBILITY_DEFAULT,
+                    Surface.CHANGE_FRAME_RATE_ALWAYS
+                )
                 .apply()
             Log.i(
                 TAG,
-                "Applied BT.2020 HLG dataspace to SurfaceView layer " +
-                    "source=$source view=${System.identityHashCode(surfaceView)}"
+                "Requested SurfaceControl frame-rate vote " +
+                    "fps=$frameRate compatibility=default change=always source=$source " +
+                    "view=${System.identityHashCode(surfaceView)}"
             )
         }.onFailure {
-            Log.w(TAG, "Unable to apply BT.2020 HLG dataspace source=$source", it)
+            Log.w(TAG, "Unable to request SurfaceControl frame-rate vote source=$source", it)
         }
     }
 }

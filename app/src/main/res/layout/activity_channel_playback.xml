@@ -6,6 +6,13 @@
     android:layout_height="match_parent"
     android:keepScreenOn="true">
 
+    <!-- Mask layout to hide launcher during buffering/loading -->
+    <View
+        android:id="@+id/playback_black_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/black" />
+
     <androidx.fragment.app.FragmentContainerView
         android:id="@+id/fragment_container"
         android:name="fr.groggy.racecontrol.tv.ui.LoadingFragment"

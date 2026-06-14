@@ -16,12 +16,10 @@ object DeviceInfo {
 
     private val TAG = DeviceInfo::class.simpleName
 
-    private const val SPOOFED_BRAND = "Google"
-    private const val SPOOFED_PRODUCT = "sabrina"
-    private const val SPOOFED_MODEL = "Chromecast"
-    private const val SPOOFED_ANDROID_RELEASE = "12"
-    private const val SPOOFED_BUILD_ID = "STTE.231215.005"
-    private const val SPOOFED_F1_DEVICE_INFO_MODEL = "sabrina"
+    private const val SPOOFED_USER_AGENT_MODEL = "Google TV Streamer"
+    private const val SPOOFED_ANDROID_RELEASE = "14"
+    private const val SPOOFED_BUILD_ID = "UTTK.250729.004"
+    private const val SPOOFED_F1_DEVICE_INFO_MODEL = "kirkwood"
     private const val SPOOFED_APP_VERSION = "30482001"
     private const val SPOOFED_PLAYER_VERSION = "3.112.0"
 
@@ -33,9 +31,7 @@ object DeviceInfo {
         append("Mozilla/5.0 (Linux; Android ")
         append(SPOOFED_ANDROID_RELEASE)
         append("; ")
-        append(SPOOFED_BRAND)
-        append(' ')
-        append(SPOOFED_MODEL)
+        append(SPOOFED_USER_AGENT_MODEL)
         append(" Build/")
         append(SPOOFED_BUILD_ID)
         append("; wv) AppleWebKit/537.36 (KHTML, like Gecko)")
@@ -49,9 +45,9 @@ object DeviceInfo {
      *   device=android_tv;screen=bigscreen;os=android;model=<model>;
      *   osVersion=34;appVersion=30482001;playerVersion=3.112.0;tms=1;
      *
-     * The spoofed brand/product pair mirrors the Google/sabrina identity discussed
-     * in recent 4K patch experiments. appVersion / playerVersion stay aligned with
-     * the last known-working Android TV release from the same thread.
+     * The spoofed model mirrors the official UHD-supported Google/kirkwood identity
+     * for Google TV Streamer. appVersion / playerVersion stay aligned with the last
+     * known-working Android TV release from the same thread.
      */
     val f1DeviceInfo: String = buildString {
         append("device=android_tv")
@@ -128,10 +124,11 @@ object DeviceInfo {
     fun shouldRequestHdrManifest(context: Context): Boolean {
         val supportsHlg = supportsHlgDisplay(context)
         val supportsToneMapping = supportsHdrToSdrToneMapping()
-        val shouldRequestHdr = supportsHlg
+        val isNvidia = Build.BRAND.equals("NVIDIA", ignoreCase = true) || Build.MANUFACTURER.equals("NVIDIA", ignoreCase = true)
+        val shouldRequestHdr = supportsHlg || supportsToneMapping
         Log.i(
             TAG,
-            "shouldRequestHdrManifest supportsHlg=$supportsHlg supportsToneMapping=$supportsToneMapping shouldRequestHdr=$shouldRequestHdr"
+            "shouldRequestHdrManifest supportsHlg=$supportsHlg supportsToneMapping=$supportsToneMapping isNvidia=$isNvidia shouldRequestHdr=$shouldRequestHdr"
         )
         return shouldRequestHdr
     }
@@ -140,5 +137,16 @@ object DeviceInfo {
         val shouldToneMap = !supportsHlgDisplay(context) && supportsHdrToSdrToneMapping()
         Log.i(TAG, "shouldToneMapHdrToSdr=$shouldToneMap")
         return shouldToneMap
+    }
+
+    fun shouldTryHdrToSdrToneMappingPlayback(context: Context): Boolean {
+        val supportsHlg = supportsHlgDisplay(context)
+        val shouldTryToneMapping = !supportsHlg && supportsHdrToSdrToneMapping()
+        Log.i(
+            TAG,
+            "shouldTryHdrToSdrToneMappingPlayback supportsHlg=$supportsHlg " +
+                "supportsToneMapping=${supportsHdrToSdrToneMapping()} shouldTry=$shouldTryToneMapping"
+        )
+        return shouldTryToneMapping
     }
 }
