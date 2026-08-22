@@ -85,6 +85,13 @@ class F1DashManifestParser : DashManifestParser() {
             .setColorSpace(C.COLOR_SPACE_BT2020)
             .setColorTransfer(C.COLOR_TRANSFER_HLG)
             .setColorRange(C.COLOR_RANGE_LIMITED)
+            // F1's HDR streams are hev1.2.4.* Main10 / 10-bit. Without an
+            // explicit luma/chroma bit depth here, the MediaTek secure HEVC
+            // decoder (c2.mtk.hevc.decoder.secure) falls back to 8-bit
+            // Gralloc buffer allocation. Writing 10-bit HEVC slices into
+            // 8-bit buffers renders as a solid green plane.
+            .setLumaBitdepth(10)
+            .setChromaBitdepth(10)
             .build()
     }
 

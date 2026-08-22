@@ -62,6 +62,26 @@ class ViewingService @Inject constructor(
         return f1Tv.getViewing(channelId, contentId, streamType, token.value, preferHdrManifest)
     }
 
+    /**
+     * DIAGNOSTIC: enumerate one specific PLAY variant (see
+     * [F1Client.probeViewingVariant]).
+     */
+    suspend fun probeViewingVariant(
+        channelId: String?,
+        contentId: String,
+        playApiVersion: String,
+        platform: String,
+        player: String,
+        overrideStreamType: String?
+    ): F1TvViewing? = withContext(Dispatchers.IO) {
+        val token = tokenService.getToken()
+        if (!token.isValid()) throw TokenExpiredException()
+        f1Tv.probeViewingVariant(
+            channelId, contentId, token.value,
+            playApiVersion, platform, player, overrideStreamType
+        )
+    }
+
     class TokenExpiredException: IllegalStateException("The token is expired")
 
     class MaxRetryAttemptsReachedException: IllegalStateException("Max retries of $MAX_RETRIES reached, unable to fetch viewing")

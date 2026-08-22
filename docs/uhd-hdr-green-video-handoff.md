@@ -637,3 +637,188 @@ Not viable without changing product constraints:
 - LibVLC/mpv/FFmpeg user-space decoding for the real F1 UHD stream, because Widevine L1 protected UHD/HDR output cannot be decoded in app-visible software buffers.
 - Android `TextureView` for true HDR. Android documentation explicitly points HDR playback toward `SurfaceView`; `TextureView` has limited HDR support on Android 13+ and tends toward SDR/transcode behavior.
 - A simple platform `MediaPlayer` swap. It does not solve the custom DASH/Widevine license/header/audio requirements that Media3 is already handling.
+
+## 2026-06-14 Live vs Replay Findings
+
+Current user-observed behavior:
+
+- Current-week replay UHD/HDR can play when the DASH init repair path is active.
+- Current live UHD/HDR still produces green video and was not falling back reliably.
+- With the SDR tone-mapping setting enabled, replay previously black-screened because the global setting leaked into the SDR fallback renderer path.
+- Custom radio policy must be based on the custom-radio settings and whether the session is live/replay; tone mapping must not decide radio availability.
+
+Manifest/init comparison:
+
+- `diagnostics/live_hdr_latest.mpd` is `type="dynamic"` with `minimumUpdatePeriod`, `timeShiftBufferDepth`, `availabilityStartTime`, live `publishTime`, and current `SegmentTimeline`/`startNumber`.
+- `diagnostics/current_week_hdr/index.mpd` is `type="static"` with `mediaPresentationDuration` and a fixed segment timeline.
+- The live and current-week replay HDR ladders are otherwise materially similar: both expose `HDR_UHD_DASHWV` style DASH-WV video with BT.2020/HLG CICP descriptors (`ColourPrimaries=9`, `TransferCharacteristics=18`, `MatrixCoefficients=9`) and `_HDR-UHD_HEVC_2` at `3840x2160/50`.
+- `working_init.mp4` from the previously working stream has a complete `hvcC` box (`145` bytes) and declares `frma=hvc1`.
+- Both current-week replay `diagnostics/current_week_hdr/hdr_uhd_init.mp4` and current live `diagnostics/live_hdr_uhd_init.mp4` have the same minimal/broken `hvcC` (`31` bytes), declare `frma=hev1`, and carry `schm=cbcs`.
+
+Code conclusion:
+
+- The current-week repair is not replay-only. Live uses the same broken/minimal init shape and also needs `F1DashInitSegmentFixingDataSource`.
+- The previous live guard in `shouldRewriteF1DashUhdHdrInit(...)` was wrong because it disabled the one repair live now needs.
+- The SDR fallback renderer must only enable HDR-to-SDR tone mapping for actual UHD/HDR viewings; SDR/HD fallback must use the normal graph.
+- Custom radio auto-selection should be enabled only when `autoSelectCustomRadio` is true and a radio plan exists; it is allowed for live sessions and allowed for replay/non-live sessions only when `restrictCustomRadioToLiveSessions` is false.
+- UHD/HDR playback that needs automatic custom radio must use the full `ChannelPlaybackFragment` path because `OfficialLikeHdrPlaybackFragment` currently does not host the custom radio engine or controls.
+
+## 2026-06-14 Final Green Screen and 403 Fixes
+
+### Fixed 403 Forbidden for Akamai UHD Segments
+- **The Issue**: ExoPlayer failed to load the live UHD segments (giving a 403 Forbidden) and fell back to the 1080p SDR manifest. F1TV's f1prodlive.akamaized.net CDN redirects the index.mpd request to embed a mandatory Akamai hdntl token in the base URL. Our custom F1DashInitSegmentFixingDataSource was returning the pre-redirected URL (dataSpec.uri) instead of the final redirected URL. Thus, ExoPlayer failed to append the hdntl token to segment requests, which caused Akamai to reject them.
+- **The Fix**: Modified F1DashInitSegmentFixingDataSource.getUri() to accurately report the resolvedUri (the redirected URL). ExoPlayer's DashManifestParser now inherits the hdntl token correctly, resolving the 403 Forbidden entirely.
+
+## 2026-08-21 Live Session Investigation and Regression
+
+Extensive same-day investigation during an actual live race weekend, with real device access. Summary of what was tried, what was ruled out with hard evidence, and a regression that was introduced and reverted.
+
+### Dynamic hvcC extraction: fixed and confirmed genuinely working
+- Rewrote the cache-key mechanism to use the resolved init-segment URI (verified against decompiled `DefaultDashChunkSource`/`DashUtil`) instead of a regex-guessed representation ID -- the old regex silently never matched on either CDN shape.
+- Added a resolution-validation guard using Media3's own `NalUnitUtil.parseH265SpsNalUnit` to reject false-positive NAL matches. Initially compared against the wrong SPS field (`decodedWidth`/`decodedHeight`, the pre-crop coded picture size, e.g. 2176) instead of `width`/`height` (the conformance-window-cropped display size, e.g. 2160) -- this caused a real live test to incorrectly reject genuinely valid extracted parameter sets and fall back to stale hardcoded bytes. Fixed to compare the correct field.
+- Fixed a missing-headers bug: `DynamicHvcCExtractor`'s side-channel segment fetch used a bare `HttpURLConnection` with no `User-Agent`/`Origin`/`Referer`/`x-f1-device-info` headers, causing Akamai's hdntl-tokenized CDN (still used for live and current-week replay) to silently serve unusable content. Fixed by sending the same headers as the rest of the app.
+- **Confirmed working on a real live/current-week-replay session**: logs showed `Successfully extracted dynamic hvcC box for _HDR-UHD_HEVC_2 (size=145 bytes)` and `source=dynamic` in the repair log, with correct decoder init and HLG/BT.2020 output.
+- **This did not fix the green screen.** Real, validated, freshly-extracted parameter sets, correct decode, correct color metadata -- still green. This is a clean negative result: missing/broken hvcC is not the root cause of the visual failure (though it was a real, separate bug worth fixing on its own merits).
+
+### Protected EGL content: definitively ruled out, at both Java and native (NDK) level
+- Added `app/src/main/cpp/` (CMake + NDK) with `protected_egl_probe.cpp`, probing `EGL_EXT_protected_content` and attempting actual protected context/surface creation through `libEGL.so` directly, matching how Tiledmedia's own `libClearVRNativeRendererPlugin.so` (`EGLRenderTarget` class, confirmed via string extraction from the decompiled official APK) does it.
+- Result: `hasExtensionString=false`, `eglCreateContext` with `EGL_PROTECTED_CONTENT_EXT` fails with `error=0x3004` (`EGL_BAD_ATTRIBUTE`). Identical to the earlier Java-level (`EGL14`) probe result.
+- This is not a Java-vs-native artifact -- the driver genuinely does not support the extension, at all, for any app. Since Tiledmedia's own native code checks for the same standard extension string, **whatever the official app actually does to work, it cannot be through a protected EGL context either** on this hardware. This closes off the entire "replicate Tiledmedia's protected renderer" theory that the project has circled since June.
+
+### Window HDR color mode: tested, no effect, caused a regression when misapplied
+- Added `Window.colorMode = ActivityInfo.COLOR_MODE_HDR` (the programmatic equivalent of the `android:colorMode="hdr"` manifest attribute removed in an earlier session) in both `OfficialLikeHdrPlaybackFragment` and `ChannelPlaybackFragment`, scoped to `looksLikeHdrUhdWidevine(viewing)`.
+- In `OfficialLikeHdrPlaybackFragment` (direct/native HDR path): applied correctly, no crash, still green. App diagnostics (`HdrPresentationDiagnostics`) already reported `isHdr=true hdrConversion=PASSTHROUGH` even before this call ran, so the window was arguably already negotiating HDR regardless.
+- **Regression**: the gating only checked "is this content inherently HDR/UHD Widevine", not "is *this specific playback attempt* the tone-mapped-to-SDR fallback". In `ChannelPlaybackFragment`'s `ToneMappedHdr`/`Standard` fallback attempts (`forceHdrToSdrToneMapping=true`), this told the window to expect genuine HDR output while the tone-mapping renderer was producing SDR pixels for it -- a real mismatch. Symptom: `videoSize=0x0` despite healthy buffering (26s buffered, `isPlaying=true`), first-frame watchdog firing, black screen -- worse than the pre-existing green screen, and it affected non-UHD/SDR playback too since the same fragment handles the generic fallback path.
+- **Reverted entirely** (both fragments) rather than trying to re-scope it, since it had zero proven benefit and a demonstrated capacity for harm.
+
+### SurfaceView Z-order: tested as a diagnostic, ruled out
+- Hypothesis: Leanback's `VideoSupportFragment` keeps its `SurfaceView` at normal Z-order (`setZOrderOnTop(false)`, `setZOrderMediaOverlay(false)`) so its own overlay transport controls render above it in the ordinary view hierarchy -- but this could force SurfaceFlinger into GPU composition for that layer, which cannot read protected buffer content, producing green. The official app's `TiledPlayerActivityTv` uses a fully custom UI with no such constraint (confirmed via `TimeStats: [...][SurfaceView[com.formulaone.production/...TiledPlayerActivityTv](BLAST)...]` -- it is a standard BLAST-backed `SurfaceView`, not something exotic).
+- Diagnostic test: forced `setZOrderOnTop(true)`/`setZOrderMediaOverlay(true)` in `OfficialLikeHdrPlaybackFragment`. Applied correctly (confirmed via logs), decoder/color markers all correct, no crash. **Still green.** Ruled out. Reverted to `false`/`false`.
+
+### Systematic CCodecConfig/DRM diff against the official app: everything matches
+Captured real logcat from the official F1TV app (`com.formulaone.production`, `TiledPlayerActivityTv`) playing the same live content on the same device, and diffed against our app's logs line-by-line. Every one of the following matched exactly between both apps:
+- Decoder: `c2.mtk.hevc.decoder.secure`
+- `algo.secure-mode.value = 1`
+- `color-standard = 6`, `color-transfer = 7`, `android._dataspace = 302383104`
+- `raw.pixel-format.value = 2130706439` (`0x7F000007`, MediaTek's opaque protected YUV format)
+- WVCdm: `requested_security_level = Default`, `IsSecurityLevelSupported level = L1`
+
+No device-level tracing tool (Frida/strace) is available without root (`ro.secure=1`, no `su`, `adbd cannot run as root in production builds` -- confirmed). Rooting this device was explicitly not pursued given the risk (unknown feasibility, could brick a device in active use, no small undertaking).
+
+### Root cause: still unknown, six hypotheses eliminated
+Missing parameter sets, protected EGL (Java and native), window HDR color mode, SurfaceView Z-order, pixel format, and DRM security level are all ruled out or confirmed identical to the official app. The difference must be somewhere not visible in `CCodecConfig`/`WVCdm`/decoder logs -- possibly Activity/Task/Window structural differences, or something that genuinely requires syscall/HAL-level tracing to observe.
+
+### New finding: live UHD/HDR playback stuck in an infinite buffer-allocation retry loop
+During this session's testing (after ~9 app reinstalls/force-stops), a live UHD/HDR playback attempt got stuck "loading forever" (never reaching green, black, or a player error) rather than the previously-typical outcomes. Captured in `diagnostics/live_session_2026-08-21_uhd_hdr_stuck_loading.txt`:
+
+```
+BufferQueueProducer: [SurfaceView[.../ChannelPlaybackActivity]#27(BLAST Consumer)27] dequeueBuffer: createGraphicBuffer failed
+BufferQueueProducer: [...] requestBuffer: slot 11 is not owned by the producer (state = FREE)
+BufferQueueProducer: [...] cancelBuffer: slot 11 is not owned by the producer (state = FREE)
+```
+
+1,770 consecutive occurrences in ~10 seconds (16:17:01.682-16:17:11.499), an unthrottled busy-loop with no backoff -- almost certainly still looping when the capture ended. `createGraphicBuffer failed` is a genuine graphics-memory allocation failure at the Gralloc/BufferQueue layer for the secure video buffer, not application logic. Given the unusually high number of forced app kills/reinstalls in this session (mid-decode, repeatedly), this is most likely accumulated/leaked secure-buffer memory pool state on the device itself rather than a new code bug -- **a device reboot should be tried first** before investigating this further, to rule out that explanation cheaply.
+
+### Current state as of end of session (before reboot test)
+- UHD/HDR disabled (plain SDR/HD): works.
+- UHD/HDR native (`OfficialLikeHdrPlaybackFragment`): green (parameter sets, color, Z-order, window color mode all confirmed correct/ruled out as the cause).
+- UHD/HDR with tone-mapping (`ChannelPlaybackFragment` `ToneMappedHdr`): black, even after reverting the window-colorMode regression -- this needs its own fresh investigation, separate from the green-screen native-path issue; not yet clear whether this is pre-existing or newly surfaced.
+- Live UHD/HDR: stuck in the buffer-allocation retry loop described above -- try a reboot before re-testing.
+
+### Fixed True Green Screen (10-bit HLG Decoder Corruption)
+- **The Issue**: Even after fixing the parameter sets and the 403 forbidden error, the secure MediaCodec (c2.mtk.hevc.decoder.secure) was heavily corrupting the stream and outputting a green screen. Two severe bugs caused this:
+  1. The custom F1DashManifestParser forcibly stripped bit-depth information from ExoPlayer's ColorInfo, overwriting the valid 10-bit color metadata with NA.
+  2. The raw, hardcoded FULL_HVCC_BOX_LIVE and FULL_HVCC_BOX_REPLAY buffers that were previously extracted and injected both contained 0xF8 for bitDepthLumaMinus8 and bitDepthChromaMinus8. 0xF8 masks down to 0, which meant the decoder configuration was maliciously tricking the hardware into thinking the UHD stream was 8-bit instead of 10-bit.
+- **The Fix**: 
+  1. Eradicated F1DashManifestParser and removed it from the ExoPlayer builder.
+  2. Hex-edited the hardcoded HEVC configuration arrays (FULL_HVCC_BOX_LIVE and FULL_HVCC_BOX_REPLAY) to contain 0xFA for the bit depth parameters, which correctly calculates to 10-bit (0xFA & 0x07 = 2, 2 + 8 = 10). ExoPlayer now accurately reports ColorInfo(BT2020, Limited range, HLG, false, 10bit Luma, 10bit Chroma) and the hardware decoder securely renders the HDR frames.
+
+## 2026-08-05 Fresh Replay Test After ~7 Week Gap
+
+Context: no live race weekend was running, so only replay could be tested. Device reconnected via `adb pair`/`adb connect` on a new IP after an ISP change (`192.168.178.151`); old fixed-port `adb tcpip 5555` session had to be re-established since Wireless debugging on this device only binds over Wi-Fi, not Ethernet.
+
+### CDN moved from Akamai to CloudFront/MediaPackage
+- Manifest/segment host is now `ott-video-fer-cf.formula1.com` with opaque, base64-token paths (`/v2/pa_<base64>/...../index.mpd`), served via CloudFront in front of AWS MediaPackage.
+- Segment/init URLs no longer contain human-readable identifiers like `HDR-UHD-DASH-WV`, `_HDR-UHD_HEVC_2`, or `INDEX_VIDEO` anywhere in the path — everything is opaque tokens. This is very likely what was meant by "F1 no longer provides some content data it previously provided": the old URL-substring heuristics (`shouldRepair`, the old live/replay detector) have nothing readable left to match against.
+- `shouldUseF1DashUhdHdrFixes` / `shouldRewriteF1DashUhdHdrInit` in `OfficialLikeHdrPlaybackFragment` still work correctly today only because they also match against `viewing.streamType` (e.g. `HDR_UHD_DASHWV`), not just the URL. Confirmed via log: main video source logged `f1UhdHdrFixes=true rewriteInit=true`, the SDR audio companion source (different streamType) correctly logged `f1UhdHdrFixes=false rewriteInit=false`.
+
+### Init segment now ships a real hvcC, not the old broken 31-byte one
+- Fresh replay session logged: `Expanded empty hvcC for F1 DASH UHD HEVC init segment hvcC=145->145 addedColr=true`.
+- That means the init segment's `hvcC` box is now already 145 bytes (a real VPS/SPS/PPS-bearing box), not the historically-documented minimal/broken 31-byte one. `F1DashInitSegmentFixingDataSource.repairInitSegment` correctly detected `hvcc.size >= fullHvccBox.size` and kept the real extracted `hvcC` bytes as-is rather than substituting the hardcoded/dynamic fallback — it only appended the still-missing `colr` (BT2020/HLG NCLX) box, since `encv`/`hvc1`/`hev1` sample entries still carry no `colr` child.
+- This is a genuine upstream change on F1's side (they now embed a complete hvcC), not something introduced by our code.
+
+### Result
+- Decoder: `c2.mtk.hevc.decoder.secure` initialized normally.
+- Output format switched to `color-standard=6`, `color-transfer=7`, `android._dataspace=302383104` (BT.2020 HLG), matching all previously-documented good markers.
+- `onRenderedFirstFrame` fired.
+- No `Player error`, no crash, no fallback to SDR anywhere in the ~35s capture; playback ended cleanly on `videoDecoderReleased` when the user stopped it.
+- User confirmed: **replay worked** (first clean replay HDR result recorded in this doc).
+- Full log: `logcat_replay_2026-08-05.txt` (repo root).
+
+### Still open
+- Live could not be tested (no live session running at capture time). The live-vs-replay hvcC divergence documented on 2026-06-14 has not been re-verified against the new CloudFront CDN; live's init segment may or may not have picked up the same "real hvcC" upstream fix as replay.
+- Correction (2026-08-05): the claim below that live was "never exercised against real data in any saved log" was wrong. It was based on a `grep -l "isLiveSession=true"` search across the repo's `.txt` logs, which came back empty — but several of those raw logcat captures were UTF-16 encoded (evidenced by the `_utf8` sibling copies that existed alongside them, e.g. `logcat4_utf8.txt`), and plain `grep` silently finds nothing in UTF-16 text. Those raw logs (and their `_utf8` copies) were then deleted in a later cleanup pass before this was caught, so the actual log lines are gone. However, the substantive finding survived in prose: see "2026-06-14 Live vs Replay Findings" below, written the same day as the Spanish GP weekend (practice/qualifying/race) — live UHD/HDR was confirmed producing green video that weekend. Lesson for next time: convert/verify encoding (`iconv`/`file`) before trusting a text search returned zero results, especially on older raw adb captures.
+- User's working assumption (2026-08-05): live traffic likely still goes through Akamai (not migrated to the CloudFront/MediaPackage CDN replay now uses), so live should be assumed to still ship the broken/minimal `hvcC` until proven otherwise. The existing repair logic already handles this correctly regardless of CDN — `F1DashInitSegmentFixingDataSource.repairInitSegment` only trusts the real extracted `hvcC` when it's already `>= fullHvccBox.size`, and falls back to the hardcoded/dynamic parameter sets otherwise — so no code change should be needed, only a live re-test once a session is available to confirm.
+- `F1DashManifestParser.kt` (CICP-descriptor-based `ColorInfo` injection) exists in the tree but is **not wired into any `DashMediaSource.Factory`** — it's dead code from an in-progress experiment, distinct from the eradicated original mentioned above.
+- Scratch debugging artifacts at repo root (`TestExtractor.java`/`.class`, `fix.py`, various `logcat_*`/`dumpsys_*`/`*.mp4` captures) are untracked and should be cleaned up or gitignored before committing the real fix.
+
+## 2026-08-22 Systematic elimination — root cause narrowed to encrypted HEVC on this decoder
+
+A full day of controlled, single-variable tests. Each item below was tested and is
+**ruled out** as the cause of the green screen:
+
+| Hypothesis | Test | Result |
+|---|---|---|
+| Our rendering path / surface / Leanback | Played a synthetic 4K 10-bit HLG BT.2020 clip through the *same* fragment/surface/decoder | **Plays perfectly** |
+| `hev1` in-band parameter sets | Same clip remuxed `hev1` vs `hvc1` (verified by byte count in logs) | **Both play perfectly** |
+| Our custom DASH code | `VANILLA_MEDIA3_DIAGNOSTIC` — no custom extractor/manifest parser/init rewriter | Still green |
+| Our `hvcC` injection | Init-segment rewriting disabled entirely | Still green |
+| DRM / secure buffers / TEE / HDCP | Forced Widevine **L3** → non-secure decoder `c2.mtk.hevc.decoder`, clear content | Still green |
+| Compositing / HDMI / display | `screencap` with FLAG_SECURE+setSecure off | Buffer is **uniformly RGB(0,26,0)** — zero-filled, pre-display. UI composites fine in the same window |
+| Sample decryption parameters | Logged `CryptoInfo`, verified against the real `tenc` box | Pattern (1:9), constant IV == KID: **all correct, matches F1's actual packaging** |
+| Two concurrent DRM sessions | `SKIP_COMPANION_AUDIO_DIAGNOSTIC` — exactly one `CONTENT/PLAY` per session | Still green |
+| Decoder configured directly at 4K | Adaptive start (decoder configured at 480x270) | Still green at every resolution |
+| Hardware decoder tone mapping | `KEY_COLOR_TRANSFER_REQUEST=SDR` | Silently ignored (`color-transfer-request = 0`, output stays HLG) |
+| Window HDR colour mode / SurfaceView Z-order / HDCP settle delay | Each tested individually | No effect (colorMode caused a black-screen regression, reverted) |
+
+### Automated stream-variant probe (30 combinations)
+
+`STREAM_VARIANT_PROBE` cycles every override x platform. **Platform is irrelevant** —
+`BIG_SCREEN_HLS`, `BIG_SCREEN_DASH` and `WEB_DASH` give identical results. Only three
+outcomes exist:
+
+1. **HDR + Widevine** (`HDR_UHD_DASHWV`, `HDR_UHD_CMAFWV`) → `c2.mtk.hevc.decoder.secure`,
+   `color-transfer=7`, first frame renders → **green**.
+2. **SDR fallback** (everything else) → `c2.mtk.**avc**.decoder.secure` (H.264, *not* HEVC),
+   `color-transfer=3` → **works**.
+3. **Unencrypted HDR** (`HDR_UHD_DASH`, `HDR_UHD_CMAF`) → `drmType=null`, no licence URL, but the
+   manifest itself returns **HTTP 403** `x-amzn-ErrorType: AccessDeniedException` /
+   `{"Message":"Access denied."}` from AWS MediaPackage. F1 deliberately does not serve
+   unencrypted 4K HDR to consumer clients. Not fixable client-side.
+
+### Where this leaves the root cause
+
+The evidence converges on: **encrypted (cbcs) HEVC decodes to blank frames on this
+MediaTek decoder**, while
+- *clear* HEVC (incl. 4K 10-bit HLG) decodes correctly, and
+- *encrypted* AVC/H.264 decodes correctly.
+
+Because F1's only HEVC content is 10-bit HDR and its only SDR content is AVC, we cannot
+locally separate "cbcs + HEVC" from "cbcs + 10-bit" — there is no counter-example in F1's
+own ladder. This matches a cluster of *currently unresolved* MediaTek decoder issues in the
+Media3/ExoPlayer tracker (androidx/media #2711, #2765, #2452; ExoPlayer #10890 — Xiaomi,
+Vivo, OnePlus, Redmi), all "decoder initialises, no error, black/frozen/garbage output".
+
+**Unresolved contradiction:** the official F1 app plays the *same* representation on the
+*same* device with an identical `CCodecConfig` and a byte-identical SurfaceFlinger layer.
+It uses Tiledmedia/ClearVR's own native demux/render pipeline, so it very likely does not
+feed MediaCodec's crypto path the way Media3 does. That difference is not observable from
+outside the app without TEE/syscall tracing, which needs root (device is `ro.secure=1`,
+no `su`).
+
+### Remaining untested idea
+
+Package the synthetic HLG clip with **cbcs + ClearKey** and play it. That is the one test
+that would separate "cbcs + HEVC" from "cbcs + 10-bit" definitively. It needs
+shaka-packager and a ClearKey setup. Note that even a positive result yields no app-side
+fix — it would only confirm a platform defect worth reporting upstream.

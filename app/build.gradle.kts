@@ -39,10 +39,18 @@ plugins {
 android {
     namespace = "fr.groggy.racecontrol.tv"
     compileSdk = 36
+    ndkVersion = "27.2.12479018"
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
 
     defaultConfig {
         applicationId = appApplicationId
-        minSdk = 28
+        minSdk = 25
         targetSdk = 36
         versionCode = appVersionCode
         versionName = appVersionName
@@ -114,6 +122,10 @@ android {
     buildFeatures {
         buildConfig = true   // required because you use buildConfigField
         resValues = true     // required because you use resValue() in buildTypes
+    }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
     }
 
     packaging {
@@ -241,5 +253,7 @@ dependencies {
     implementation("com.google.android.material:material:1.12.0")
     implementation("com.jakewharton.threetenabp:threetenabp:1.4.9")
     implementation("com.google.code.gson:gson:2.14.0")
+
+    testImplementation("junit:junit:4.13.2")
 }
 
