@@ -288,7 +288,11 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             requireContext(),
             enableHdrToSdrToneMapping = enableHdrToSdrToneMapping,
             enableProtectedHlgVideoGraph = enableProtectedHlgVideoGraph,
-            enableOfficialLikeDirectHdrCodecConfig = enableOfficialLikeDirectHdrCodecConfig
+            enableOfficialLikeDirectHdrCodecConfig = enableOfficialLikeDirectHdrCodecConfig,
+            // DIAGNOSTIC (2026-08-22): log CryptoInfo here too, so one session
+            // captures BOTH the failing HDR attempt and the working SDR
+            // fallback and their encryption layouts can be compared directly.
+            enableCryptoDiagnostics = false
         )
     }
 
@@ -454,7 +458,8 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                 urlString = viewing.url.toString(),
                 streamType = viewing.streamType,
                 mediaItem = mainItem,
-                rewriteF1CmafHlsDrm = shouldRewriteF1CmafHlsDrm(viewing)
+                rewriteF1CmafHlsDrm = shouldRewriteF1CmafHlsDrm(viewing),
+                isLiveSession = ChannelPlaybackFragment.findIsLiveSession(requireActivity())
             )
             val hasHdrWidevineVideo = looksLikeHdrUhdWidevine(viewing)
             val useExternalAudio = viewing.externalAudioUri != null &&
@@ -663,15 +668,21 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         urlString: String,
         streamType: String?,
         mediaItem: androidx.media3.common.MediaItem,
-        rewriteF1CmafHlsDrm: Boolean = false
+        rewriteF1CmafHlsDrm: Boolean = false,
+        isLiveSession: Boolean = false
     ): androidx.media3.exoplayer.source.MediaSource {
         val isDash = streamType?.contains("DASH", ignoreCase = true) == true
             || urlString.contains(".mpd", ignoreCase = true)
         return if (isDash) {
             val useF1DashUhdHdrFixes = shouldUseF1DashUhdHdrFixes(urlString, streamType)
-            Log.i(TAG, "Using DashMediaSource for $urlString f1UhdHdrFixes=$useF1DashUhdHdrFixes")
-            val dashDataSourceFactory = if (useF1DashUhdHdrFixes) {
-                F1DashInitSegmentFixingDataSource.Factory(httpDataSourceFactory)
+            val rewriteF1DashInit = useF1DashUhdHdrFixes // Assume reuse of existing flag logic
+            Log.i(
+                TAG,
+                "Using DashMediaSource for $urlString " +
+                    "f1UhdHdrFixes=$useF1DashUhdHdrFixes rewriteInit=$rewriteF1DashInit isLiveSession=$isLiveSession"
+            )
+            val dashDataSourceFactory = if (rewriteF1DashInit) {
+                F1DashInitSegmentFixingDataSource.Factory(httpDataSourceFactory, isLiveSession)
             } else {
                 httpDataSourceFactory
             }
@@ -680,12 +691,14 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             } else {
                 DefaultDashChunkSource.Factory(dashDataSourceFactory)
             }
-            DashMediaSource.Factory(
+            val factory = DashMediaSource.Factory(
                 chunkSourceFactory,
                 dashDataSourceFactory
             )
-                .setManifestParser(F1DashManifestParser())
-                .createMediaSource(mediaItem)
+            if (useF1DashUhdHdrFixes) {
+                factory.setManifestParser(F1DynamicHvcCDashManifestParser())
+            }
+            factory.createMediaSource(mediaItem)
         } else {
             Log.i(TAG, "Using HlsMediaSource for $urlString rewriteF1CmafHlsDrm=$rewriteF1CmafHlsDrm")
             val dataSourceFactory = if (rewriteF1CmafHlsDrm) {
@@ -700,8 +713,8 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
 
     private fun shouldUseF1DashUhdHdrFixes(urlString: String, streamType: String?): Boolean {
         val identity = "$urlString ${streamType.orEmpty()}"
-        return identity.contains("HDR-UHD-DASH-WV", ignoreCase = true) ||
-            identity.contains("HDR_UHD_DASHWV", ignoreCase = true)
+        val isUhdOrHdr = identity.contains("UHD", ignoreCase = true) || identity.contains("HDR", ignoreCase = true)
+        return isUhdOrHdr && identity.contains("DASH", ignoreCase = true)
     }
 
     private fun shouldRewriteF1CmafHlsDrm(viewing: F1TvViewing): Boolean {
@@ -1446,6 +1459,14 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
 
     private fun updateVideoSurfaceSize(videoWidth: Int, videoHeight: Int) {
         if (videoWidth <= 0 || videoHeight <= 0 || view == null) return
+        // Leanback's own onVideoSizeChanged only adjusts the on-screen view's
+        // aspect ratio/bounds -- it does not resize the SurfaceView's actual
+        // BufferQueue. Without also fixing that, the buffer stays at whatever
+        // size Leanback initially laid it out at (e.g. 1920x1080) while
+        // MediaCodec writes real 3840x2160 secure/protected buffers into it,
+        // a mismatch that can fail protected buffer allocation rather than
+        // just being scaled, unlike regular unprotected content.
+        boundPlaybackSurfaceView?.holder?.setFixedSize(videoWidth, videoHeight)
         super<VideoSupportFragment>.onVideoSizeChanged(videoWidth, videoHeight)
     }
 

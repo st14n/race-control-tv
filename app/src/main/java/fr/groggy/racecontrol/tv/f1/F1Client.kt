@@ -235,6 +235,73 @@ class F1Client @Inject constructor(
         }
     }
 
+    /**
+     * DIAGNOSTIC: request exactly one PLAY variant and return whatever it gives,
+     * bypassing the normal candidate loop and the HDR acceptance filter, so a
+     * caller can enumerate every stream variant F1 will serve and try each one.
+     * Returns null if the variant is unavailable/unusable.
+     */
+    suspend fun probeViewingVariant(
+        channelId: String?,
+        contentId: String,
+        token: JWT,
+        playApiVersion: String,
+        platform: String,
+        player: String,
+        overrideStreamType: String?
+    ): F1TvViewing? {
+        val entitlementToken = loadEntitlementToken(token)
+        return try {
+            val url = PLAY_URL.format(playApiVersion, platform, contentId, player) +
+                (if (channelId != null) "&channelId=$channelId" else "")
+            val requestBuilder = Request.Builder()
+                .url(url)
+                .get()
+                .header("User-Agent", DeviceInfo.userAgent)
+                .header("Origin", "https://f1tv.formula1.com")
+                .header("Referer", "https://f1tv.formula1.com/")
+                .header("x-f1-device-info", DeviceInfo.f1DeviceInfo)
+                .header("ascendonToken", token.toString())
+                .header("entitlementToken", entitlementToken.orEmpty())
+                .header("CD-DeviceType", CD_DEVICE_TYPE)
+                .header("CD-DistributionChannel", CD_DISTRIBUTION_CHANNEL)
+            overrideStreamType?.let { requestBuilder.header("x-f1-override-video-stream", it) }
+
+            val response = requestBuilder.build()
+                .execute(httpClient).parseJsonBody(viewingResponseJsonAdapter)
+
+            Log.i(
+                TAG,
+                "PROBE result override=$overrideStreamType api=$playApiVersion platform=$platform " +
+                    "player=$player resultCode=${response.resultCode} " +
+                    "actualStreamType=${response.resultObj.streamType} drmType=${response.resultObj.drmType} " +
+                    "laUrlPresent=${!response.resultObj.laURL.isNullOrBlank()} " +
+                    "tmePresent=${response.resultObj.tme != null} " +
+                    "manifestPresent=${!response.resultObj.url.isNullOrBlank()}"
+            )
+
+            if (response.resultCode.uppercase() != "OK") return null
+            val manifestUrl = response.resultObj.url.orEmpty()
+            if (manifestUrl.isBlank()) return null
+
+            F1TvViewing(
+                url = Uri.parse(manifestUrl),
+                contentId = contentId,
+                channelId = response.resultObj.channelId ?: channelId,
+                platform = platform,
+                playApiVersion = response.resultObj.playApiVersion ?: playApiVersion,
+                ascendontoken = token.toString(),
+                entitlementtoken = response.resultObj.entitlementToken ?: entitlementToken.orEmpty(),
+                streamType = response.resultObj.streamType,
+                requestedOverrideStreamType = overrideStreamType,
+                laURL = response.resultObj.laURL
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "PROBE failed override=$overrideStreamType platform=$platform api=$playApiVersion: ${e.message}")
+            null
+        }
+    }
+
     private fun requestedPlayApiVersions(): List<String> = listOf(PLAY_API_V3, PLAY_API_V2)
 
     private fun requestedCandidates(

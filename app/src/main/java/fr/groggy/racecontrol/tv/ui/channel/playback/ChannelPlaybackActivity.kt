@@ -72,6 +72,18 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
     companion object {
         private val TAG = ChannelPlaybackActivity::class.simpleName
 
+        // DIAGNOSTIC (2026-08-22): make exactly one CONTENT/PLAY call per
+        // playback session, like the official app. Disables companion audio
+        // (and therefore custom radio) while enabled.
+        private const val SKIP_COMPANION_AUDIO_DIAGNOSTIC = false
+
+        // DIAGNOSTIC (2026-08-22): cycle every UHD/HDR stream variant F1 will
+        // serve, playing each for a few seconds with an on-screen label, so a
+        // working combination (if any exists) can be found empirically instead
+        // of one manual test at a time.
+        private const val STREAM_VARIANT_PROBE = false
+        private const val PROBE_SECONDS_PER_VARIANT = 12_000L
+
         fun intent(
             context: Context,
             sessionId: String,
@@ -99,8 +111,10 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         // down to 1080p, and instead outputs a green screen. 
         // We MUST force the display mode to 4K (or the maximum available) to match the official app.
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-            val display = windowManager.defaultDisplay
-            val modes = display.supportedModes
+            val displayManager = getSystemService(android.content.Context.DISPLAY_SERVICE) as android.hardware.display.DisplayManager
+            val display = displayManager.getDisplay(android.view.Display.DEFAULT_DISPLAY)
+            if (display != null) {
+                val modes = display.supportedModes
             var bestMode = display.mode
             for (mode in modes) {
                 // Prefer higher resolution, then higher refresh rate
@@ -116,9 +130,14 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
                 android.util.Log.i("ChannelPlaybackActivity", "Forcing preferred display mode to ${bestMode.physicalWidth}x${bestMode.physicalHeight}@${bestMode.refreshRate}Hz (modeId=${bestMode.modeId})")
             }
         }
+    }
 
         lifecycleScope.launch {
-            attachViewingIfNeeded(Settings.StreamType.DASH, preferHdrManifest = preferHdrManifestForDevice)
+            if (STREAM_VARIANT_PROBE) {
+                runStreamVariantProbe()
+            } else {
+                attachViewingIfNeeded(Settings.StreamType.DASH, preferHdrManifest = preferHdrManifestForDevice)
+            }
         }
     }
 
@@ -279,6 +298,22 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         currentChannelId: String?,
         streamType: Settings.StreamType
     ): F1TvViewing = try {
+        // EXPERIMENT (2026-08-22): skip the companion-audio CONTENT/PLAY call.
+        //
+        // This second PLAY has happened on EVERY test so far -- the earlier
+        // "single DRM session" test only changed the media source, not the API
+        // calls. F1 issues per-play session tokens, so a second PLAY for the
+        // same subscriber can supersede the first server-side, leaving the
+        // video's licence scoped to a stale session and yielding a key that
+        // decrypts to garbage (= a uniformly zero-filled, green frame).
+        // Everything else is now eliminated: our rendering path and the
+        // MediaTek decoder play synthetic 4K 10-bit HLG (hvc1 AND hev1)
+        // correctly, vanilla Media3 is green too, and L3/non-secure decode is
+        // green, so decryption output is the only candidate left.
+        if (SKIP_COMPANION_AUDIO_DIAGNOSTIC) {
+            Log.i(TAG, "DIAGNOSTIC: skipping companion-audio PLAY call (single CONTENT/PLAY per session)")
+            return viewing
+        }
         Log.i(
             TAG,
             "Fetching standard same-channel audio companion for UHD/HDR playback " +
@@ -333,19 +368,6 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         } else {
             val settings = settingsRepository.getCurrent()
             val isHdrUhdWidevine = ProtectedHdrStreamClassifier.looksLikeHdrUhdWidevine(viewing)
-            if (
-                isHdrUhdWidevine &&
-                ChannelPlaybackFragment.findIsLiveSession(this) &&
-                DeviceInfo.shouldPreferSdrUhdFallbackForHdrPlayback()
-            ) {
-                Log.w(
-                    TAG,
-                    "Live UHD/HDR Widevine is disabled on this device profile; " +
-                        "using standard SDR feed to avoid known live green/black secure-surface output"
-                )
-                fallbackToStandardSdr("google_tv_streamer_live_hdr_known_bad")
-                return
-            }
             if (isHdrUhdWidevine && shouldUseToneMappedHdrFirst(settings)) {
                 Log.i(
                     TAG,
@@ -392,6 +414,84 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         DirectMedia3Hdr
     }
 
+    private data class ProbeVariant(
+        val label: String,
+        val api: String,
+        val platform: String,
+        val player: String,
+        val override: String?
+    )
+
+    private suspend fun runStreamVariantProbe() {
+        val contentId = ChannelPlaybackFragment.findContentId(this) ?: return finish()
+        val channelId = resolvePreferredChannelId(
+            contentId = contentId,
+            requestedChannelId = ChannelPlaybackFragment.findChannelId(this)
+        )
+
+        val overrides = listOf(
+            "HDR_UHD_DASHWV",
+            "HDR_UHD_DASHWV_SINGLE",
+            "HDR_UHD_DASH",
+            "HDR_UHD_DASH_SINGLE",
+            "HDR_UHD_CMAFWV",
+            "HDR_UHD_CMAFWV_SINGLE",
+            "HDR_UHD_CMAF",
+            "SDR_UHD_DASHWV",
+            "SDR_UHD_DASHWV_SINGLE",
+            "SDR_UHD_DASH"
+        )
+        val platforms = listOf(
+            Triple("3.0", "BIG_SCREEN_HLS", "player_bm"),
+            Triple("3.0", "BIG_SCREEN_DASH", "player_bm"),
+            Triple("3.0", "WEB_DASH", "player_bm")
+        )
+
+        val variants = buildList {
+            for ((api, platform, player) in platforms) {
+                for (ov in overrides) {
+                    add(ProbeVariant("$platform/$ov", api, platform, player, ov))
+                }
+            }
+        }
+
+        Log.i(TAG, "STREAM VARIANT PROBE starting: ${variants.size} variants, " +
+            "${PROBE_SECONDS_PER_VARIANT / 1000}s each")
+
+        var index = 0
+        for (v in variants) {
+            index++
+            val banner = "[$index/${variants.size}] ${v.label}"
+            Log.i(TAG, "PROBE ===== $banner =====")
+            val viewing = try {
+                viewingService.probeViewingVariant(
+                    channelId, contentId, v.api, v.platform, v.player, v.override
+                )
+            } catch (e: Exception) {
+                Log.w(TAG, "PROBE $banner fetch failed: ${e.message}")
+                null
+            }
+            if (viewing == null) {
+                Log.i(TAG, "PROBE $banner -> UNAVAILABLE, skipping")
+                continue
+            }
+            Log.i(
+                TAG,
+                "PROBE $banner -> PLAYING streamType=${viewing.streamType} " +
+                    "laUrlPresent=${!viewing.laURL.isNullOrBlank()} url=${viewing.url}"
+            )
+            android.widget.Toast.makeText(
+                this,
+                "$banner — ${viewing.streamType}",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            currentViewing = viewing
+            openWithOfficialLikeHdrPlayer(viewing)
+            kotlinx.coroutines.delay(PROBE_SECONDS_PER_VARIANT)
+        }
+        Log.i(TAG, "STREAM VARIANT PROBE complete")
+    }
+
     private fun openWithOfficialLikeHdrPlayer(viewing: F1TvViewing) {
         currentPlaybackAttempt = PlaybackAttempt.NativeHdr
         Log.i(
@@ -426,6 +526,7 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         )
         openWithInternalPlayer(
             viewing = viewing,
+            forceDirectMedia3HdrSurface = true,
             forceHdrToSdrToneMapping = true,
             playbackAttempt = PlaybackAttempt.ToneMappedHdr
         )
@@ -567,6 +668,13 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
      * Called by [ChannelPlaybackFragment] when ExoPlayer reports an unrecoverable error.
      */
     fun playerError() {
+        if (STREAM_VARIANT_PROBE) {
+            // During the variant probe, a failing variant must not trigger the
+            // normal fallback/finish chain -- otherwise the first bad variant
+            // tears down the Activity and the probe stops early.
+            Log.w(TAG, "PROBE: ignoring player error so the probe can continue to the next variant")
+            return
+        }
         val failedViewing = currentViewing
         val triedHdrManifest = failedViewing?.let {
             ProtectedHdrStreamClassifier.looksLikeHdrUhdWidevine(it) ||

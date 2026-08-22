@@ -58,7 +58,7 @@ class SettingsRepository(
                 bypassChannelSelection = getBoolean(Settings.KEY_BYPASS_CHANNEL_SELECTION, Settings.DEFAULT.bypassChannelSelection),
                 displayThumbnailsEnabled = getBoolean(Settings.KEY_DISPLAY_THUMBNAILS_ENABLED, Settings.DEFAULT.displayThumbnailsEnabled),
                 openWithExternalPlayer = getBoolean(Settings.KEY_OPEN_WITH_EXTERNAL_PLAYER, Settings.DEFAULT.openWithExternalPlayer),
-                disableUhdManifests = getBoolean(Settings.KEY_DISABLE_HDR_PLAYBACK, Settings.DEFAULT.disableUhdManifests),
+                disableUhdManifests = getBoolean(Settings.KEY_DISABLE_UHD_MANIFEST, Settings.DEFAULT.disableUhdManifests),
                 disableHdrOn4kStreams = getBoolean(Settings.KEY_FORCE_SDR_TONE_MAPPING, Settings.DEFAULT.disableHdrOn4kStreams),
                 useExternalAudio = getBoolean(Settings.KEY_USE_EXTERNAL_AUDIO, Settings.DEFAULT.useExternalAudio),
                 audioOffsetMs = getString(Settings.KEY_AUDIO_OFFSET_MS, null)?.toLongOrNull()

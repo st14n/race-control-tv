@@ -26,7 +26,10 @@ class HdrToneMappingRenderersFactory(
     context: Context,
     private val enableHdrToSdrToneMapping: Boolean,
     private val enableProtectedHlgVideoGraph: Boolean,
-    private val enableOfficialLikeDirectHdrCodecConfig: Boolean
+    private val enableOfficialLikeDirectHdrCodecConfig: Boolean,
+    private val enableHardwareToneMapping: Boolean = false,
+    private val enableCryptoDiagnostics: Boolean = false,
+    private val enableSoftwareVideoDecoder: Boolean = false
 ) : DefaultRenderersFactory(context) {
 
     companion object {
@@ -48,6 +51,28 @@ class HdrToneMappingRenderersFactory(
             Build.PRODUCT
         ).joinToString(separator = " ").lowercase()
         return "google tv streamer" in identity || "kirkwood" in identity
+    }
+
+    /**
+     * `MediaCodecSelector.PREFER_SOFTWARE` was tested first and still selected
+     * `c2.mtk.hevc.decoder` (it only reorders; the MediaTek decoder still won),
+     * so it did not actually test anything. This filters hard: for HEVC, return
+     * ONLY Google's software decoder, so the MediaTek video path is definitively
+     * excluded. Falls back to the full list if nothing matches, so we get a
+     * clear decoder-init error rather than silent misbehaviour.
+     */
+    private fun strictSoftwareSelector(): MediaCodecSelector {
+        return MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
+            val all = MediaCodecSelector.DEFAULT
+                .getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
+            val softwareOnly = all.filter { it.name.startsWith("c2.android.") || it.name.startsWith("OMX.google.") }
+            Log.i(
+                TAG,
+                "strictSoftwareSelector mime=$mimeType secure=$requiresSecureDecoder " +
+                    "all=${all.map { it.name }} softwareOnly=${softwareOnly.map { it.name }}"
+            )
+            softwareOnly.ifEmpty { all }
+        }
     }
 
     private fun codecAdapterFactory(): MediaCodecAdapter.Factory {
@@ -86,7 +111,10 @@ class HdrToneMappingRenderersFactory(
 
         if (!enableProtectedHlgVideoGraph &&
             !enableHdrToSdrToneMapping &&
-            !enableOfficialLikeDirectHdrCodecConfig
+            !enableOfficialLikeDirectHdrCodecConfig &&
+            !enableHardwareToneMapping &&
+            !enableCryptoDiagnostics &&
+            !enableSoftwareVideoDecoder
         ) {
             return
         }
@@ -95,6 +123,46 @@ class HdrToneMappingRenderersFactory(
             val renderer = out[index]
             if (renderer is MediaCodecVideoRenderer) {
                 out[index] = when {
+                    enableSoftwareVideoDecoder -> {
+                        Log.i(TAG, "Installing strict software-only video renderer (bypasses MediaTek HEVC decoder)")
+                        DiagnosticMediaCodecVideoRenderer(
+                            context = appContext,
+                            codecAdapterFactory = MediaCodecAdapter.Factory.DEFAULT,
+                            mediaCodecSelector = strictSoftwareSelector(),
+                            allowedVideoJoiningTimeMs = allowedVideoJoiningTimeMs,
+                            enableDecoderFallback = enableDecoderFallback,
+                            eventHandler = eventHandler,
+                            eventListener = eventListener
+                        )
+                    }
+                    enableCryptoDiagnostics -> {
+                        Log.i(TAG, "Installing CryptoInfo-logging diagnostic renderer (no other overrides)")
+                        DiagnosticMediaCodecVideoRenderer(
+                            context = appContext,
+                            codecAdapterFactory = MediaCodecAdapter.Factory { configuration ->
+                                CryptoInfoLoggingMediaCodecAdapterWrapper(
+                                    MediaCodecAdapter.Factory.DEFAULT.createAdapter(configuration)
+                                )
+                            },
+                            mediaCodecSelector = mediaCodecSelector,
+                            allowedVideoJoiningTimeMs = allowedVideoJoiningTimeMs,
+                            enableDecoderFallback = enableDecoderFallback,
+                            eventHandler = eventHandler,
+                            eventListener = eventListener
+                        )
+                    }
+                    enableHardwareToneMapping -> {
+                        Log.i(TAG, "Installing hardware (decoder-side) HDR-to-SDR tone mapping renderer")
+                        HardwareToneMappingMediaCodecVideoRenderer(
+                            context = appContext,
+                            codecAdapterFactory = codecAdapterFactory(),
+                            mediaCodecSelector = mediaCodecSelector,
+                            allowedVideoJoiningTimeMs = allowedVideoJoiningTimeMs,
+                            enableDecoderFallback = enableDecoderFallback,
+                            eventHandler = eventHandler,
+                            eventListener = eventListener
+                        )
+                    }
                     enableProtectedHlgVideoGraph -> {
                         Log.i(TAG, "Installing Media3 protected HLG video graph renderer")
                         ProtectedHlgGraphMediaCodecVideoRenderer(
@@ -133,6 +201,65 @@ class HdrToneMappingRenderersFactory(
                 }
             }
         }
+    }
+}
+
+/**
+ * Deliberately does nothing except swap in [CryptoInfoLoggingMediaCodecAdapterWrapper]
+ * -- no getMediaFormat/operating-rate overrides, no effects, no video graph. Used
+ * to inspect what CryptoInfo Media3 is actually handing MediaCodec for each
+ * secure sample, in complete isolation from every other experiment in this file.
+ */
+private class DiagnosticMediaCodecVideoRenderer(
+    context: Context,
+    codecAdapterFactory: MediaCodecAdapter.Factory,
+    mediaCodecSelector: MediaCodecSelector,
+    allowedVideoJoiningTimeMs: Long,
+    enableDecoderFallback: Boolean,
+    eventHandler: Handler,
+    eventListener: VideoRendererEventListener
+) : MediaCodecVideoRenderer(
+    Builder(context)
+        .setCodecAdapterFactory(codecAdapterFactory)
+        .setMediaCodecSelector(mediaCodecSelector)
+        .setAllowedJoiningTimeMs(allowedVideoJoiningTimeMs)
+        .setEnableDecoderFallback(enableDecoderFallback)
+        .setEventHandler(eventHandler)
+        .setEventListener(eventListener)
+        .setMaxDroppedFramesToNotify(DefaultRenderersFactory.MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY)
+)
+
+private class CryptoInfoLoggingMediaCodecAdapterWrapper(
+    private val delegate: MediaCodecAdapter
+) : MediaCodecAdapter by delegate {
+
+    private var loggedCount = 0
+
+    override fun queueSecureInputBuffer(
+        index: Int,
+        offset: Int,
+        info: androidx.media3.decoder.CryptoInfo,
+        presentationTimeUs: Long,
+        flags: Int
+    ) {
+        if (loggedCount < MAX_LOGGED_SAMPLES) {
+            loggedCount++
+            Log.i(
+                HdrToneMappingRenderersFactory::class.simpleName,
+                "CryptoInfo #$loggedCount pts=$presentationTimeUs mode=${info.mode} " +
+                    "numSubSamples=${info.numSubSamples} " +
+                    "clearData=${info.numBytesOfClearData?.toList()} " +
+                    "encryptedData=${info.numBytesOfEncryptedData?.toList()} " +
+                    "pattern(encryptedBlocks=${info.encryptedBlocks} clearBlocks=${info.clearBlocks}) " +
+                    "keyLen=${info.key?.size} key=${info.key?.joinToString("") { "%02x".format(it) }} " +
+                    "ivLen=${info.iv?.size} iv=${info.iv?.joinToString("") { "%02x".format(it) }}"
+            )
+        }
+        delegate.queueSecureInputBuffer(index, offset, info, presentationTimeUs, flags)
+    }
+
+    private companion object {
+        private const val MAX_LOGGED_SAMPLES = 6
     }
 }
 
@@ -276,6 +403,87 @@ private class OfficialLikeDirectHdrMediaCodecVideoRenderer(
                 )
             }
         )
+    }
+}
+
+/**
+ * Asks the *hardware* decoder to tone-map HDR to SDR itself, via
+ * [MediaFormat.KEY_COLOR_TRANSFER_REQUEST] (Android 13+).
+ *
+ * Why this exists, and why it is different from [ToneMappingMediaCodecVideoRenderer]:
+ * that one tone-maps in OpenGL, which requires sampling the decoded frame in a GL
+ * context. For Widevine L1 protected content that needs a protected EGL context,
+ * and this device's driver does not support `EGL_EXT_protected_content` at all
+ * (verified 2026-08-21 through both Java `EGL14` and native NDK `libEGL.so`:
+ * extension string absent, `eglCreateContext` fails with `EGL_BAD_ATTRIBUTE`).
+ * That is why the GL tone-mapping path produces a black screen here.
+ *
+ * `KEY_COLOR_TRANSFER_REQUEST` instead makes the MediaTek secure decoder perform
+ * the conversion inside its own hardware pipeline, so the frame never has to be
+ * sampled by the GPU and no protected EGL context is needed. Media3 1.10.1 never
+ * sets this key itself (confirmed by inspecting `MediaCodecVideoRenderer`), so it
+ * has to be injected here.
+ *
+ * Android only supports `COLOR_TRANSFER_SDR_VIDEO` as a decoder request target;
+ * an unsupported request is documented to be ignored rather than failing, and the
+ * codec reports what it actually did in its output format (`color-transfer`).
+ */
+private class HardwareToneMappingMediaCodecVideoRenderer(
+    context: Context,
+    codecAdapterFactory: MediaCodecAdapter.Factory,
+    mediaCodecSelector: MediaCodecSelector,
+    allowedVideoJoiningTimeMs: Long,
+    enableDecoderFallback: Boolean,
+    eventHandler: Handler,
+    eventListener: VideoRendererEventListener
+) : MediaCodecVideoRenderer(
+    Builder(context)
+        .setCodecAdapterFactory(codecAdapterFactory)
+        .setMediaCodecSelector(mediaCodecSelector)
+        .setAllowedJoiningTimeMs(allowedVideoJoiningTimeMs)
+        .setEnableDecoderFallback(enableDecoderFallback)
+        .setEventHandler(eventHandler)
+        .setEventListener(eventListener)
+        .setMaxDroppedFramesToNotify(DefaultRenderersFactory.MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY)
+) {
+
+    override fun getMediaFormat(
+        format: Format,
+        codecMimeType: String,
+        codecMaxValues: MediaCodecVideoRenderer.CodecMaxValues,
+        codecOperatingRate: Float,
+        deviceNeedsNoPostProcessWorkaround: Boolean,
+        tunnelingAudioSessionId: Int
+    ): MediaFormat {
+        val mediaFormat = super.getMediaFormat(
+            format,
+            codecMimeType,
+            codecMaxValues,
+            codecOperatingRate,
+            deviceNeedsNoPostProcessWorkaround,
+            tunnelingAudioSessionId
+        )
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return mediaFormat
+        }
+        val isHdr = format.colorInfo?.colorTransfer == C.COLOR_TRANSFER_HLG ||
+            format.colorInfo?.colorTransfer == C.COLOR_TRANSFER_ST2084
+        if (!isHdr) {
+            return mediaFormat
+        }
+
+        mediaFormat.setInteger(
+            MediaFormat.KEY_COLOR_TRANSFER_REQUEST,
+            MediaFormat.COLOR_TRANSFER_SDR_VIDEO
+        )
+        Log.i(
+            HdrToneMappingRenderersFactory::class.simpleName,
+            "Requested hardware HDR-to-SDR tone mapping via KEY_COLOR_TRANSFER_REQUEST " +
+                "format=${format.id} size=${format.width}x${format.height} " +
+                "sourceTransfer=${format.colorInfo?.colorTransfer}"
+        )
+        return mediaFormat
     }
 }
 

@@ -54,7 +54,7 @@ data class Settings(
         const val KEY_BYPASS_CHANNEL_SELECTION = "bypass_channel_selection"
         const val KEY_DISPLAY_THUMBNAILS_ENABLED = "display_thumbnails_enabled"
         const val KEY_OPEN_WITH_EXTERNAL_PLAYER = "open_with_external_player"
-        const val KEY_DISABLE_HDR_PLAYBACK = "disable_hdr_playback"
+        const val KEY_DISABLE_UHD_MANIFEST = "disable_uhd_manifests"
         const val KEY_FORCE_SDR_TONE_MAPPING = "force_sdr_tone_mapping"
         const val KEY_USE_EXTERNAL_AUDIO = "use_external_audio"
         const val KEY_AUDIO_OFFSET_MS = "audio_offset_ms"
