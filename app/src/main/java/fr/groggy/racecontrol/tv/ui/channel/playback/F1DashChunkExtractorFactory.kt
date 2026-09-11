@@ -9,6 +9,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.analytics.PlayerId
 import androidx.media3.exoplayer.source.chunk.BundledChunkExtractor
 import androidx.media3.exoplayer.source.chunk.ChunkExtractor
+import androidx.media3.container.NalUnitUtil
 import androidx.media3.extractor.TrackOutput
 import androidx.media3.extractor.mp4.FragmentedMp4Extractor
 import androidx.media3.extractor.mp4.Track
@@ -124,7 +125,7 @@ class F1DashChunkExtractorFactory : ChunkExtractor.Factory {
             if (!looksLikeHevc(track.format)) return track
 
             val manifestColorInfo = manifestFormat.colorInfo
-            val mergedFormat = track.format.buildUpon()
+            val mergedFormatBuilder = track.format.buildUpon()
                 .setId(manifestFormat.id ?: track.format.id)
                 .setLabel(manifestFormat.label ?: track.format.label)
                 .setCodecs(manifestFormat.codecs ?: track.format.codecs)
@@ -136,7 +137,21 @@ class F1DashChunkExtractorFactory : ChunkExtractor.Factory {
                         track.format.colorInfo
                     }
                 )
-                .build()
+
+            val codedDimensions = parseCodedDimensions(track.format.initializationData)
+            if (codedDimensions != null) {
+                mergedFormatBuilder
+                    .setDecodedWidth(codedDimensions.first)
+                    .setDecodedHeight(codedDimensions.second)
+                Log.i(
+                    TAG,
+                    "Parsed F1 DASH HEVC coded dimensions " +
+                        "${codedDimensions.first}x${codedDimensions.second} " +
+                        "display=${track.format.width}x${track.format.height} id=${manifestFormat.id}"
+                )
+            }
+
+            val mergedFormat = mergedFormatBuilder.build()
 
             Log.i(
                 TAG,
@@ -155,6 +170,57 @@ class F1DashChunkExtractorFactory : ChunkExtractor.Factory {
                 descriptor.contains("HEVC", ignoreCase = true) ||
                 descriptor.contains("hev", ignoreCase = true) ||
                 descriptor.contains("hvc", ignoreCase = true)
+        }
+
+        private fun parseCodedDimensions(initializationData: List<ByteArray>): Pair<Int, Int>? {
+            var vps: ByteArray? = null
+            var sps: ByteArray? = null
+
+            for (block in initializationData) {
+                var position = 0
+                while (position + 4 <= block.size) {
+                    if (block[position] != 0.toByte() ||
+                        block[position + 1] != 0.toByte() ||
+                        block[position + 2] != 0.toByte() ||
+                        block[position + 3] != 1.toByte()
+                    ) {
+                        position++
+                        continue
+                    }
+
+                    val nalStart = position + 4
+                    var nalEnd = nalStart
+                    while (nalEnd + 4 <= block.size &&
+                        !(block[nalEnd] == 0.toByte() &&
+                            block[nalEnd + 1] == 0.toByte() &&
+                            block[nalEnd + 2] == 0.toByte() &&
+                            block[nalEnd + 3] == 1.toByte())
+                    ) {
+                        nalEnd++
+                    }
+                    if (nalEnd > nalStart) {
+                        val nal = block.copyOfRange(nalStart, nalEnd)
+                        when ((nal[0].toInt() and 0x7E) ushr 1) {
+                            32 -> vps = nal
+                            33 -> sps = nal
+                        }
+                    }
+                    position = nalEnd
+                }
+            }
+
+            val vpsData = vps ?: return null
+            val spsData = sps ?: return null
+            return runCatching {
+                val parsedVps = NalUnitUtil.parseH265VpsNalUnit(vpsData, 0, vpsData.size)
+                val parsedSps = NalUnitUtil.parseH265SpsNalUnit(
+                    spsData,
+                    0,
+                    spsData.size,
+                    parsedVps
+                )
+                parsedSps.decodedWidth to parsedSps.decodedHeight
+            }.getOrNull()
         }
     }
 

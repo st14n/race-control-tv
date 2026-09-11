@@ -34,8 +34,13 @@ class F1DynamicHvcCDashManifestParser : ParsingLoadable.Parser<DashManifest> {
                 if (adaptationSet.type == C.TRACK_TYPE_VIDEO) {
                     for (representation in adaptationSet.representations) {
                         val id = representation.format.id
-                        // Only care about UHD HDR representations that might need the fix
-                        if (id == null || !id.contains("HDR") || !id.contains("UHD")) {
+                        // The stream's empty hvcC is not limited to UHD.  The HDR
+                        // ladder also contains 640x360 and 1920x1080 HEVC
+                        // representations, and using one shared UHD/live fallback
+                        // for those leaves the decoder with an SPS whose coded
+                        // dimensions do not match the selected representation.
+                        // Extract parameter sets per HDR representation instead.
+                        if (id == null || !id.contains("HDR", ignoreCase = true)) {
                             continue
                         }
                         val initUri = representation.getInitializationUri()

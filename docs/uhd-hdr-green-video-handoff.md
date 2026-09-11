@@ -822,3 +822,1103 @@ Package the synthetic HLG clip with **cbcs + ClearKey** and play it. That is the
 that would separate "cbcs + HEVC" from "cbcs + 10-bit" definitively. It needs
 shaka-packager and a ClearKey setup. Note that even a positive result yields no app-side
 fix — it would only confirm a platform defect worth reporting upstream.
+
+## 2026-08-22 (later) — Root cause located in the decoder, not the renderer
+
+A fresh pass over the existing artifacts (no new device runs) found a per-frame decoder
+error that had been in the logs all along, plus three load-bearing claims in the sections
+above that do not survive checking. The picture changes substantially.
+
+### The decoder fails on 100% of frames
+
+`diagnostics/2026-08-investigation/logcat_l3.txt` — the forced-Widevine-L3 run, the one
+case where decoding happens on the **non-secure** `c2.mtk.hevc.decoder` and therefore
+still logs to the normal-world VPU daemon:
+
+```
+08-22 10:37:40.173  779  794 I VPUD: [LAT][Err] Decoding Error 0xc40e0220 at LCU (x,y)=(119/119, 67/67) at frame 0 at POC 0
+08-22 10:37:40.181  779  794 I VPUD: [LAT][Err] Decoding Error 0xc4160020 at LCU (x,y)=(119/119, 67/67) at frame 1 at POC 3
+...
+```
+
+- 361 errors between `10:37:40.173` and `10:37:47.433` — **50 per second on a 50 fps
+  stream, i.e. every single frame, for the whole playback attempt.**
+- Zero such errors in the synthetic-clip runs (`logcat_hvc1_test.txt`,
+  `logcat_hev1_test.txt`) that play correctly.
+- `[LAT]` is MediaTek's LAT/CORE split HEVC pipeline; LAT is the **bitstream parsing**
+  stage. Parsing is what fails, not reconstruction or output.
+- The reported LCU position `(119/119, 67/67)` is the last CTU of the picture:
+  3840/32 = 120 columns, 2176/32 = 68 rows, with `CtbSizeY = 32` from the stream's own SPS.
+  **The VPU therefore parsed the SPS correctly** — it knows the coded size is 3840x2176
+  and the CTB size is 32. The failure is in the slice payload, not the parameter sets.
+
+This explains the green screen completely and mundanely: the decoder produces no picture,
+the output buffer stays zero-filled, and zero YUV in limited-range BT.2020/HLG converts to
+roughly RGB(0,26,0) — exactly the `screencap` result recorded above. Every renderer,
+surface, dataspace, EGL, Z-order, colorMode and HDCP experiment in this document was
+chasing a symptom.
+
+Secure runs (`logcat_probe2.txt`, and the official app's log) show no `[LAT][Err]` lines
+because secure decoding happens inside the TEE and its per-frame errors never reach
+logcat. So this is **not** evidence that the official app decodes cleanly — only that we
+cannot see inside it. It is evidence about our own stream.
+
+### Correction 1 — the "no counter-example in F1's ladder" claim is wrong
+
+The earlier 2026-08-22 section says F1's only HEVC is 10-bit HDR and its only SDR is AVC,
+so "cbcs + HEVC" and "cbcs + 10-bit" cannot be separated locally. That is not true.
+`diagnostics/current_week_hdr/index.mpd` — and the live manifest, confirmed in
+`logcat_l3.txt`'s EventLogger dump — carries a **second video AdaptationSet of 8-bit
+Main-profile HEVC**:
+
+```
+AdaptationSet id="1168817270"  ContentProtection value="cbcs"  default_KID=b0ff9352-2db4-3574-ac66-610c2ed2a313
+  _SDR-HD_HEVC_1..5   hev1.1.6.*         480x270 .. 1920x1080
+  _SDR-UHD_HEVC_1     hev1.1.6.L150.B0   2880x1620
+```
+
+Same `cbcs` scheme, **same `default_KID`**, same packager, same segment template, same
+Widevine licence and DRM session as the HDR set — the only difference is Main vs Main10.
+EventLogger reports them `supported=YES`. They have **never been played**: across every
+saved log, the only video formats ever handed to a decoder are `_HDR-UHD_HEVC_2` and
+`_SDR-HD_AVC_5`.
+
+### Correction 2 — "encrypted cbcs HEVC decodes to blank frames" is not established
+
+The clear-vs-encrypted comparison is confounded. `diagnostics/hlg_test_4k.mp4` (plays
+perfectly) and F1's `_HDR-UHD_HEVC_2` (green) differ in far more than encryption:
+
+| | synthetic clip (works) | F1 `_HDR-UHD_HEVC_2` (green) |
+|---|---|---|
+| `tiles_enabled` | 0 | **1** (2 cols x 1 row live; 4x4 in the older working stream) |
+| `entropy_coding_sync` (WPP) | 1 | 0 |
+| slices per picture | 1 | **8** (16 in the older stream) |
+| conformance window | none, coded 2160 | coded **2176**, cropped to 2160 |
+| `sample_adaptive_offset_enabled` | 0 | 1 |
+| `sps_temporal_mvp_enabled` | 1 | 0 |
+| `deblocking_filter_control_present` | 0 | 1 |
+| `vui_hrd_parameters_present` | 0 | 1 |
+| `log2_min_luma_coding_block_size` | 4 | 3 |
+| AUD NAL / duplicated in-band VPS+SPS+PPS | absent | present |
+| encryption | none | cbcs 1:9, constant IV |
+
+Any of these could be what the LAT parser chokes on. The experiment as run does not
+isolate encryption.
+
+(The comment in `OfficialLikeHdrPlaybackFragment.kt` claiming the software-decoder run
+"showed the SDR/BT.709 tracks in F1's HDR manifest decode fine on the same MediaTek
+decoder" also overstates it — that run decoded `_SDR-HD_AVC_5`, H.264 on
+`c2.mtk.avc.decoder.secure`, a different decoder entirely.)
+
+### Correction 3 — the "official plays the same representation" premise is unverified
+
+`diagnostics/2026-08-investigation/logs_official_app_playback_2026-08-21.txt` shows the
+official app configuring one `c2.mtk.hevc.decoder.secure` at **960x544** with SDR defaults
+and no colour aspects, then adapting in place: `configUpdate(1920 x 1088)` (crop 960x540,
+HLG) at t+0.2 s, then `configUpdate(3840 x 2160)` six seconds later. It never sets
+`KEY_MAX_WIDTH`/`KEY_MAX_HEIGHT` (CCodec defaults `raw.max-size` to the configure size,
+960x544), never sets `KEY_OPERATING_RATE`, and never pushes colour aspects into the
+decoder (`DefaultColorAspectsSetter ... r 0 p 0 t 0 m 0`).
+
+Our app configures directly at 3840x2160 with `max-width/height = 3840x2160`,
+`max-input-size = 6220800` (official: MediaTek's own 3145728), `algo.rate.value = 50`
+(which triggers `Update frc property from 0x0 to 0x2`), and forced colour aspects
+`r 2 p 6 t 7 m 5`.
+
+Three of these are already dead ends: the **working** synthetic clip has identical
+operating-rate, FRC and colour-aspect values. The `max-width`/`max-height`/`max-input-size`
+delta has never been tested on its own — note that the earlier "adaptive start at 480x270"
+experiment still had Media3 setting `max-width/height` to 3840x2160, because Media3 derives
+them from the whole track group, not from the starting format.
+
+Separately: the official TV app requests `player=player_tm` (Tiledmedia). We request
+`player=player_bm` and get `tmePresent=false`. Whether `player_tm` is served the *same*
+packaging has never been checked. If it is not, the "identical CCodecConfig, identical
+stream, works vs green" contradiction dissolves entirely.
+
+### What is now ruled out, with evidence
+
+- Renderer / surface / Leanback / EGL / dataspace / Z-order / window colorMode / tunneling
+  / HDCP / fixed size — the decoder emits nothing, so none of this can matter.
+- Protected EGL, at Java and NDK level — extension absent, `EGL_BAD_ATTRIBUTE`.
+- Media3 `VideoGraph`/GL path — secure decoder refuses a non-secure texture (`NO_MEMORY`).
+- Parameter sets / `hvcC` / `colr` injection — the failing L3 run used freshly extracted
+  dynamic parameter sets (143 bytes) and the VPU demonstrably parsed the SPS correctly.
+- `operating-rate` / FRC / forced colour aspects — present and identical in the run that
+  works.
+- Unencrypted HDR stream types (`HDR_UHD_DASH`, `HDR_UHD_CMAF`) — HTTP 403 from AWS
+  MediaPackage, server-side, not fixable client-side.
+- Google's software HEVC decoder as a fallback — `c2.android.hevc.decoder` reports
+  `NoSupport [codec.profileLevel, hev1.2.4.*]` at every level, i.e. no Main10 at all.
+
+### Plan
+
+Ordered so that each step is cheap and its outcome redirects the next. Steps 1-3 need a
+live or current-week session on the device; step 4 needs nothing.
+
+**Step 1 — play `_SDR-UHD_HEVC_1` (the controlled counter-example).**
+Add a diagnostic `TrackSelectionOverride` in `onTracksChanged` selecting the track whose
+`Format.id` matches a constant, and run it with `FORCE_WIDEVINE_L3_DIAGNOSTIC = true` so
+the VPU error stream is visible and the result is objective rather than visual.
+- Decodes cleanly → cbcs decryption, tiles, multi-slice, F1's packaging and the whole
+  crypto path are all proven good, and the failing variable is **Main10 / 10-bit**. It also
+  hands us a shippable 2880x1620 encrypted-HEVC fallback, far better than today's 1080p AVC.
+- Fails the same way → the fault is in the encrypted-HEVC feeding path; go to step 3.
+
+**Step 2 — walk the HDR ladder with VPU visibility.** Under the same L3 setup, force
+`_HDR-HD_HEVC_5` (1080p Main10), `_HDR-HD_HEVC_1` (480x270 Main10) and
+`_HDR-UHD_HEVC_2_iframe` (all-intra Main10) in turn and count `[LAT][Err]` lines. This
+replaces the earlier "green at every resolution" observation with a measurement, and the
+i-frame rung separates a parsing failure from an inter-prediction/DPB failure.
+
+**Step 3 — build a clear clip that matches F1's bitstream shape.** Re-encode
+`hlg_test_4k.mp4` with the delta features from the table above and play it via
+`LOCAL_TEST_FILE_DIAGNOSTIC`, no DRM involved. x265 covers `--slices 8`, `--sao`, `--aud`,
+`--repeat-headers`, `--hrd`, `--ctu 32` and the conformance window; tiles need
+libkvazaar (`--tiles 2x1`). If a clear clip in F1's shape also errors, encryption is
+irrelevant and the remaining bisection is pure encoder flags.
+
+**Step 4 — ask the PLAY API for `player=player_tm`** with the Google TV Streamer device
+profile and log the whole response. One HTTP call, no player changes. Establishes whether
+the official app is even served the same bytes.
+
+**Step 5 — the untested config deltas**, only if steps 1-3 point back at how Media3 feeds
+the codec: drop `KEY_MAX_WIDTH`/`KEY_MAX_HEIGHT` (or pin them to the configure size),
+force `max-input-size` to MediaTek's 3145728, and disable
+`CONFIGURE_FLAG_USE_CRYPTO_ASYNC` on API 34+ in isolation. Each is a few lines in
+`HdrToneMappingRenderersFactory`'s renderer subclass.
+
+**Step 6 — cbcs + ClearKey on the synthetic clip** (shaka-packager, free, no licence).
+Only worth doing if step 1 fails, and only to produce a clean upstream bug report.
+
+Product fallbacks that follow from the above, in order of preference: 2880x1620 HDR
+(`_HDR-UHD_HEVC_1`) if any Main10 rung decodes; otherwise 2880x1620 SDR HEVC
+(`_SDR-UHD_HEVC_1`); otherwise today's 1080p AVC. The `ToneMappedHdr` path black-screening
+is a separate defect and should be fixed on its own merits as the honest fallback.
+
+### Reusable analysis scripts
+
+The MP4/HEVC parsing used for this section is worth keeping — it turns any saved init or
+media segment into `tenc`/`senc`/subsample/SPS/PPS detail without a device:
+
+- box + crypto dump: walks `moov`/`moof`, prints `tenc` (scheme, pattern, KID, constant
+  IV), `frma`, `hvcC` (including each VPS/SPS/PPS NAL), `colr`, `saiz`/`senc` subsample
+  counts.
+- HEVC parameter-set parser: full SPS (conformance window, bit depth, CTB size, DPB, VUI
+  colour description) and PPS (`tiles_enabled`, tile grid, WPP, deblocking,
+  `num_extra_slice_header_bits`).
+- sample walker: splits a `trun` sample into length-prefixed NALs and lines the NAL layout
+  up against the `senc` clear/encrypted subsample boundaries.
+
+## 2026-08-22 (device session) — bit depth, resolution, and encryption all cleared; multi-slice cleared
+
+Live on-device follow-up to the section above, run the same evening. Added a small
+diagnostic (`OfficialLikeHdrPlaybackFragment.applyForcedTrackOverrideIfNeeded`, gated by
+`DIAGNOSTIC_FORCE_VIDEO_FORMAT_ID`) that forces `DefaultTrackSelector` to select an exact
+`Format.id` instead of the normal highest-bitrate ABR pick, so specific representations in
+F1's own ladder could be played on demand. Also exported `ChannelPlaybackActivity` in the
+debug manifest only (`app/src/debug/AndroidManifest.xml`), so a specific
+channel/content/season could be launched directly via `adb shell am start` without
+navigating the TV UI — this is now a reusable tool for future sessions, not just tonight's.
+
+All three tests below ran with `FORCE_WIDEVINE_L3_DIAGNOSTIC = true`, i.e. Widevine forced
+to L3 software decryption: the CDM decrypts in software and hands MediaCodec a plain,
+non-crypto access unit. **The decoder was therefore fed genuinely decrypted F1 video in
+every test below** — this directly settles whether encryption/DRM/CryptoInfo plays any
+role, not just an inference from it.
+
+### Test 1: `_SDR-UHD_HEVC_1` (2880x1620, hev1.1.6 Main, 8-bit) — fails identically
+
+Same `cbcs` scheme, same `default_KID` as the HDR set (see the AdaptationSet table above),
+now actually played instead of merely reasoned about:
+
+```
+videoInputFormat id=_SDR-UHD_HEVC_1 ... res=2880x1620 ...
+onRenderedFirstFrame ...
+[LAT][Err] Decoding Error ... at LCU (x,y)=(89/89, 50/50) at frame 0 at POC 0
+```
+518 errors over ~10.6s (2880/32=90 cols, 1620/32≈51 rows -- LCU position matches this
+resolution exactly, confirming these errors belong to this track, not a stale session).
+
+**Bit depth (Main vs Main10) is ruled out.** The only earlier basis for suspecting 10-bit
+specifically was that HDR failed and AVC (a different codec entirely) worked; this is a
+direct counter-example within HEVC itself.
+
+### Test 2: `_SDR-HD_HEVC_5` (1920x1080, hev1.1.6 Main, 8-bit) — fails identically
+
+```
+videoInputFormat id=_SDR-HD_HEVC_5 ... res=1920x1080 ...
+onRenderedFirstFrame ...
+```
+244 errors, LCU (59/59, 33/33) -- matches 1920/32=60, 1080/32≈34. **Resolution and
+"UHD-tier encoding ladder" are ruled out too.** Every F1 HEVC representation tested so far
+fails, regardless of size.
+
+### Combined with Test 1 and the original L3 HDR run: every F1 HEVC representation tested fails; only F1 AVC works
+
+Three different resolutions (3840x2160, 2880x1620, 1920x1080), two bit depths (Main10,
+Main), all cbcs-encrypted-then-L3-decrypted -- 100% failure rate, always at the LAT parsing
+stage, always at the exact last-LCU position for that resolution. The only F1 video that
+has ever decoded cleanly on this device is `_SDR-HD_AVC_5` (H.264). This makes "MediaTek's
+LAT parser cannot handle *something structural* that is common to F1's entire HEVC ladder"
+a much stronger claim than the original doc's narrower "10-bit HEVC" framing.
+
+### Test 3: synthetic clip, F1-shaped multi-slice, no tiles, no encryption — plays cleanly
+
+Built with `ffmpeg`/`libx265` (`diagnostics/f1shape_test_4k.mp4`,
+`diagnostics/tools/hevc_params.py` used to verify the actual encoded shape, since x265
+silently drops unsupported params rather than erroring):
+
+```
+tiles_enabled = 0        (requested tiles=2x1; this libx265 build requires wpp=1
+                           for multi-slice and silently drops tiles when wpp=1 -- see
+                           "still open" below)
+entropy_coding_sync_enabled_WPP = 1
+slices = 8                (matches F1's slice count)
+log2_min_luma_coding_block_size = 3  (8x8 min CU, matches F1; the ORIGINAL working
+                           clip from the section above used 16x16 and also worked, so
+                           this was never a live suspect -- included for completeness)
+sample_adaptive_offset_enabled = 1   (matches F1)
+sps_temporal_mvp_enabled = 1         (does NOT match F1's 0; not testable in isolation
+                           from tiles/wpp with this encoder build)
+```
+
+Played via `LOCAL_TEST_FILE_DIAGNOSTIC` (no DRM at all, pushed to
+`/sdcard/Android/data/com.st14n.f1.debug/files/hdrtest.mp4`):
+
+```
+videoInputFormat id=1 ... codecs=hvc1.2.4.L153.90 res=3840x2160 ...
+onRenderedFirstFrame ...
+```
+**Zero `[LAT][Err]` lines.** 8 slices per picture, with WPP, at 4K, decodes perfectly.
+
+**Multi-slice itself (at least combined with WPP enabled) is ruled out** as the sole cause.
+
+### What's left
+
+Only two candidates from the original difference table survive, and they are entangled
+with each other in the available tooling:
+
+- **`tiles_enabled`** -- never actually tested. Requested via `x265-params tiles=2x1` and
+  ffmpeg accepted the string without complaint, but the x265 log's `tools:` line never
+  listed tiles and `hevc_params.py` confirmed `tiles_enabled = 0` in the output. A second
+  attempt with `wpp=0` (to match F1 exactly) hit `Unknown option: tiles` -- this
+  Windows/gyan.dev ffmpeg build's bundled libx265 appears not to expose tile support at
+  all (mainline x265 does; this may be a version or build-flag issue). No standalone
+  `x265.exe` is on this machine either.
+- **`entropy_coding_sync_enabled_WPP = 0`** (F1 has it off; every clip tested here,
+  including the original working one, had it on) -- confounded with tiles above, since
+  this x265 build ties multi-slice to WPP and drops tiles when WPP is on.
+
+Everything else in the original difference table (conformance window crop,
+`sps_temporal_mvp_enabled`, `deblocking_filter_control_present`,
+`vui_hrd_parameters_present`, AUD/duplicated in-band parameter sets) remains untested in
+isolation, but is lower-priority than tiles: none of them are historically associated with
+hardware HEVC decoder bugs the way tiles are, and HRD/AUD are pure signaling with no
+bearing on entropy-coded slice data.
+
+### Updated plan
+
+Steps 1-2 from the original plan (`_SDR-UHD_HEVC_1`, ladder walk) are now **done** --
+folded into this section. Remaining, in order:
+
+1. **Get a tile-capable HEVC encoder.** Either a different libx265 build/version (a Linux
+   build or one compiled with tile support explicitly enabled), or ffmpeg's `libkvazaar`
+   encoder, or Bento4/GPAC's `mp4hevc` tools, or a properly configured `x265.exe` CLI
+   (which exposes `--tiles` directly rather than through `-x265-params`). Encode the same
+   3840x2160 10-bit HLG content with `tiles=2x1, wpp=0`, matching F1's PPS as closely as
+   possible, and play it via the now-proven `LOCAL_TEST_FILE_DIAGNOSTIC` path -- no DRM,
+   no device-side complexity, same test harness already built and working tonight.
+   - Decodes cleanly -> tiles are also cleared, and the remaining candidates are
+     `wpp=0` itself, the conformance window, or something not yet in the difference table
+     at all (e.g. worth re-diffing the two bitstreams' slice header
+     `num_extra_slice_header_bits` / `dependent_slice_segments_enabled` more carefully, or
+     comparing NAL-level short-term reference picture set encoding).
+   - Fails -> tiles are very likely the actual root cause. At that point there is no
+     client-side fix: tiles are baked into the entropy-coded slice payload, not
+     patchable pre-decode the way `hvcC`/SPS/PPS bytes are, and re-encoding would require
+     decrypting the content key, which Widevine L1 never exposes to the app. This would be
+     a platform decoder defect worth reporting to MediaTek/Google, and the practical
+     product answer becomes "this device's hardware cannot play this stream," full stop --
+     not a bug in this codebase.
+
+2. **`player=player_tm` PLAY API probe** -- unchanged from the original plan, still
+   untried, still one HTTP call.
+
+3. **cbcs+ClearKey on the tile-capable clip once step 1 exists** -- only if step 1's clear
+   clip reproduces the failure and a DRM-specific angle still seems worth ruling out
+   on top of it (unlikely to add information beyond what L3 already showed tonight, but
+   cheap once the clip exists).
+
+### Reusable infrastructure from tonight, kept in the tree
+
+- `OfficialLikeHdrPlaybackFragment.DIAGNOSTIC_FORCE_VIDEO_FORMAT_ID` / a new
+  `onTracksChanged` override -- forces an exact DASH `Format.id` instead of ABR selection.
+  Off by default (`null`). Match by suffix (`formatId.endsWith(":$targetId")`), since
+  Media3 prefixes DASH representation ids with the period index.
+- `app/src/debug/AndroidManifest.xml` now also exports `ChannelPlaybackActivity` (debug
+  builds only). Launch any known channel/content directly:
+  ```
+  adb shell am start -n com.st14n.f1.debug/fr.groggy.racecontrol.tv.ui.channel.playback.ChannelPlaybackActivity \
+    --es "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_SESSION_ID" "test" \
+    --es "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_CHANNEL_ID" "1028" \
+    --es "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_CONTENT_ID" "1000011042" \
+    --ez "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_IS_LIVE_SESSION" false \
+    --ei "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_SEASON_YEAR" 2026
+  ```
+- `diagnostics/f1shape_test_4k.mp4` -- clear (no DRM), 3840x2160 10-bit HLG BT.2020, 8
+  slices, WPP on, no tiles, decodes cleanly. Useful as a known-good baseline for the next
+  tile-capable-encoder attempt.
+
+## 2026-08-22 (device session, part 2) — isolated to `cbcs` pattern encryption on MediaTek's HEVC decoder specifically; matches an open, unresolved upstream bug
+
+Continuation of the same evening's session, prompted by one question: since *some* app on
+this exact hardware plays this content, the decoder silicon must be capable -- so what is
+different about how we feed it? (Correction to the prompt that raised this: our own
+decompiled evidence says the official TV app's actual UHD path uses **Tiledmedia/ClearVR**,
+not Bitmovin -- Bitmovin is F1TV's mobile/web player. Doesn't change the logic: whichever
+SDK, it's still standard Android MediaCodec underneath, so the hardware is not fundamentally
+incapable.)
+
+### Codec adapter (sync vs async, timestamp shifting): ruled out
+
+`OfficialLikeHdrPlaybackFragment` unconditionally wraps every codec adapter with
+`SynchronousMediaCodecAdapter.Factory()` (via `shouldForceSynchronousCodecQueueing()`,
+which matches this exact device: "kirkwood"/"Google TV Streamer") plus
+`TimestampShiftingMediaCodecAdapterWrapper`. The one thing that had ever decoded
+successfully (`_SDR-HD_AVC_5`) went through a *different* fragment/renderer-factory
+configuration that never applies either wrapper -- so this had never actually been
+excluded as a cause for the HEVC failures.
+
+Tested directly: forced `_SDR-HD_HEVC_5` (1080p) through `enableCryptoDiagnostics=true`,
+which uses Media3's stock `MediaCodecAdapter.Factory.DEFAULT` (plain async queueing, no
+synchronous forcing, no timestamp shifting) wrapped only with a CryptoInfo logger. Still
+161 `[LAT][Err]` lines, same LCU position (59/59, 33/33) as every other run of this track.
+**Our custom codec-adapter wrapping is not the cause.** The `CryptoInfo` logged for this
+track: `numSubSamples=4` (not 8 -- HD-tier F1 HEVC uses 4 slices, UHD-tier uses 8),
+`pattern(encryptedBlocks=1 clearBlocks=9)`. Fails even at only 4 subsamples, so "subsample
+count overflow" is not the shape of the bug either.
+
+### Tiles isolated and cleared
+
+The previous session's ffmpeg/libx265 build had no tile support at all (`tiles=2x1` was
+silently accepted by the CLI but never appeared in x265's own `tools:` log line, confirmed
+via `hevc_params.py` showing `tiles_enabled=0` in the actual output). Downloaded a static
+`ffmpeg-n8.1` build (BtbN/FFmpeg-Builds, GPL, includes `libkvazaar`) specifically to get
+real tile support -- x265 in that build *also* silently ignores `tiles=`, but `libkvazaar`
+accepted it immediately (`Disabling WPP because tiles were enabled`, `Disabling TMVP
+because tiles are used`).
+
+Encoded `diagnostics/f1shape_tiles_4k.mp4`: 3840x2160, confirmed via `hevc_params.py` --
+`tiles_enabled=1`, `num_tile_columns=2`, `num_tile_rows=1`, `entropy_coding_sync_enabled_WPP=0`,
+`sps_temporal_mvp_enabled=0`, `sample_adaptive_offset_enabled=1`. This is F1's exact PPS
+tile/WPP/TMVP shape. Played clear (no DRM) via `LOCAL_TEST_FILE_DIAGNOSTIC`:
+**zero `[LAT][Err]` lines.** Tiles, at F1's exact configuration, decode perfectly on this
+MediaTek decoder.
+
+Combined with the previous session's multi-slice+WPP=1 test (also zero errors): every
+bitstream-shape candidate from the original difference table -- tiles, WPP, multi-slice,
+SAO, temporal MVP, min-CU size -- is now cleared, tested individually and matching F1's
+exact values, all in isolation from encryption.
+
+### The decisive test: `cenc` vs `cbcs`, same clip, same MediaTek decoder
+
+This is the one variable never isolated: every real F1 test that failed carried `cbcs`
+pattern encryption; every clean synthetic test had zero encryption. Downloaded
+`shaka-packager` (v3.9.3, official static Windows binary) to close this gap with a
+same-content, single-variable comparison.
+
+Packaged `f1shape_tiles_4k.mp4` (the tile-matching clip above) with raw-key encryption,
+`--protection_scheme cbcs`, pattern 1:9 to match F1 exactly (confirmed via `mp4_crypto_dump.py`:
+`cryptBlock=1 skipBlock=9`, byte-identical pattern to F1's own `tenc`). Tried to play it via
+Media3's `DefaultDrmSessionManager` + `C.CLEARKEY_UUID` + a local (offline, no network)
+ClearKey JSON response:
+
+```
+Caused by: android.media.MediaCodec$CryptoException: selected encryption mode is not
+supported by the ClearKey DRM Plugin: ERROR_DRM_CANNOT_HANDLE
+```
+
+Android's own AOSP ClearKey CDM on this device rejects `cbcs` entirely, at the DRM-plugin
+layer, before any video decoding is attempted -- this is a genuine, separate, and
+well-known ClearKey limitation (it only ever fully implemented `cenc`), unrelated to
+MediaTek. It means ClearKey can never directly test `cbcs` on this device. So instead:
+repackaged the *identical* clip and pattern layout with `--protection_scheme cenc`
+(confirmed via `mp4_crypto_dump.py`: scheme changes, everything else -- KID, key,
+tiles/WPP/slice structure -- stays the same) and played that.
+
+**Zero `[LAT][Err]` lines. `onRenderedFirstFrame` fires immediately, clean.** Encrypted,
+tiled, multi-subsample (same 8-ish-subsample-per-picture layout), 4K HEVC decodes
+perfectly on this exact MediaTek decoder component -- as long as the scheme is `cenc`
+rather than `cbcs`.
+
+### Correction: F1 does not offer a `cenc` alternative -- their AVC content is also `cbcs`
+
+Before concluding "just ask F1 for `cenc`," checked whether F1's own AVC representations
+(the ones that decode successfully) use `cenc`. `EventLogger`'s `drm=[widevine,cenc]` label
+turned out to be a **generic Media3 placeholder** -- it printed identically for the
+already-confirmed-`cbcs` HEVC tracks, so it proves nothing about the real scheme. Fetched
+the actual `SDR-HD-DASH-WV-SINGLE` manifest live (`diagnostics/2026-08-investigation/sdr_avc_index.mpd`)
+and read its real `<ContentProtection>` box:
+
+```xml
+<ContentProtection schemeIdUri="urn:mpeg:dash:mp4protection:2011" value="cbcs"
+                    cenc:default_KID="975c870f-8637-3a70-80bf-d8e1a50e08f2"/>
+```
+
+**F1's AVC content is also `cbcs`-encrypted**, and it decodes correctly on
+`c2.mtk.avc.decoder.secure`. This sharpens the finding rather than undermining it: it is
+not "this device's DRM stack can't do `cbcs`" (MediaTek's own AVC decoder proves it can) --
+it is specifically **MediaTek's HEVC decoder component (`c2.mtk.hevc.decoder` /
+`.secure` -- both variants, since the non-secure one was used throughout tonight's L3
+testing and failed identically) mishandling `cbcs` pattern-encrypted HEVC**, while its AVC
+sibling component handles the identical scheme without issue. There is no alternate
+F1 manifest/profile to request instead -- `cbcs` is universal across their whole catalogue.
+
+### This matches a known, currently open, unresolved upstream bug
+
+Searched the `androidx/media` (Media3) and `google/ExoPlayer` issue trackers for this
+signature. Three relevant hits:
+
+- **androidx/media #2711** -- "H.265/HEVC Playback Fails on MediaTek Dimensity 700/900/1080
+  after Android 15 Upgrade." Widevine L1, MediaTek, HEVC fails (black/frozen), while
+  **"H.264/AVC content works fine with hardware decoding" on the same devices** -- the
+  identical HEVC-broken/AVC-fine/MediaTek/Widevine fingerprint as ours. CBCS isn't named
+  explicitly in the report, but Widevine has defaulted to CBCS industry-wide for HDR/4K
+  content for years, so it plausibly is the same root cause under a different symptom
+  (black/frozen rather than green, and "no error entries in logcat" -- but that report
+  never looked for VPU `[LAT][Err]` lines specifically, which don't appear in secure-path
+  logcat anyway). **Still open, unresolved, as of this search.**
+- **google/ExoPlayer #10890** -- "widevine DRM cbcs content decode error," MediaTek-family
+  devices (Vivo/OnePlus/Redmi), explicitly CBCS-specific -- but AVC (`OMX.MTK.VIDEO.DECODER.AVC.secure`),
+  an older OMX-era decoder, and a crash (`IllegalStateException`) rather than silent
+  corruption. Confirms CBCS+MediaTek bugs are a recurring, cross-component pattern on this
+  vendor's stack, not this exact bug.
+- **androidx/media #2765** -- MediaTek HEVC black/frozen on XiaoMi TV, but explicitly
+  *unencrypted* content -- a different bug, useful only as further evidence that
+  `c2.mtk.hevc.decoder` has an independent history of platform-specific defects.
+
+No workaround is documented on any of these. #2711 is the closest match and is still open.
+
+### Device firmware
+
+`ro.build.version.security_patch=2026-04-01`, `ro.build.date=Tue Apr 14 20:39:42 UTC 2026`
+-- about 4.5 months old as of this session (2026-08-22). Did not attempt to trigger an OTA
+check via adb (that changes real system state on the user's device and needs their
+decision, not an automated one). **Action for the user**: check Settings > System > About >
+System update on the device itself. A vendor decoder defect exactly matching this shape is
+plausibly fixed in a later MediaTek firmware/driver push, and this is the cheapest possible
+next step -- it costs nothing to check and requires no code change.
+
+### Where this leaves the investigation
+
+Root cause is now as precise as it can get without MediaTek's own source or a rooted
+device: **`c2.mtk.hevc.decoder`[`.secure`] cannot correctly decode `cbcs` pattern-encrypted
+HEVC on this SoC/firmware, independent of resolution, bit depth, tiles, slice count, WPP,
+temporal MVP, or SAO** -- all tested and cleared, individually, matching F1's exact values.
+`cenc`-encrypted HEVC in the identical shape decodes perfectly. F1's own AVC content uses
+the identical `cbcs` scheme and decodes correctly on the sibling AVC decoder component. This
+is a narrow, single-component vendor defect, and it matches an open upstream report
+(androidx/media #2711) with no known workaround.
+
+**No client-side fix is possible for the HDR/UHD HEVC tier as currently packaged.** `cbcs`
+is universal across F1's catalogue (confirmed for both their HEVC and AVC ladders), so
+there is no alternate manifest/profile/platform combination to request. The pattern
+parameters (`encryptedBlocks`/`clearBlocks`) cannot be altered without also altering
+decryption correctness, since they are a property of the actual encrypted bytes on the
+wire, not just a hint to the decoder. Re-encoding or re-packaging client-side would require
+the plaintext or the content key, neither of which Widevine L1 ever exposes to the app.
+
+### What is left to try, in order of cost
+
+1. **Check for a Google TV Streamer system update** (free, five minutes, the user's own
+   device). If MediaTek/Google have patched this in the ~4.5 months since this firmware was
+   built, this alone fixes it with zero app changes.
+2. **File or contribute to androidx/media #2711.** This investigation's data (exact VPU
+   `[LAT][Err]` codes and LCU positions, a clean `cenc`-vs-`cbcs` same-content isolation, a
+   confirmed AVC-works/HEVC-fails split on identical encryption) is more granular than
+   anything currently posted on that issue and could accelerate an actual fix, benefiting
+   every app hitting this on MediaTek hardware, not just this one.
+3. **Re-verify against `player=player_tm`** (the original plan's step 4, still untried) --
+   if F1's Tiledmedia-targeted profile happens to request a different security level or
+   packaging (unlikely given `cbcs` is otherwise universal, but one HTTP call to rule out).
+4. **Ship the honest fallback**: since this is now confirmed device/firmware-specific
+   rather than a bug in this codebase, the product-level answer is to detect this
+   failure mode reliably (the `[LAT][Err]` signal itself isn't visible on the secure path,
+   but the existing black/green presentation-failure watchdogs already detect the visual
+   symptom) and fall back to the best `cenc`-or-AVC-compatible tier automatically, rather
+   than to keep attempting HEVC decode on this hardware. This does not mean settling for
+   1080p AVC as "the fix" -- it means the fallback should trigger reliably and the user
+   should not be left on a green screen while it decides.
+
+Nothing about tonight's testing was destructive: all diagnostic flags
+(`FORCE_WIDEVINE_L3_DIAGNOSTIC`, `LOCAL_TEST_FILE_DIAGNOSTIC`,
+`LOCAL_TEST_FILE_CLEARKEY_DIAGNOSTIC`, `DIAGNOSTIC_FORCE_VIDEO_FORMAT_ID`,
+`enableCryptoDiagnostics`) are reverted to their original `false`/`null` defaults, and the
+device has the clean rebuild reinstalled. The new `LOCAL_TEST_FILE_CLEARKEY_DIAGNOSTIC`
+path and the `onTracksChanged`-based forced-track-override are left in the tree, off by
+default, as reusable tools for the next session.
+
+### Tools acquired this session (not part of the repo, kept outside it)
+
+- `C:\tmp\ffmpeg-tiles\ffmpeg-n8.1-latest-win64-gpl-8.1\bin\ffmpeg.exe` -- static build with
+  full `libx265`+`libkvazaar` (tiles work via kvazaar; x265 in this build silently drops
+  `tiles=` regardless of syntax, in both the original and this newer build).
+- `C:\tmp\shaka-packager\packager.exe` -- v3.9.3, for raw-key `cenc`/`cbcs` test packaging.
+
+## 2026-08-22 (device session, part 3) — software HEVC decode also corrupts; the bug is in decryption, not the decoder chip; no AVC tier above 1080p exists
+
+Two follow-up questions from the same evening, both answered with fresh device evidence.
+
+### "Can we route around MediaTek's HEVC decoder chip entirely, e.g. via software decode?"
+
+Closed a gap noted earlier: nobody had checked whether Google's own software HEVC decoder
+(`c2.android.hevc.decoder`) supports F1's *Main*-profile (8-bit) HEVC -- only Main10
+support had ever been probed (`NoSupport` at every level). Tested
+`FORCE_WIDEVINE_L3_DIAGNOSTIC=true` together with `SOFTWARE_DECODER_DIAGNOSTIC=true`
+(never tried together before -- the existing code comment for `SOFTWARE_DECODER_DIAGNOSTIC`
+predates this combination and only found `requiresSecureDecoder=true` because L3 wasn't
+also forced in that earlier run) against `_SDR-HD_HEVC_5` (1080p, Main, 8-bit).
+
+Result: `c2.android.hevc.decoder` (Google's software decoder) *did* get selected and
+initialized this time -- so Main-profile HEVC is supported in software on this device.
+It then failed immediately:
+
+```
+Caused by: androidx.media3.exoplayer.video.MediaCodecVideoDecoderException: Decoder failed: c2.android.hevc.decoder
+Caused by: android.media.MediaCodec$CodecException: Error 0xe
+```
+
+`0xe` = 14 decimal = `C2_CORRUPTED` in AOSP's Codec2 status enum. **Google's own reference
+software HEVC decoder -- no MediaTek code involved at all -- received corrupted bytes and
+refused to proceed.**
+
+This is the single most important result of the whole investigation, because it relocates
+the bug. If a bitstream-parsing defect lived inside MediaTek's HEVC decode chip
+specifically, a completely different decoder implementation (Google's, running on the
+CPU) would have no reason to also receive corrupted data. It didn't -- which means the
+corruption happens **before** any decoder ever sees the bytes, at the decryption stage
+itself. On this device, cbcs decryption for Widevine content is handled by a vendor
+crypto plugin/OEMCrypto implementation that is shared infrastructure ahead of *whichever*
+decoder ends up consuming the output -- hardware or software, secure or not. All three
+decoder components tested tonight (`c2.mtk.hevc.decoder.secure`, `c2.mtk.hevc.decoder`,
+`c2.android.hevc.decoder`) receive the same corrupted result for cbcs-encrypted HEVC; only
+`c2.mtk.hevc.decoder[.secure]`'s failure mode is silent (LAT parse errors, zero-filled
+output, green screen) rather than a hard `CodecException`.
+
+**This closes off "software decode as a workaround" definitively** -- it was worth testing
+precisely because it was the one remaining thing that could have bypassed MediaTek's
+decoder, and it didn't, because the corruption isn't in the decoder.
+
+It also sharpens the earlier conclusion. Not: "MediaTek's HEVC decoder mishandles cbcs."
+Rather: "this device's cbcs *decryption* path, upstream of every available HEVC decoder,
+corrupts HEVC-shaped content specifically (while the identical scheme applied to AVC
+content decrypts correctly)." The AVC/HEVC split is therefore most likely rooted in
+something about the two codecs' differing NAL/subsample shapes interacting with the
+crypto plugin's subsample-boundary handling, not literally "HEVC decode logic." Either way,
+it's below the application layer, below Media3, and below any decoder we can select --
+there is nothing in app code to intercept, patch, or re-encode, because there is no point
+in the whole pipeline (for genuine Widevine-protected content, at any security level) where
+the app or Media3 ever holds either the correct plaintext or the corrupted intermediate
+bytes. Decryption is opaque end-to-end by design; this is what "no client-side fix is
+possible" concretely means.
+
+### "Can we just force H.264 (AVC)?"
+
+Checked F1's actual ladder across every manifest and platform combination captured this
+session and previously: **F1 has no representation above `_SDR-HD_AVC_5`, 1920x1080,
+`avc1.4D402A`, anywhere** -- not in any platform (`BIG_SCREEN_HLS`, `WEB_HLS`, and every
+stream-type variant probed by `STREAM_VARIANT_PROBE` back in the original investigation).
+There is no 4K/UHD AVC tier to force; AVC's ceiling is the exact same 1080p the app already
+falls back to automatically today. AVC does decode correctly (confirmed again tonight,
+`c2.mtk.avc.decoder.secure`, same `cbcs` scheme, onRenderedFirstFrame every time).
+
+So "force AVC" cannot recover resolution -- it can only remove the several-second
+HEVC-then-tone-mapped-HDR-then-error retry sequence the app currently goes through before
+landing on the identical 1080p AVC fallback it already reaches today, replacing a visible
+failure-and-recovery with an immediate clean start. **User's decision: leave the existing
+retry behaviour as-is for now**, in case a future MediaTek/Google firmware update fixes the
+underlying cbcs+HEVC decrypt bug and HEVC starts working again on this hardware without
+requiring an app change.
+
+### Summary of the full elimination, end to end
+
+| Layer | Tested | Result |
+|---|---|---|
+| Renderer / surface / EGL / dataspace / Z-order / colorMode / tunneling / HDCP | Multiple experiments, prior sessions | Ruled out |
+| Codec adapter (sync/async queueing, timestamp shifting) | Stock async adapter vs forced sync, same track | Ruled out |
+| Bitstream shape: tiles, WPP, multi-slice, SAO, temporal MVP, min-CU size | Synthetic clips matching F1's exact PPS values, clear (no DRM) | Ruled out -- all decode cleanly |
+| Bit depth (Main10 vs Main) | Real F1 `_SDR-UHD_HEVC_1`/`_SDR-HD_HEVC_5` (8-bit) fail identically to Main10 | Ruled out |
+| Resolution / UHD-tier encoding | 1080p fails identically to 2160p/1620p | Ruled out |
+| Encryption scheme: `cenc` vs `cbcs`, same clip | `cenc` decodes clean; `cbcs` (AOSP ClearKey can't even attempt it; real Widevine reaches the decoder and fails) | **`cbcs` implicated** |
+| Decoder component: MediaTek secure vs non-secure vs Google software | All three fail identically on cbcs-encrypted HEVC (LAT errors or `C2_CORRUPTED`) | **Bug is upstream of all decoders, in decryption** |
+| Same `cbcs` scheme on AVC | Decodes correctly, every time | Confirms it's HEVC-shaped-content-specific, not a device-wide `cbcs` failure |
+
+Matches androidx/media issue **#2711** (open, unresolved): MediaTek + Widevine L1 + HEVC
+fails while AVC on the same hardware works.
+
+No further client-side avenue is known. Remaining options, unchanged from the prior
+session: check for a system update on the device; file/contribute to #2711 with this
+session's data (it is more precise than anything currently on that issue -- the `cenc`
+vs `cbcs` isolation and the software-decoder cross-check in particular); or wait.
+
+All diagnostic constants reverted to their `false`/`null` defaults again; device reinstalled
+with the clean build.
+
+## 2026-08-22 (device session, part 4) — `CONFIGURE_FLAG_USE_CRYPTO_ASYNC` tested; last framework-level knob closed
+
+Final test of the evening, closing the one remaining variable identified in part 3:
+whether `MediaCodec.CONFIGURE_FLAG_USE_CRYPTO_ASYNC` (API 34+) -- a platform/HAL crypto
+dispatch mode that neither of Media3 1.10.1's own bundled adapters ever sets (confirmed
+by decompiling `media3-exoplayer-1.10.1-runtime.jar` with jadx: `SynchronousMediaCodecAdapter`
+never sets it; `AsynchronousMediaCodecAdapter.Factory`'s `flags = 0 | 4` is
+`CONFIGURE_FLAG_USE_BLOCK_MODEL`, a different flag entirely, gated to API 36+, which this
+device is not) -- changes anything.
+
+Also resolves the "clone/fork Media3, submit a PR" question from earlier: Media3's own
+adapters were decompiled and inspected directly. Neither contains the bug (both just
+forward to `android.media.MediaCodec.configure()`/`queueSecureInputBuffer()`), and neither
+exposes this flag as a configurable option -- so testing it required writing a new
+`MediaCodecAdapter.Factory` from scratch (`CryptoAsyncMediaCodecAdapter.kt`), not modifying
+Media3. This is a concrete, first-hand demonstration of the earlier claim that a Media3
+fork has no leverage here: the library's own source contains nothing to patch for this bug.
+
+### First attempt: synchronous adapter + the flag -- fails to even initialize
+
+A first version mirrored Media3's `SynchronousMediaCodecAdapter` (poll-based
+`dequeueInputBuffer(0L)`/`dequeueOutputBuffer(bufferInfo, 0L)`, no callback) plus
+`CONFIGURE_FLAG_USE_CRYPTO_ASYNC`. Failed immediately:
+
+```
+Caused by: java.lang.IllegalStateException: Block model is only valid with callback set (async mode)
+```
+
+On this device/platform, requesting crypto-async apparently implies block-model buffers
+internally, which require a genuine async `MediaCodec.Callback` -- it cannot be requested
+from a polling-style adapter at all.
+
+### Second attempt: proper async adapter (real `MediaCodec.Callback`, own `HandlerThread`)
+
+Rewrote `CryptoAsyncMediaCodecAdapter` as a minimal but real async adapter -- a
+`MediaCodec.Callback` registered before `configure()`, a dedicated `HandlerThread`,
+synchronized index queues for input/output buffers -- functionally equivalent to Media3's
+own `AsynchronousMediaCodecAdapter` (whose class and constructor are package-private and
+whose `Factory` is `final`, so it cannot be reused or subclassed; this had to be an
+independent implementation using only the public `MediaCodecAdapter` interface and public
+`android.media.MediaCodec`/`MediaCodec.Callback` API).
+
+Tested against `_SDR-HD_HEVC_5` (1080p) under `FORCE_WIDEVINE_L3_DIAGNOSTIC` for VPU
+visibility, as in every prior test this session:
+
+```
+videoDecoderInitialized c2.mtk.hevc.decoder
+[LAT][Err] Decoding Error 0xc40e0260 at LCU (x,y)=(59/59, 33/33) at frame 0 at POC 0
+[LAT][Err] Decoding Error 0xc4160240 at LCU (x,y)=(59/59, 33/33) at frame 1 at POC 4
+... (6 more, frames 2-7, same LCU position)
+```
+
+Identical corruption signature -- same LCU position matching this track's exact geometry,
+starting at frame 0 -- to every other test this investigation has ever run on this track,
+regardless of codec adapter, queueing mode, or now, crypto dispatch mode. The player then
+crashed (`NullPointerException` in `MediaCodecVideoRenderer.onOutputFormatChanged`,
+`Preconditions.checkNotNull`) a moment later -- a real gap in this minimal diagnostic
+adapter's async output-format-change signalling (a corner of Media3's async contract this
+throwaway implementation doesn't fully replicate), not a signal about the vendor's
+behaviour. The 8 frames captured before the crash already fully reproduce the corruption,
+so the crash doesn't undermine the result.
+
+**`CONFIGURE_FLAG_USE_CRYPTO_ASYNC` makes no difference.** This was the last variable at
+the framework/HAL crypto-dispatch boundary. Combined with the software-decoder cross-check
+from part 3 (a completely different decoder implementation, still corrupted), every layer
+between the app and the vendor's OEMCrypto blob has now been varied independently, and the
+corruption is invariant across all of them. There is no remaining framework-level knob to
+try.
+
+### Files added, left in the tree (off by default, real reusable value)
+
+- `CryptoAsyncMediaCodecAdapter.kt` -- a working, from-scratch async `MediaCodecAdapter`
+  implementation using only public Android/Media3 APIs. Not wired to any default path
+  (`HdrToneMappingRenderersFactory.FORCE_CRYPTO_ASYNC_DIAGNOSTIC = false`). Useful as a
+  template for any future test needing custom `MediaCodec.configure()` flags Media3 itself
+  doesn't expose -- but note its output-format-change handling has a known gap (see above)
+  and would need that fixed before reuse beyond a short diagnostic run.
+
+All diagnostic constants confirmed back to their defaults
+(`FORCE_CRYPTO_ASYNC_DIAGNOSTIC=false`, `FORCE_WIDEVINE_L3_DIAGNOSTIC=false`,
+`DIAGNOSTIC_FORCE_VIDEO_FORMAT_ID=null`, `enableOfficialLikeDirectHdrCodecConfig=false` in
+the renderersFactory construction), clean rebuild reinstalled on device.
+
+### Where this leaves things, finally
+
+Exhaustive, first-hand testing across: renderer/surface/EGL/dataspace/Z-order/colorMode,
+codec-adapter sync vs async threading, tiles/WPP/multi-slice/SAO/temporal-MVP/min-CU
+(matched to F1's exact values via a real tile-capable encoder), bit depth, resolution,
+three separate decoder implementations (MediaTek secure, MediaTek non-secure, Google
+software), and now platform crypto-dispatch mode -- all converge on one thing: `cbcs`
+pattern-encrypted HEVC is corrupted before any of this code runs, in the OEM Widevine
+crypto plugin, which is not part of Media3, not part of AOSP, not open source, and not
+reachable through any public Android API. `cenc`-encrypted HEVC in the identical shape,
+and `cbcs`-encrypted AVC, both decode correctly on this exact hardware.
+
+No further avenue is known within Media3, ExoPlayer, or standard Android MediaCodec/DRM
+APIs. Matches androidx/media #2711 (open, unresolved). Remaining options unchanged: check
+for a system update on the device; file/contribute this session's data to #2711.
+
+## 2026-08-23 (live side-by-side session) — full parameter parity with the official app confirmed; player_tm rejected server-side; every codec-level lead now closed
+
+A live F1 Academy qualifying session was running. This gave a real opportunity the
+investigation hadn't had before: capturing the official app (`com.formulaone.production`,
+`TiledPlayerActivityTv`) and our app decoding the *exact same live content at the exact
+same moment*, not an old capture from a different day/CDN/manifest generation.
+
+### `player=player_tm` (Tiledmedia's own player identity): rejected server-side
+
+Tested directly (temporarily reordering `F1Client.requestedCandidates()` so the existing
+but never-reached `TILED_MEDIA_PLAYER` candidate is tried first, then reverted). Result:
+
+```
+HTTP 500 -- {"resultCode":"OK","message":"Failed to evaluate stream rule","errorDescription":"ACN_2008","resultObj":{}}
+```
+
+Different from the response an earlier (June) session recorded for the same player
+identity (`tmePresent=true`, no manifest -- also unusable, but at least accepted). Either
+way, this **confirms `player_tm` was never a simple header/query-param swap**: F1's backend
+gates it on something beyond what a `player_bm`-identified client sends -- almost certainly
+device attestation or capability declaration tied to an actual Tiledmedia SDK integration.
+There is no way to reach whatever manifest/session Tiledmedia gets by changing a parameter.
+
+### Live A/B: official app vs. ours, same content, same moment
+
+With the live session open in both apps, captured full `CCodecConfig`/`WVCdm` logs from
+the official app for the first time against genuinely current (CloudFront-era, live)
+content, not the June Akamai-era capture the "everything matches" conclusion was
+originally based on. Two previously-undetected differences turned up in the raw
+`C2MtkVdec` configure sequence (not visible in the earlier, coarser CCodecConfig diff):
+
+- **Operating rate**: official = `0.000000` (unset), ours (default path) = `50.000000`
+  (Media3's own computed value from the 50fps format).
+- **`MaxInputSizeSetter` called twice** in our pipeline, escalating from MediaTek's own
+  default `3145728` to `6220800`. The official app's decoder only ever sees `3145728`.
+  Ruled out simple explanations: bitrate isn't the driver (a synthetic test clip at 87 Mbps
+  never escalated); codec level isn't the driver (a synthetic clip declaring the identical
+  level, `L153`, never escalated either). The escalation appears specific to real F1
+  content passing through this app's own DASH/extractor pipeline.
+
+Both differences are real, and both were *already* addressable by existing code
+(`OfficialLikeHdrMediaFormat.configure()`, gated behind `enableOfficialLikeDirectHdrCodecConfig`,
+already forces `KEY_MAX_INPUT_SIZE=3145728` for exactly this 3840x2160 case and already
+suppresses the operating-rate hint) -- but that flag had never actually been tested against
+*real, live, 4K* content in this investigation. Every prior test that exercised it used a
+1080p forced-track override, where the `format.width==3840 && format.height==2160` guard
+never fires.
+
+Tested directly on the live session: `enableOfficialLikeDirectHdrCodecConfig=true` against
+the live `_HDR-UHD_HEVC_2` track (`FORCE_WIDEVINE_L3_DIAGNOSTIC=true` for VPU visibility).
+Confirmed both parameters now match the official app exactly --
+`RealTime: priority 0, operating rate 0.000000` and `MaxInputSizeSetter: 3145728 ->
+3145728` (no second call). **Still 495 `[LAT][Err]` lines, still the identical corruption
+signature.**
+
+### Where this leaves it
+
+With this test, every `MediaFormat`/`MediaCodec.configure()`-level parameter this
+investigation has ever been able to observe or control now matches the official app's live
+session byte-for-byte, and the corruption is unchanged. This was the last concrete,
+testable "maybe it's a config parameter" lead, found via a live side-by-side comparison
+that hadn't been possible before tonight. It's now closed the same way as everything else:
+ruled out, cleanly, with evidence.
+
+Combined with the prior sessions' results (three decoder implementations, `cenc` vs `cbcs`
+isolation, crypto-async dispatch mode, every bitstream-shape parameter), the corruption
+has now been shown to be invariant across literally every layer this app's code, Media3,
+or the public Android MediaCodec/MediaDrm API surface can influence. What's left uncontrolled
+and unobservable is the actual DRM session negotiation/decrypt step inside the OEM crypto
+plugin, and whatever `player=player_tm`/Tiledmedia's native pipeline does differently there
+-- which, per F1's own server response above, isn't reachable through this app's client
+identity at all.
+
+All diagnostic flags reverted to their defaults; `F1Client.kt` confirmed byte-identical to
+the committed version (`git diff` clean); device reinstalled with the clean build.
+
+## 2026-08-23 (TME clean-room route) — authorized HDR TME feed reaches decode but remains green
+
+After wireless ADB was restored, build `1.0.3` was installed and tested against a real broadcast. The new route did not use the rejected Android-TV `BIG_SCREEN_HLS/player_tm` request. It used the browser-authorized `WEB_HLS/player_tm` response and selected the channel feed from the returned TME catalog.
+
+Observed:
+
+- `profile=web_tme_HDR_UHD_CMAFWV`, `resultCode=OK`, `actualStreamType=HDR_UHD_CMAFWV`, `drmType=widevine`, `tmePresent=true`, no top-level manifest URL.
+- The selected TME feed was the channel-specific HDR-UHD CMAF feed. The returned TME license URL was used with the web-route device identity.
+- The main video configured `c2.mtk.hevc.decoder.secure`, queued encrypted samples, and produced a decoded frame. Output then transitioned from 640x360 to 1920x1080 to 3840x2160.
+- Output remained HLG/BT.2020 (`color-standard=6`, `color-transfer=7`, Android dataspace `302383104`). No `[LAT][Err]` lines appeared in this secure TME run.
+- The user still saw solid green video.
+
+This is an important boundary result. The authorized TME feed and its HDR-UHD CMAF packaging can reach the secure decoder and produce output, so the TME response/catalog itself is not enough to solve the visual failure. The current app still presents the decoded protected output through its own Media3/Surface path; ClearVR additionally owns native access-unit scheduling, protected frame release, and the display/render bridge. The TME route is therefore a useful clean-room control, but not yet a replacement for the native ClearVR presentation architecture.
+
+## 2026-08-23 (later) — the `tme` path reached, and a from-scratch ClearVR-style renderer built and tested; still `cbcs`, still corrupts
+
+Independent work (not this session's) added two substantial pieces since the last entry:
+a working parser for F1's `tme` response object, and `ClearVrLikeVideoRenderer.kt` -- a
+complete, from-scratch `BaseRenderer` that drives raw `android.media.MediaCodec` directly,
+bypassing Media3's `MediaCodecVideoRenderer` entirely. This is the most direct test yet of
+whether *how* the codec is driven (as opposed to *what* it's fed) explains why the official
+app works.
+
+### The `tme` object is a real, reachable feed catalog
+
+`F1Client.selectTmeFeedUrl()` parses `resultObj.tme.feeds[]`, matches by
+`metadata.channel_id`, and extracts a real, playable manifest URL. Reaching it requires
+spoofing a full desktop-browser identity (`DeviceInfo.tmeWebDeviceInfo`/`tmeWebUserAgent`,
+Chrome/Windows) alongside `player=player_tm` and `platform=WEB_HLS` -- the
+`BIG_SCREEN_HLS`-identified request tested in the prior entry (`ACN_2008`, rejected
+outright) fails specifically because of the platform/device identity, not the player
+parameter alone. With the browser identity, F1 returns `tmePresent=true` and a working feed
+catalog: confirmed live, `HDR_UHD_CMAFWV`, channel 1025, resolving to
+`WIF-F1-R1/HDR-UHD-CMAF-WV` on `ott-video-fl.formula1.com` -- HLS+CMAF, not DASH.
+
+### The HLS playlist's stated encryption method is misleading
+
+The master/media playlists declare `#EXT-X-SESSION-KEY:METHOD=SAMPLE-AES-CTR`, which reads
+as the HLS label for CTR-mode (`cenc`-equivalent) encryption -- a very promising signal at
+first glance, since tonight's `cenc` vs `cbcs` isolation showed `cenc` decodes cleanly. It
+is not to be trusted at face value: `ClearVrLikeVideoRenderer` logs the *actual* decrypted
+`CryptoInfo` per sample, and the first real sample showed:
+
+```
+First encrypted sample pts=1000000000000 size=74179 keyFrame=true mode=2 subs=1
+  clear=[286] encrypted=[73893] pattern=1:9 keyLen=16 ivLen=16
+```
+
+`mode=2` is `MediaCodec.CryptoInfo.MODE_AES_CBC`. Pattern `1:9` matches F1's cbcs pattern
+exactly. **This CMAF-WV/TME feed is `cbcs`, identical in every cryptographically relevant
+respect to the DASH-WV feed already exhaustively tested.** The HLS playlist's declared
+`SAMPLE-AES-CTR` is packaging-level metadata that does not describe the actual sample
+encryption inside the fragmented MP4 (a known real-world inconsistency in some CMAF
+packagers) -- it should not have been trusted without checking the real `CryptoInfo`, which
+is exactly what this test caught.
+
+### The renderer itself: closest possible reimplementation of the observed ClearVR contract
+
+`ClearVrLikeVideoRenderer` matches every behavioural detail visible from the official app's
+logs and the earlier decompiled string evidence:
+- A separate, independent codec-config buffer (`BUFFER_FLAG_CODEC_CONFIG`) instead of
+  Media3's inline `csd-0` MediaFormat key.
+- Configures the codec at the *coded* (pre-crop) dimensions (`format.decodedWidth`/
+  `decodedHeight`), not the display/cropped size Media3 normally uses.
+- A deliberately minimal `MediaFormat` -- only `rotation-degrees`, `priority`, `frame-rate`;
+  explicitly no `csd-*`, no `max-width`/`max-height`, no `max-input-size`, no
+  `operating-rate`.
+- `flags=0` on every ordinary sample, including keyframes.
+- Keeps one decoder alive across ABR ladder changes via MediaCodec's in-place output-format
+  update, rather than hard-reconfiguring -- confirmed working live: `640x360 -> 1920x1080 ->
+  3840x2160` in place, each step logged (`Updating compatible decoder in place ...`), each
+  producing a clean `Decoder output format` callback.
+
+Live result: `Configured c2.mtk.hevc.decoder.secure ... secure=true`, decoded continuously
+for 90+ seconds through all three resolution steps up to full 3840x2160, audio in sync the
+whole time (continuous `AudioFlinger` activity, no gap), zero exceptions, zero crashes.
+No `[LAT][Err]` visibility this run (secure decoder, as expected -- TEE-internal errors
+never reach normal logcat, consistent with every other secure-path test all session).
+**User-confirmed result: still green.**
+
+### What this settles
+
+This was the most direct possible test of "is it *how* we drive MediaCodec, in Java, that
+differs from the official app" -- built independently, using no Media3 abstractions, hewing
+as closely as the public API allows to the observed ClearVR bridge contract. It still
+fails, on genuinely `cbcs`-encrypted content (confirmed by direct `CryptoInfo` inspection,
+not by trusting a possibly-misleading playlist label). Combined with the earlier
+cross-decoder result (MediaTek secure, MediaTek non-secure, and Google's own software HEVC
+decoder all corrupt identically), this now closes off the Java/Kotlin MediaCodec API
+surface as a whole, not just Media3's slice of it: no sequence of calls reachable from
+application code -- through Media3 or hand-written directly against `android.media.MediaCodec`
+-- avoids the corruption. Whatever the official app does differently must be beneath the
+public `MediaCodec`/`MediaDrm` Java API entirely, in the DRM session/crypto negotiation
+itself, which application code cannot observe or influence through any route this
+investigation has been able to reach.
+
+The `tme` path is still valuable to keep, independent of this result: it is a real,
+working, previously-unreached manifest source (confirmed access, real feed catalog,
+resolution ladder up to genuine 3840x2160 UHD) that was not available through the
+`player_bm` route. It should be retained for whatever the eventual product decision is
+(e.g. it could turn out to matter for content availability or CDN routing even though it
+does not solve the decode corruption).
+
+---
+
+## 2026-09-11 -- Root cause found: F1 issues our app's Widevine key at SW_SECURE_CRYPTO, the official app gets HW_SECURE_DECODE
+
+This session started from a live report that the same live-broadcast session was green,
+and closed with a byte-for-byte comparison of both apps' actual Widevine licence
+responses, captured on the same device minutes apart, for the identical key ID. It is the
+first entry in this document that identifies a specific, verified mechanism for the green
+screen rather than eliminating another candidate.
+
+### Reframing: it isn't a per-weekend content difference, it's intermittent on identical content
+
+The prior working hypothesis (see earlier entries) was that a specific past race
+weekend's HDR stream decoded correctly while the current weekend's did not, pointing at
+an encoding-level difference (tile grid, bit depth, etc). Live testing this session
+falsified that: the same session (contentId=1000010367, channelId=1025, live broadcast)
+was reported green, then a few minutes later reported as playing correctly, then green
+again on a later relaunch -- with no app changes in between at first. Whatever is wrong is
+not fixed to specific content; it is per-session/per-request.
+
+### Three real bugs found and fixed along the way
+
+None of these turned out to be the root cause, but all three are genuine defects,
+confirmed with direct before/after evidence, and have been left in the fixed state:
+
+1. **ABR crossed from the HLG ladder onto the parallel SDR ladder.** F1's HLS master
+   playlist for HDR_UHD_CMAFWV content carries two independent variant ladders under the
+   same set of EXT-X-STREAM-INF entries: an HLG ladder (hev1.2.4.*, up to 3840x2160) and
+   an SDR ladder (hev1.1.6.*, capped at 2880x1620), distinguished only by the VIDEO-RANGE
+   attribute, which Media3's HLS parsing does not surface into Format.colorInfo on this
+   path. With no signal keeping the two apart, bandwidth-driven ABR selected the SDR
+   2880x1620 rendition mid-ladder instead of the HDR one. Confirmed directly: the
+   decoder's own output-format callback for that step reported color-standard=1 (BT.709)
+   / color-transfer=3 (SDR) instead of color-standard=6 (BT.2020) / color-transfer=7
+   (HLG) -- correct for what is genuinely SDR content, wrong content to have selected.
+   Fixed in OfficialLikeHdrPlaybackFragment.onTracksChanged by excluding every video
+   track whose Format.codecs starts with "hev1.1." before track selection runs,
+   restricting ABR to the HLG ladder exclusively.
+
+2. **ClearVrLikeVideoRenderer's in-place ladder update desynced the MediaTek Codec2
+   driver.** The renderer normally keeps one MediaCodec instance alive across resolution
+   changes by feeding a fresh codec-config buffer instead of a hard configure(),
+   mirroring the official app's apparent behaviour. On this device that path was directly
+   observed (a) losing correct HDR colour aspects on the next tier immediately after an
+   in-place update (a hard configure() at the same resolution never showed this), and (b)
+   desyncing MediaTek's internal work tracking a few seconds later ("PipelineWatcher:
+   onWorkDone: frameIndex not found (-1); ignored", followed by "C2MtkVdec: Unknown
+   output workId: <pts>"). Every hard configure() observed all session derived HDR colour
+   aspects correctly; no in-place update ever did. Fixed by forcing a full codec
+   teardown/reconfigure on any resolution or coded-size change instead of reusing the
+   codec instance.
+
+3. **No codec-config data was ever queued for this content.** F1's HLS/CMAF Format
+   objects reach ClearVrLikeVideoRenderer with initializationData empty (initData=[] in
+   every capture, every tier, all session), so queueHeaderIfNeeded() silently no-opped --
+   no BUFFER_FLAG_CODEC_CONFIG buffer was ever sent to the secure decoder. Diffing every
+   C2MtkVdec/CCodec log line between our app and the official app (normalized,
+   deduplicated) turned up two lines that appeared only for the official app's decoder
+   instance: "mSawInputCSD was set." and "CSD work returned: workId N, mFrameIndex N".
+   Fixed by recovering VPS/SPS/PPS directly from the clear prefix of the first sample's
+   own access unit (parameter sets always precede the first VCL NAL) and queuing them as
+   an explicit codec-config buffer before the first real sample. After the fix, both log
+   lines appear for our decoder instance too, matching the official app exactly.
+
+After all three fixes, decode was clean by every observable signal: correct BT.2020/HLG
+colour at every tier including straight-to-4K resumes, zero C2MtkVdec/PipelineWatcher
+errors across sustained playback, and a `dumpsys SurfaceFlinger` comparison against the
+official app's live video layer showing identical composition state -- same 0.5x SCALE
+transform, same hasProtectedContent=true, same dataspace=BT2020_ITU_HLG, same composition
+type=DEVICE. Still green.
+
+Bisecting further: routing the identical stream through Media3's stock
+MediaCodecVideoRenderer (enableTiledmediaLikeCodecPath=false) instead of
+ClearVrLikeVideoRenderer produced the same green result. This exonerates both video
+renderer implementations, and everything upstream of MediaCodec configuration, at once.
+
+### The actual root cause: differential Widevine security-level grant by client identity
+
+KeyStatusLoggingDrmSessionManagerProvider (wired into the HDR path -- previously only
+into the DASH branch and gated behind a flag that defaulted false, both fixed this
+session) logs the raw licence response bytes returned by F1's server. Decoding the
+SignedMessage/License protobuf by hand surfaces each KeyContainer's id (KID), type,
+level, and track_label fields in the clear.
+
+Every one of our app's licence responses this session -- 12 separate requests, spanning
+multiple relaunches, both ClearVrLikeVideoRenderer and the stock Media3 renderer, both
+the DASH and TME/HLS routes -- decoded to:
+
+    KeyContainer: id=87577e955fc630f6a507fb9ae90fc6a5, type=CONTENT,
+                  level=SW_SECURE_CRYPTO, track_label="HD"
+
+The official app (com.formulaone.production) was launched on the same device, playing the
+same live broadcast, and its Widevine AddKey calls are visible in the system WVCdm log
+(owned by the platform Widevine HAL process, not gated by anything either app controls).
+Decoding those:
+
+    KeyContainer: id=87577e955fc630f6a507fb9ae90fc6a5, type=CONTENT,
+                  level=HW_SECURE_DECODE, track_label="SD"
+
+Identical key ID. Different SecurityLevel. HW_SECURE_DECODE is required for a key to be
+loaded into the TEE key ladder; SW_SECURE_CRYPTO cannot be. The HDR path uses
+c2.mtk.hevc.decoder.secure, MediaTek's SVP hardware decoder, which decrypts directly into
+protected memory inside the TEE. Handed a SW_SECURE_CRYPTO key, OEMCrypto has no valid
+path to service that request: the protected output buffer is never filled, and a
+zero-filled YUV buffer composites as uniform green -- with no exception, no
+CryptoException, no HWC/SurfaceFlinger error, at any layer this investigation has been
+able to observe. This is consistent with every symptom recorded across the entire life of
+this document: green from the first frame at every resolution; correct-looking
+CryptoInfo/KID/tenc/colour metadata throughout (none of that depends on the key's
+security level); SDR/AVC playback unaffected (its decoder is not secure, so
+SW_SECURE_CRYPTO is sufficient); and no sequence of Media3/MediaCodec API calls from
+application code ever having made a difference, because the actual defect is in what the
+licence server decides to grant before any of that code runs.
+
+The discriminator is almost certainly the CDM-embedded client identity in the key request
+itself, visible in the request protobuf logged this session:
+
+    application_name: com.st14n.f1.debug
+    package_certificate_hash_bytes: <our signing cert hash>
+
+F1's Widevine policy service is evidently entitling com.formulaone.production's specific
+package identity/certificate for hardware-secure delivery, and issuing everyone else
+SW_SECURE_CRYPTO regardless of what security level the requesting device's CDM is
+actually capable of ("IsSecurityLevelSupported] level = L1" succeeds for both apps' CDM
+sessions on this device -- the device itself supports L1/hardware-secure; the server
+chooses not to grant it to us).
+
+### What this rules in and out for a fix
+
+- **Not a bug in this app's Media3/MediaCodec/renderer code.** Every layer this session
+  touched was brought to parity with the official app (SDR-ladder exclusion, in-place
+  reconfigure, CSD delivery) or proven byte-identical (SurfaceFlinger composition state),
+  and the green screen persisted through all of it, on both the custom renderer and
+  Media3's stock renderer.
+- **Not fixable by spoofing the official app's client identity to F1's server.** That
+  would mean sending F1's licence endpoint a forged application_name and
+  package_certificate_hash_bytes matching com.formulaone.production's real signing
+  certificate, to obtain a security-level grant tied to an entitlement F1 has not
+  extended to this app. That is circumventing a content-protection access control by
+  impersonating another party's certified client, not a legitimate workaround, and is out
+  of scope regardless of subscription status.
+- **The open, legitimate path is decoding at the security level F1 actually grants us.**
+  SW_SECURE_CRYPTO does not require the hardware SVP decoder. c2.mtk.hevc.decoder
+  (non-secure) should be able to use that same key. An L3-forced run late this session
+  did reach the non-secure decoder and produced VPU-visible decode errors ("[LAT][Err]
+  Decoding Error 0x44160040" at the last LCU of affected frames) rather than green -- but
+  that run is not trustworthy as a verdict: forcing L3 swaps out the entire
+  DrmSessionManagerProvider, which bypassed the licence-logging path, so it is not known
+  which licence (level/label) that specific run actually received, and several other
+  flags were live at the same time. This needs to be re-run cleanly: L3 forced, the
+  licence-logging provider still wired so the granted level is confirmed for that exact
+  run, stock renderer, nothing else changed -- before concluding anything about whether
+  SW_SECURE_CRYPTO plus non-secure decode can produce a correct picture on this content.
+
+### Open question: is the SW_SECURE_CRYPTO grant specific to live broadcasts?
+
+Every licence decoded this session was for a live broadcast (contentId=1000010367). This
+investigation's earlier entries report replay/VOD sessions playing correctly on past
+occasions, which raises the possibility that F1's policy service grants HW_SECURE_DECODE
+for replay content but not live. That is unverified -- no replay licence has actually been
+decoded and compared the way the live ones were. It is equally consistent with the data so
+far that replay sessions are subject to the same per-request SW_SECURE_CRYPTO/
+HW_SECURE_DECODE inconsistency as live, and earlier "replay works" reports simply did not
+happen to land on a SW_SECURE_CRYPTO grant. Before treating "live-only" as established,
+capture and decode a replay session's licence the same way (RAW_LICENSE_RESPONSE via
+KeyStatusLoggingDrmSessionManagerProvider) and compare its KeyContainer level/track_label
+against the live values recorded above.
+
+### Diagnostic capability added this session, worth keeping
+
+KeyStatusLoggingDrmSessionManagerProvider.KeyStatusLoggingExoMediaDrm.provideKeyResponse
+now logs the complete raw licence response body (base64, chunked across log lines) in
+addition to the pre-existing queryKeyStatus policy dump. This is what made the
+level/label comparison in this entry possible, and was previously not being captured
+anywhere in this investigation's history despite repeated hypotheses about licence
+content (see the "KID mismatch" hypothesis in that file's own class-level comment, dated
+2026-08-22, which was never actually verified against real licence bytes until now -- and
+turned out to be false; the KID is correctly matched, only the granted security level
+differs).

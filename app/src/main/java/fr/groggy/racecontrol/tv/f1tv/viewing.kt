@@ -53,5 +53,7 @@ data class F1TvViewing(
     val externalAudioEntitlementtoken: String? = null,
     val externalAudioContentId: String? = null,
     val externalAudioChannelId: String? = null,
-    val externalAudioRequired: Boolean = false
+    val externalAudioRequired: Boolean = false,
+    /** Device identity to use on the Widevine license request for this route. */
+    val drmDeviceInfo: String = ""
 ) : Parcelable

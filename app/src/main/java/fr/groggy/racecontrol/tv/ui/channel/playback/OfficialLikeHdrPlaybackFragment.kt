@@ -19,17 +19,24 @@ import androidx.leanback.app.VideoSupportFragmentGlueHost
 import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.dash.DefaultDashChunkSource
 import androidx.media3.exoplayer.dash.DashMediaSource
+import androidx.media3.exoplayer.drm.DefaultDrmSessionManager
+import androidx.media3.exoplayer.drm.FrameworkMediaDrm
+import androidx.media3.exoplayer.drm.LocalMediaDrmCallback
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.ClippingMediaSource
 import androidx.media3.exoplayer.source.FilteringMediaSource
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.util.EventLogger
 import dagger.hilt.android.AndroidEntryPoint
@@ -58,6 +65,8 @@ class OfficialLikeHdrPlaybackFragment : VideoSupportFragment(), Player.Listener 
     private var playbackGlue: ExoPlayerPlaybackTransportControlGlue? = null
     private var nativeHdrPresentationWatchdogRunnable: Runnable? = null
     private val handler = Handler(Looper.getMainLooper())
+    private var appliedForcedTrackOverride = false
+    private var appliedSdrTrackExclusion = false
 
     private val trackSelector: DefaultTrackSelector by lazy {
         DefaultTrackSelector(requireContext()).apply {
@@ -75,6 +84,15 @@ class OfficialLikeHdrPlaybackFragment : VideoSupportFragment(), Player.Listener 
             enableHdrToSdrToneMapping = false,
             enableProtectedHlgVideoGraph = false,
             enableOfficialLikeDirectHdrCodecConfig = false,
+            // Clean-room reproduction of Tiledmedia's separate codec-config
+            // buffer before encrypted access units.
+            // DIAGNOSTIC (2026-09-11): bisect. Codec configuration, CSD delivery and
+            // SurfaceFlinger composition state are now provably identical to the official
+            // app, yet playback is still green from the first frame at every resolution.
+            // Route this stream through Media3's stock MediaCodecVideoRenderer instead of
+            // ClearVrLikeVideoRenderer to establish whether the custom renderer is
+            // implicated at all.
+            enableTiledmediaLikeCodecPath = true,
             // Hardware (decoder-side) HDR->SDR tone mapping via
             // KEY_COLOR_TRANSFER_REQUEST was tested on 2026-08-21 and is NOT
             // supported by c2.mtk.hevc.decoder.secure: the codec reported back
@@ -165,7 +183,19 @@ class OfficialLikeHdrPlaybackFragment : VideoSupportFragment(), Player.Listener 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         currentViewing = findViewing(requireArguments())
-        if (!ALLOW_SCREENCAPTURE_DIAGNOSTIC) {
+        // DIAGNOSTIC (2026-09-11): leanback's PlaybackSupportFragment defaults to
+        // BG_DARK, which installs a full-screen background View behind the transport
+        // controls. An opaque full-screen View suppresses the window's transparent
+        // region, so SurfaceFlinger never learns the SurfaceView punches a hole and
+        // the HWC cannot keep the protected HDR buffer on its dedicated video plane.
+        // Measured live: our window reports transparentRegionHint=[0,0,0,0] while the
+        // official app reports 21 transparent rects and renders correctly.
+        backgroundType = BG_NONE
+        // DIAGNOSTIC (2026-09-11): the official app marks only its video SurfaceView
+        // secure (its UI layer reports isSecure=false); ours marked the whole window
+        // secure, so our UI layer came back isSecure=true. setSecure() on the
+        // SurfaceView below still protects the actual video content.
+        if (!ALLOW_SCREENCAPTURE_DIAGNOSTIC && SET_WINDOW_FLAG_SECURE) {
             requireActivity().window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         }
         Log.i(
@@ -392,6 +422,69 @@ class OfficialLikeHdrPlaybackFragment : VideoSupportFragment(), Player.Listener 
                 player.play()
                 return
             }
+            // DIAGNOSTIC (2026-08-22): same idea as LOCAL_TEST_FILE_DIAGNOSTIC, but
+            // for a *cbcs pattern-encrypted* (1:9, matching F1's real tenc box)
+            // synthetic clip with no other F1-specific packaging involved -- to
+            // isolate whether cbcs pattern encryption + multi-subsample CryptoInfo
+            // itself is what the MediaTek LAT parser chokes on, independent of
+            // tiles/slices/DASH/hvcC repair/etc, all of which have been cleared.
+            // See docs/uhd-hdr-green-video-handoff.md, "2026-08-22 (device
+            // session, part 2)".
+            val clearKeyTestFile = java.io.File(requireContext().getExternalFilesDir(null), "hdrtest_encrypted.mp4")
+            if (LOCAL_TEST_FILE_CLEARKEY_DIAGNOSTIC && clearKeyTestFile.exists()) {
+                Log.i(
+                    TAG,
+                    "DIAGNOSTIC: playing local cbcs ClearKey test file " +
+                        "${clearKeyTestFile.absolutePath} (${clearKeyTestFile.length()} bytes)"
+                )
+                trackSelector.setParameters(buildTrackParameters(audioDisabled = false))
+                val clearKeyJson = """{"keys":[{"kty":"oct","kid":"ABEiM0RVZneImaq7zN3u_w","k":"_-7dzLuqmYh3ZlVEMyIRAA"}],"type":"temporary"}"""
+                val drmSessionManager = DefaultDrmSessionManager.Builder()
+                    .setUuidAndExoMediaDrmProvider(C.CLEARKEY_UUID, FrameworkMediaDrm.DEFAULT_PROVIDER)
+                    .build(LocalMediaDrmCallback(clearKeyJson.toByteArray(Charsets.UTF_8)))
+                val dataSourceFactory = DefaultDataSource.Factory(requireContext())
+                val mediaItem = androidx.media3.common.MediaItem.fromUri(android.net.Uri.fromFile(clearKeyTestFile))
+                val mediaSource = ProgressiveMediaSource.Factory(dataSourceFactory)
+                    .setDrmSessionManagerProvider { drmSessionManager }
+                    .createMediaSource(mediaItem)
+                player.setMediaSource(mediaSource)
+                player.prepare()
+                player.play()
+                return
+            }
+            // DIAGNOSTIC (2026-08-23): plays Google's own public Widevine test
+            // asset ("2015_tears"/dvh1.05, HEVC Main10, genuine Widevine cbcs
+            // -- confirmed via the manifest's own ContentProtection box, not
+            // assumed) against `proxy.uat.widevine.com/proxy`, the long-standing
+            // public Widevine test license server used in Google's own sample
+            // code (no account, no F1 content, no F1 packaging involved at
+            // all). Isolates whether cbcs+HEVC+Widevine fails on this device
+            // *in general*, or whether it's specific to something in F1's own
+            // pipeline never yet identified. No custom extractor, manifest
+            // parser, or init-segment repair -- stock Media3 DashMediaSource.
+            if (PUBLIC_WIDEVINE_CBCS_TEST_VECTOR_DIAGNOSTIC) {
+                Log.i(TAG, "DIAGNOSTIC: playing public Widevine cbcs HEVC test vector (non-F1 content)")
+                trackSelector.setParameters(buildTrackParameters(audioDisabled = false))
+                val factory = DashMediaSource.Factory(httpDataSourceFactory)
+                if (FORCE_WIDEVINE_L3_DIAGNOSTIC) {
+                    factory.setDrmSessionManagerProvider(
+                        ForceWidevineL3DrmSessionManagerProvider(httpDataSourceFactory)
+                    )
+                }
+                val mediaItem = androidx.media3.common.MediaItem.Builder()
+                    .setUri("https://d10b9k0atz8w0s.cloudfront.net/browserkit/testvectors_03/bento4/wvlicsrv/dvp5/2160p24/cbcs_iv16byte/dash.mpd")
+                    .setDrmConfiguration(
+                        androidx.media3.common.MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
+                            .setLicenseUri("https://proxy.uat.widevine.com/proxy")
+                            .build()
+                    )
+                    .build()
+                val mediaSource = factory.createMediaSource(mediaItem)
+                player.setMediaSource(mediaSource)
+                player.prepare()
+                player.play()
+                return
+            }
             val useExternalAudio = viewing.externalAudioUri != null &&
                 (settingsRepository.getCurrent().useExternalAudio || viewing.externalAudioRequired)
             val disableEmbeddedAudio =
@@ -489,7 +582,16 @@ class OfficialLikeHdrPlaybackFragment : VideoSupportFragment(), Player.Listener 
             if (useF1DashUhdHdrFixes) {
                 factory.setManifestParser(F1DynamicHvcCDashManifestParser())
             }
-            if (useF1DashUhdHdrFixes && FORCE_WIDEVINE_L3_DIAGNOSTIC) {
+            // DIAGNOSTIC (2026-08-23): deliberately NOT gated on
+            // useF1DashUhdHdrFixes. Every prior HEVC-vs-AVC comparison in this
+            // investigation compared HEVC-at-L3 against AVC-at-L1, because this
+            // gate excluded the SDR/AVC stream from L3 forcing entirely. That
+            // confound has to be removed before any "AVC works, HEVC doesn't"
+            // conclusion can be trusted: if forcing L3 itself yields garbage
+            // plaintext (the licence is issued for L1 content), then every
+            // L3-based result -- including the software-decoder C2_CORRUPTED
+            // that "proved" the fault is below all decoders -- is invalid.
+            if (FORCE_WIDEVINE_L3_DIAGNOSTIC) {
                 factory.setDrmSessionManagerProvider(
                     ForceWidevineL3DrmSessionManagerProvider(httpDataSourceFactory)
                 )
@@ -501,7 +603,22 @@ class OfficialLikeHdrPlaybackFragment : VideoSupportFragment(), Player.Listener 
             factory.createMediaSource(mediaItem)
         } else {
             Log.i(TAG, "Official-like HDR path using HlsMediaSource for $urlString")
-            HlsMediaSource.Factory(httpDataSourceFactory).createMediaSource(mediaItem)
+            val hlsFactory = HlsMediaSource.Factory(httpDataSourceFactory)
+            // DIAGNOSTIC (2026-08-23): the TME/CMAF route is HLS, so without
+            // this the L3 diagnostic silently does nothing on that path -- and
+            // L3 is the only way to get non-secure decode, which is the only
+            // way VPU [LAT][Err] lines reach logcat. Without it, any HDR test
+            // on the TME path can only be judged by eye.
+            if (FORCE_WIDEVINE_L3_DIAGNOSTIC) {
+                hlsFactory.setDrmSessionManagerProvider(
+                    ForceWidevineL3DrmSessionManagerProvider(httpDataSourceFactory)
+                )
+            } else if (LOG_CDM_KEY_STATUS_DIAGNOSTIC) {
+                hlsFactory.setDrmSessionManagerProvider(
+                    KeyStatusLoggingDrmSessionManagerProvider(httpDataSourceFactory)
+                )
+            }
+            hlsFactory.createMediaSource(mediaItem)
         }
     }
 
@@ -552,12 +669,13 @@ class OfficialLikeHdrPlaybackFragment : VideoSupportFragment(), Player.Listener 
             if (capTo1080p) 1080 else Int.MAX_VALUE
         )
         setMaxVideoBitrate(Int.MAX_VALUE)
-        // Letting ABR start low and adapt upward (2026-08-21, to test whether
-        // configuring the secure decoder directly at 4K was the cause) made no
-        // difference -- green at 480x270 too. Ruled out; reverted to forcing
-        // the top track directly, since that's what we actually want to play
-        // and unpredictable ramp-up only made testing slower and noisier.
-        setForceHighestSupportedBitrate(true)
+        // The official Tiledmedia path does not force the UHD representation
+        // at startup. Its trace shows the vendor decoder being configured at
+        // 960x544, then 1920x1080, and only afterward performing the protected
+        // 3840x2160 resolution change/pre-allocation. Preserve that startup
+        // sequence so MediaTek's secure decoder reaches its UHD buffer state
+        // through the same reconfiguration path.
+        setForceHighestSupportedBitrate(false)
         setPreferredAudioLanguage(null)
         setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, audioDisabled)
     }
@@ -585,22 +703,115 @@ class OfficialLikeHdrPlaybackFragment : VideoSupportFragment(), Player.Listener 
         Log.i(TAG, "Official-like HDR isPlaying=$isPlaying")
     }
 
+    override fun onTracksChanged(tracks: Tracks) {
+        excludeSdrVideoTracksIfNeeded(tracks)
+        applyForcedTrackOverrideIfNeeded(tracks)
+    }
+
+    /**
+     * F1's HDR/HLG manifest carries a full parallel SDR-range HEVC ladder
+     * (`hev1.1.*` Main profile, VIDEO-RANGE=SDR) alongside the HLG ladder
+     * (`hev1.2.*` Main10, VIDEO-RANGE=HLG) under the same DRM scheme/KID --
+     * see the comment on [applyForcedTrackOverrideIfNeeded]. Media3's HLS
+     * parsing does not surface VIDEO-RANGE into `Format.colorInfo` here, so
+     * bandwidth-driven ABR has no signal keeping the two ladders apart and
+     * will cross from HLG onto the SDR one mid-playback. Confirmed live on
+     * 2026-09-11: ABR stepped onto `_SDR-UHD_HEVC_1` (2880x1620, Main
+     * profile) instead of `_HDR-UHD_HEVC_1`; the decoder's own output format
+     * for that rung correctly reported BT709/SDR (it genuinely is SDR
+     * content), and the secure Surface's color transform never recovered
+     * even after ABR moved back onto an HLG rung at 3840x2160 -- this is the
+     * root cause of the green screen, not decoding or DRM. Restricting
+     * selection to `hev1.2.*` keeps ABR on the HLG ladder exclusively, which
+     * still adapts bitrate/resolution normally and reaches the true 4K HDR
+     * rung (`_HDR-UHD_HEVC_2`) when bandwidth allows.
+     */
+    private fun excludeSdrVideoTracksIfNeeded(tracks: Tracks) {
+        if (appliedSdrTrackExclusion) return
+        for (group in tracks.groups) {
+            if (group.type != C.TRACK_TYPE_VIDEO) continue
+            val hdrIndices = (0 until group.length).filter { i ->
+                val codecs = group.getTrackFormat(i).codecs
+                codecs == null || !codecs.startsWith("hev1.1.")
+            }
+            if (hdrIndices.isNotEmpty() && hdrIndices.size < group.length) {
+                Log.i(
+                    TAG,
+                    "Excluding SDR-range (hev1.1.*) video tracks from HDR ladder: " +
+                        "keeping indices=$hdrIndices of ${group.length}"
+                )
+                val override = TrackSelectionOverride(group.mediaTrackGroup, hdrIndices)
+                trackSelector.setParameters(
+                    trackSelector.buildUponParameters()
+                        .setOverrideForType(override)
+                        .build()
+                )
+                appliedSdrTrackExclusion = true
+            }
+        }
+    }
+
+    /**
+     * DIAGNOSTIC (2026-08-22): force selection of a specific representation by
+     * Format.id, bypassing normal ABR/highest-bitrate selection. F1's HDR
+     * manifest also carries an _SDR-UHD_HEVC_1 representation (2880x1620,
+     * hev1.1.6 Main 8-bit) under the exact same cbcs scheme and default_KID as
+     * the HDR set -- same packager, same DRM session, same everything except
+     * Main vs Main10. It has never been played. Forcing it isolates whether
+     * the MediaTek VPU's per-frame [LAT][Err] failures (see
+     * docs/uhd-hdr-green-video-handoff.md, "2026-08-22 (later)") are specific
+     * to 10-bit HEVC or to something else in F1's encrypted HEVC packaging.
+     */
+    private fun applyForcedTrackOverrideIfNeeded(tracks: Tracks) {
+        val targetId = DIAGNOSTIC_FORCE_VIDEO_FORMAT_ID ?: return
+        if (appliedForcedTrackOverride) return
+        for (group in tracks.groups) {
+            if (group.type != C.TRACK_TYPE_VIDEO) continue
+            for (i in 0 until group.length) {
+                val trackFormat = group.getTrackFormat(i)
+                val formatId = trackFormat.id
+                // Media3 prefixes DASH representation ids with the period
+                // index (e.g. "0:_SDR-UHD_HEVC_1"), so compare by suffix.
+                //
+                // HLS/CMAF variants carry no representation id at all (Media3
+                // reports id="0:"), so also support a "codecPrefix@width" form
+                // (e.g. "hev1.1.6@2880") which is the only way to address a
+                // specific rung on the TME/CMAF ladder.
+                val matches = if (targetId.contains('@')) {
+                    val codecPrefix = targetId.substringBefore('@')
+                    val width = targetId.substringAfter('@').toIntOrNull()
+                    trackFormat.codecs?.startsWith(codecPrefix) == true && trackFormat.width == width
+                } else {
+                    formatId != null && (formatId == targetId || formatId.endsWith(":$targetId"))
+                }
+                if (matches) {
+                    Log.i(TAG, "Forcing video track override id=$targetId trackIndex=$i")
+                    val override = TrackSelectionOverride(group.mediaTrackGroup, listOf(i))
+                    trackSelector.setParameters(
+                        trackSelector.buildUponParameters()
+                            .setOverrideForType(override)
+                            .build()
+                    )
+                    appliedForcedTrackOverride = true
+                    return
+                }
+            }
+        }
+        Log.w(TAG, "Forced video track override id=$targetId not found in current tracks")
+    }
+
     override fun onVideoSizeChanged(videoSize: VideoSize) {
         Log.i(
             TAG,
             "Official-like HDR videoSize ${videoSize.width}x${videoSize.height} " +
                 "pixelRatio=${videoSize.pixelWidthHeightRatio}"
         )
-        // Without this, the SurfaceView's BufferQueue stays at whatever size
-        // Leanback laid it out at (e.g. 1920x1080) while MediaCodec tries to
-        // write actual 3840x2160 secure/protected buffers into it -- a
-        // mismatch between the view's logical buffer size and the producer's
-        // real output size that can fail protected buffer allocation
-        // (createGraphicBuffer failed) rather than just being scaled, unlike
-        // regular unprotected content.
-        if (videoSize.width > 0 && videoSize.height > 0) {
-            playbackSurfaceView?.holder?.setFixedSize(videoSize.width, videoSize.height)
-        }
+        // Tiledmedia's direct-to-view path updates its containing frame's
+        // aspect ratio, but does not call SurfaceHolder.setFixedSize() when
+        // the decoded video dimensions arrive. Keep the SurfaceView buffer
+        // layout-sized as the official implementation does; changing the
+        // BufferQueue from 1920x1080 to 3840x2160 at this point is a
+        // presentation-path divergence on this protected display pipeline.
         HdrPresentationDiagnostics.logDisplaySnapshot(requireContext(), "officialLike-videoSizeChanged")
     }
 
@@ -629,10 +840,26 @@ class OfficialLikeHdrPlaybackFragment : VideoSupportFragment(), Player.Listener 
         // MediaTek secure hardware/TEE path) to isolate whether the green
         // screen is specific to the secure hardware decode path. See
         // ForceWidevineL3DrmSessionManagerProvider for the full reasoning.
+        // 2026-09-11: F1's licence server issues this app's content key at
+        // SecurityLevel 1 (SW_SECURE_CRYPTO, track_label "HD") -- confirmed by parsing
+        // the raw licence responses. That key cannot be loaded into the TEE key ladder,
+        // so the hardware SVP decoder (c2.mtk.hevc.decoder.secure) never fills its
+        // protected output buffer and the zero-filled result composites as uniform
+        // green. Dropping to L3 uses the key at the level actually granted, on a
+        // non-secure decoder that can decrypt into ordinary buffers.
         private const val FORCE_WIDEVINE_L3_DIAGNOSTIC = false
+        // DIAGNOSTIC (2026-08-22): force this Format.id instead of normal ABR
+        // selection. See applyForcedTrackOverrideIfNeeded. Set to null to
+        // disable and restore normal highest-bitrate selection.
+        private val DIAGNOSTIC_FORCE_VIDEO_FORMAT_ID: String? = null
         // Log the key IDs the CDM actually holds, to compare against the KID the
         // content asks for in CryptoInfo.
-        private const val LOG_CDM_KEY_STATUS_DIAGNOSTIC = false
+        private const val LOG_CDM_KEY_STATUS_DIAGNOSTIC = true
+
+        // DIAGNOSTIC (2026-09-11): see onCreate. The official app does not set
+        // FLAG_SECURE on its playback window, only setSecure() on the video
+        // SurfaceView; matching that keeps our UI layer non-secure.
+        private const val SET_WINDOW_FLAG_SECURE = false
         // Requires FORCE_WIDEVINE_L3_DIAGNOSTIC (a software decoder cannot
         // consume L1 protected buffers). Caps resolution to 1080p because
         // software 4K50 Main10 HEVC decode is not feasible on this CPU -- the
@@ -646,6 +873,19 @@ class OfficialLikeHdrPlaybackFragment : VideoSupportFragment(), Player.Listener 
         // Play /Android/data/<pkg>/files/hdrtest.mp4 through this path instead of
         // the F1 stream. Proved the rendering path handles 4K 10-bit HLG fine.
         private const val LOCAL_TEST_FILE_DIAGNOSTIC = false
+        // Play /Android/data/<pkg>/files/hdrtest_encrypted.mp4 -- a synthetic
+        // clip matching F1's tiled/multi-sliced HEVC shape, cbcs-encrypted
+        // (1:9 pattern, matching F1's real tenc box) with a local ClearKey, no
+        // Widevine or F1-specific code involved at all. Isolates whether cbcs
+        // pattern encryption + multi-subsample CryptoInfo itself is what the
+        // MediaTek LAT parser chokes on.
+        private const val LOCAL_TEST_FILE_CLEARKEY_DIAGNOSTIC = false
+        // Plays Google's own public "2015_tears"/dvh1.05 Widevine test asset
+        // (genuine cbcs, confirmed via its own manifest, HEVC Main10) against
+        // proxy.uat.widevine.com/proxy -- the long-standing public Widevine
+        // test license server -- with zero F1 code/content involved. Isolates
+        // whether cbcs+HEVC+Widevine fails on this device in general.
+        private const val PUBLIC_WIDEVINE_CBCS_TEST_VECTOR_DIAGNOSTIC = false
         // Play F1's HDR stream through unmodified Media3 (no custom extractor,
         // manifest parser, or init-segment rewriting).
         private const val VANILLA_MEDIA3_DIAGNOSTIC = false

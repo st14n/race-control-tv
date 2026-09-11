@@ -13,7 +13,9 @@ package fr.groggy.racecontrol.tv.ui.channel.playback
  * heuristics or a hardcoded BT.2020/HLG assumption.
  */
 object F1DashRepairMetadataRegistry {
-    private const val MAX_ENTRIES = 12
+    // Keep enough entries for the complete HDR ladder, including iframe
+    // representations, so early entries are still available at init time.
+    private const val MAX_ENTRIES = 32
 
     data class ColorInfo(val primaries: Int, val transfer: Int, val matrix: Int)
 
@@ -33,9 +35,9 @@ object F1DashRepairMetadataRegistry {
 
     @Synchronized
     fun register(initSegmentUri: String, metadata: RepairMetadata) {
-        entries[initSegmentUri] = metadata
+        entries[F1DashUriKey.of(initSegmentUri)] = metadata
     }
 
     @Synchronized
-    fun get(initSegmentUri: String): RepairMetadata? = entries[initSegmentUri]
+    fun get(initSegmentUri: String): RepairMetadata? = entries[F1DashUriKey.of(initSegmentUri)]
 }

@@ -62,6 +62,19 @@ object DeviceInfo {
     }
 
     /**
+     * Browser identity used by F1TV's TME response route. The service gates the
+     * web TME payload separately from the Android-TV player route, so this is
+     * intentionally kept distinct from [f1DeviceInfo].
+     */
+    val tmeWebDeviceInfo: String =
+        "device=web;screen=browser;os=windows;browser=chrome;browserVersion=151;" +
+            "osVersion=11;appVersion=54.0.9;playerVersion=8.212.0;p=true;tms=1"
+
+    val tmeWebUserAgent: String =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+            "(KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"
+
+    /**
      * Returns true when the active/default display advertises HLG support.
      *
      * The app uses this to decide whether it should request F1TV's HDR manifest.

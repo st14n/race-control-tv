@@ -222,7 +222,7 @@ class F1DashInitSegmentFixingDataSource internal constructor(
 
         Log.i(
             TAG,
-            "Expanded empty hvcC for F1 DASH UHD HEVC init segment " +
+            "Expanded empty hvcC for F1 DASH HDR HEVC init segment " +
                 "hvcC=${hvcc.size}->${replacementHvcc.size} addedColr=${colorBoxToAdd != null} " +
                 "source=$hvccSource colorInfo=${metadata?.colorInfo}"
         )
@@ -238,7 +238,7 @@ class F1DashInitSegmentFixingDataSource internal constructor(
 
         Log.i(
             TAG,
-            "Inserted missing hvcC for F1 DASH UHD HEVC init segment (no hvcC box present at all) " +
+            "Inserted missing hvcC for F1 DASH HDR HEVC init segment (no hvcC box present at all) " +
                 "newHvcC=${hvccBytes.size} addedColr=${colorBoxBytes != null} " +
                 "source=$hvccSource colorInfo=${metadata?.colorInfo}"
         )
