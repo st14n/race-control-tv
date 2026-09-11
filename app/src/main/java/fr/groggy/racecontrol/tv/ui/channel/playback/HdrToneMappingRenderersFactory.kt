@@ -29,11 +29,17 @@ class HdrToneMappingRenderersFactory(
     private val enableOfficialLikeDirectHdrCodecConfig: Boolean,
     private val enableHardwareToneMapping: Boolean = false,
     private val enableCryptoDiagnostics: Boolean = false,
-    private val enableSoftwareVideoDecoder: Boolean = false
+    private val enableSoftwareVideoDecoder: Boolean = false,
+    private val enableTiledmediaLikeCodecPath: Boolean = false
 ) : DefaultRenderersFactory(context) {
 
     companion object {
         private val TAG = HdrToneMappingRenderersFactory::class.simpleName
+        // DIAGNOSTIC (2026-08-22): see CryptoAsyncMediaCodecAdapter for the full
+        // reasoning. Tests MediaCodec.CONFIGURE_FLAG_USE_CRYPTO_ASYNC (API 34+),
+        // never set by Media3 1.10.1's own bundled adapters, in isolation from
+        // ExoPlayer's own sync/async buffer-callback threading (already ruled out).
+        private const val FORCE_CRYPTO_ASYNC_DIAGNOSTIC = false
     }
 
     private val appContext = context.applicationContext
@@ -76,14 +82,32 @@ class HdrToneMappingRenderersFactory(
     }
 
     private fun codecAdapterFactory(): MediaCodecAdapter.Factory {
-        val baseFactory = if (shouldForceSynchronousCodecQueueing()) {
+        val baseFactory = if (FORCE_CRYPTO_ASYNC_DIAGNOSTIC) {
+            Log.i(TAG, "Forcing MediaCodec.CONFIGURE_FLAG_USE_CRYPTO_ASYNC diagnostic adapter")
+            CryptoAsyncMediaCodecAdapter.Factory()
+        } else if (enableTiledmediaLikeCodecPath && Build.VERSION.SDK_INT >= 31) {
+            // The official bridge selects MediaCodec.Callback on Android 12+
+            // while still configuring with flags=0. This adapter's default
+            // crypto-async flag is not appropriate for that path, so use the
+            // explicit ordinary callback factory.
+            Log.i(TAG, "Using callback-driven MediaCodec lifecycle for Tiledmedia-like path")
+            CryptoAsyncMediaCodecAdapter.Factory(configureFlags = 0)
+        } else if (shouldForceSynchronousCodecQueueing()) {
             Log.i(TAG, "Forcing synchronous codec queueing for Google TV Streamer")
             SynchronousMediaCodecAdapter.Factory()
         } else {
             MediaCodecAdapter.Factory.DEFAULT
         }
+        val selectedFactory = if (enableTiledmediaLikeCodecPath) {
+            Log.i(TAG, "Enabling clean-room Tiledmedia-like codec input path")
+            MediaCodecAdapter.Factory { configuration ->
+                TiledmediaLikeMediaCodecAdapter.create(baseFactory, configuration)
+            }
+        } else {
+            baseFactory
+        }
         return MediaCodecAdapter.Factory { configuration ->
-            val adapter = baseFactory.createAdapter(configuration)
+            val adapter = selectedFactory.createAdapter(configuration)
             TimestampShiftingMediaCodecAdapterWrapper(adapter)
         }
     }
@@ -114,7 +138,8 @@ class HdrToneMappingRenderersFactory(
             !enableOfficialLikeDirectHdrCodecConfig &&
             !enableHardwareToneMapping &&
             !enableCryptoDiagnostics &&
-            !enableSoftwareVideoDecoder
+            !enableSoftwareVideoDecoder &&
+            !enableTiledmediaLikeCodecPath
         ) {
             return
         }
@@ -150,6 +175,10 @@ class HdrToneMappingRenderersFactory(
                             eventHandler = eventHandler,
                             eventListener = eventListener
                         )
+                    }
+                    enableTiledmediaLikeCodecPath -> {
+                        Log.i(TAG, "Installing clean-room ClearVR-like raw MediaCodec renderer")
+                        ClearVrLikeVideoRenderer(appContext, mediaCodecSelector)
                     }
                     enableHardwareToneMapping -> {
                         Log.i(TAG, "Installing hardware (decoder-side) HDR-to-SDR tone mapping renderer")
@@ -261,6 +290,86 @@ private class CryptoInfoLoggingMediaCodecAdapterWrapper(
     private companion object {
         private const val MAX_LOGGED_SAMPLES = 6
     }
+}
+
+/**
+ * Diagnostic clean-room reproduction of the official Tiledmedia bridge's
+ * codec-input sequence. Tiledmedia configures MediaCodec without csd buffers,
+ * then queues the initialization data as a separate BUFFER_FLAG_CODEC_CONFIG
+ * input buffer before queueing encrypted access units.
+ *
+ * This does not use or copy Tiledmedia code or assets. It only reproduces the
+ * observable public MediaCodec behavior found in the decompiled bridge.
+ */
+private object TiledmediaLikeMediaCodecAdapter {
+    fun create(
+        baseFactory: MediaCodecAdapter.Factory,
+        configuration: MediaCodecAdapter.Configuration
+    ): MediaCodecAdapter {
+        val codecFormat = MediaFormat(configuration.mediaFormat)
+        val codecConfig = collectCodecConfig(codecFormat)
+        if (codecConfig == null) {
+            Log.w(TAG, "Tiledmedia-like path found no codec initialization data; keeping normal MediaFormat")
+            return baseFactory.createAdapter(configuration)
+        }
+
+        codecFormat.removeKey("csd-0")
+        codecFormat.removeKey("csd-1")
+        codecFormat.removeKey("csd-2")
+        val strippedConfiguration = MediaCodecAdapter.Configuration.createForVideoDecoding(
+            configuration.codecInfo,
+            codecFormat,
+            configuration.format,
+            configuration.surface,
+            configuration.crypto
+        )
+        val adapter = baseFactory.createAdapter(strippedConfiguration)
+        val deadlineMs = System.currentTimeMillis() + 5000L
+        var inputIndex = -1
+        while (inputIndex < 0 && System.currentTimeMillis() < deadlineMs) {
+            inputIndex = adapter.dequeueInputBufferIndex()
+        }
+        if (inputIndex < 0) {
+            Log.e(TAG, "Tiledmedia-like path could not acquire codec-config input buffer")
+            return adapter
+        }
+        val inputBuffer = adapter.getInputBuffer(inputIndex)
+        if (inputBuffer == null || inputBuffer.remaining() < codecConfig.size) {
+            Log.e(TAG, "Tiledmedia-like path codec-config buffer unavailable/too small")
+            return adapter
+        }
+        inputBuffer.put(codecConfig)
+        adapter.queueInputBuffer(
+            inputIndex,
+            0,
+            codecConfig.size,
+            0L,
+            android.media.MediaCodec.BUFFER_FLAG_CODEC_CONFIG
+        )
+        Log.i(TAG, "Queued separate codec-config buffer size=${codecConfig.size}; MediaFormat csd removed")
+        return adapter
+    }
+
+    private fun collectCodecConfig(format: MediaFormat): ByteArray? {
+        val parts = mutableListOf<ByteArray>()
+        for (key in listOf("csd-0", "csd-1", "csd-2")) {
+            val buffer = format.getByteBuffer(key) ?: continue
+            val copy = buffer.duplicate()
+            val bytes = ByteArray(copy.remaining())
+            copy.get(bytes)
+            if (bytes.isNotEmpty()) parts += bytes
+        }
+        if (parts.isEmpty()) return null
+        val result = ByteArray(parts.sumOf { it.size })
+        var offset = 0
+        for (part in parts) {
+            part.copyInto(result, offset)
+            offset += part.size
+        }
+        return result
+    }
+
+    private val TAG = HdrToneMappingRenderersFactory::class.simpleName
 }
 
 private class ProtectedHlgGraphMediaCodecVideoRenderer(

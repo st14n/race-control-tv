@@ -29,16 +29,17 @@ import java.util.concurrent.atomic.AtomicInteger
  * effect by pre-fetching the first segment out-of-band and handing Media3 a
  * container-level hvcC it can parse normally.
  *
- * Keyed by the resolved absolute init-segment URI (not a representation id
- * parsed back out of a CDN URL) so lookups keep working across CDN/URL
- * shape changes -- [F1DynamicHvcCDashManifestParser] and
- * [F1DashInitSegmentFixingDataSource] both derive that same URI from the
- * DASH manifest's own resolution logic, so they agree on the key without
- * needing to parse each other's URLs.
+ * Keyed by the resolved init-segment resource path/query (not a representation
+ * id or CDN authority) so lookups survive F1's CDN host selection changing
+ * between manifest parsing and the actual init request.
  */
 object DynamicHvcCExtractor {
     private const val TAG = "DynamicHvcCExtractor"
-    private const val MAX_CACHE_ENTRIES = 6
+    // The live HDR ladder currently contains 14 representations (including
+    // iframe tracks). Keep the complete bounded ladder available until the
+    // player asks for an init segment; six entries can evict a successful
+    // extraction before that request arrives.
+    private const val MAX_CACHE_ENTRIES = 32
     private const val FETCH_RANGE_BYTES = 500_000
     private const val CONNECT_TIMEOUT_MS = 5_000
     private const val READ_TIMEOUT_MS = 5_000
@@ -79,7 +80,8 @@ object DynamicHvcCExtractor {
         expectedWidth: Int,
         expectedHeight: Int
     ) {
-        if (cache.containsKey(initSegmentUri)) {
+        val key = F1DashUriKey.of(initSegmentUri)
+        if (cache.containsKey(key)) {
             return
         }
         val future = executor.submit(
@@ -107,7 +109,7 @@ object DynamicHvcCExtractor {
                 }
             }
         )
-        cache[initSegmentUri] = future
+        cache[key] = future
     }
 
     /**
@@ -117,7 +119,8 @@ object DynamicHvcCExtractor {
      * treat null as "fall back to the hardcoded box".
      */
     fun await(initSegmentUri: String, timeoutMs: Long): ByteArray? {
-        val future = synchronized(this) { cache[initSegmentUri] } ?: return null
+        val key = F1DashUriKey.of(initSegmentUri)
+        val future = synchronized(this) { cache[key] } ?: return null
         return try {
             future.get(timeoutMs, TimeUnit.MILLISECONDS)
         } catch (e: TimeoutException) {

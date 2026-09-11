@@ -61,7 +61,14 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         )
     }
 
+    // DIAGNOSTIC (2026-08-23): force the SDR/AVC manifest so AVC can be played
+    // under forced Widevine L3, validating whether L3-forcing yields correct
+    // plaintext at all. Every earlier HEVC-vs-AVC comparison ran HEVC at L3 and
+    // AVC at L1, so "AVC works" never actually tested the L3 path.
+    private val FORCE_SDR_AVC_MANIFEST_DIAGNOSTIC = false
+
     private val preferHdrManifestForDevice: Boolean by lazy(LazyThreadSafetyMode.NONE) {
+        if (FORCE_SDR_AVC_MANIFEST_DIAGNOSTIC) return@lazy false
         val preferHdrManifest = !settingsRepository.getCurrent().disableUhdManifests &&
             DeviceInfo.shouldRequestHdrManifest(this) &&
             allowsUhdPlaybackForSeason()

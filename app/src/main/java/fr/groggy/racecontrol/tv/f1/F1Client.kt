@@ -28,7 +28,8 @@ class F1Client @Inject constructor(
         val deviceInfo: String,
         val player: String,
         val profile: String,
-        val overrideStreamType: String? = null
+        val overrideStreamType: String? = null,
+        val userAgent: String = DeviceInfo.userAgent
     )
 
     companion object {
@@ -91,7 +92,7 @@ class F1Client @Inject constructor(
                     val requestBuilder = Request.Builder()
                         .url(url)
                         .get()
-                        .header("User-Agent", DeviceInfo.userAgent)
+                        .header("User-Agent", candidate.userAgent)
                         .header("Origin", "https://f1tv.formula1.com")
                         .header("Referer", "https://f1tv.formula1.com/")
                         .header("x-f1-device-info", candidate.deviceInfo)
@@ -134,7 +135,12 @@ class F1Client @Inject constructor(
                         )
                     }
 
-                    val manifestUrl = response.resultObj.url.orEmpty()
+                    val manifestUrl = response.resultObj.url.orEmpty().ifBlank {
+                        selectTmeFeedUrl(
+                            tme = response.resultObj.tme,
+                            channelId = response.resultObj.channelId ?: channelId
+                        ).orEmpty()
+                    }
                     if (manifestUrl.isBlank()) {
                         throw UnsupportedOperationException(
                             "Content play returned no manifest URL for ExoPlayer " +
@@ -143,10 +149,12 @@ class F1Client @Inject constructor(
                         )
                     }
 
-                    if (candidate.player == TILED_MEDIA_PLAYER && response.resultObj.tme != null) {
-                        throw UnsupportedOperationException(
-                            "Tiled-media TME response is not playable by ExoPlayer " +
-                                "streamType=${response.resultObj.streamType} manifestUrl=$manifestUrl"
+                    val selectedTmeFeed = response.resultObj.url.isNullOrBlank() && response.resultObj.tme != null
+                    if (selectedTmeFeed) {
+                        Log.i(
+                            TAG,
+                            "Selected channel feed from TME response " +
+                                "streamType=${response.resultObj.streamType} channelId=${response.resultObj.channelId ?: channelId}"
                         )
                     }
 
@@ -160,7 +168,8 @@ class F1Client @Inject constructor(
                         entitlementtoken = response.resultObj.entitlementToken ?: entitlementToken.orEmpty(),
                         streamType = response.resultObj.streamType,
                         requestedOverrideStreamType = candidate.overrideStreamType,
-                        laURL = response.resultObj.laURL
+                        laURL = response.resultObj.laURL,
+                        drmDeviceInfo = candidate.deviceInfo
                     )
 
                     val acceptedHdrCandidate = isAcceptedHdrCandidate(
@@ -233,6 +242,35 @@ class F1Client @Inject constructor(
             Log.w(TAG, "Unable to load entitlement token: ${e.message}")
             null
         }
+    }
+
+    /**
+     * TME responses contain a catalog of signed feed manifests rather than a
+     * single `url`. Select the feed for the requested channel and leave the
+     * actual demux/decrypt/render implementation to this app.
+     */
+    private fun selectTmeFeedUrl(
+        tme: Map<String, Any?>?,
+        channelId: String?
+    ): String? {
+        val feeds = tme?.get("feeds") as? List<*> ?: return null
+        val requestedChannel = channelId?.toLongOrNull()
+
+        fun feedChannelId(feed: Map<*, *>): Long? {
+            val metadata = feed["metadata"] as? Map<*, *> ?: return null
+            return when (val value = metadata["channel_id"]) {
+                is Number -> value.toLong()
+                is String -> value.toLongOrNull()
+                else -> null
+            }
+        }
+
+        val selected = feeds.asSequence()
+            .mapNotNull { it as? Map<*, *> }
+            .firstOrNull { requestedChannel != null && feedChannelId(it) == requestedChannel }
+            ?: feeds.asSequence().mapNotNull { it as? Map<*, *> }.firstOrNull()
+
+        return selected?.get("url") as? String
     }
 
     /**
@@ -365,16 +403,30 @@ class F1Client @Inject constructor(
                     overrideStreamType
                 )
             )
-        } + listOf(
-            PlayRequestCandidate(PLAY_API_V3, TV_PLATFORM, DeviceInfo.f1DeviceInfo, TILED_MEDIA_PLAYER, "android_tv_tiled_probe")
-        )
+        }
+
+        // F1's web TME route is separately authorized from BIG_SCREEN_HLS. It
+        // returns a TME feed catalog instead of a manifest URL; the clean-room
+        // adapter above selects the channel feed and keeps Media3 as our own
+        // demux/decrypt/render implementation.
+        val tmeCandidates = listOf("HDR_UHD_CMAFWV", "HDR_UHD_DASHWV").map { overrideStreamType ->
+            PlayRequestCandidate(
+                playApiVersion = PLAY_API_V3,
+                platform = "WEB_HLS",
+                deviceInfo = DeviceInfo.tmeWebDeviceInfo,
+                player = TILED_MEDIA_PLAYER,
+                profile = "web_tme_$overrideStreamType",
+                overrideStreamType = overrideStreamType,
+                userAgent = DeviceInfo.tmeWebUserAgent
+            )
+        }
 
         Log.i(
             TAG,
             "HDR manifest preference requested; probing DASH Widevine HDR before HLS CMAF Widevine HDR"
         )
 
-        return hdrCandidates + standardCandidates
+        return tmeCandidates + hdrCandidates + standardCandidates
     }
 
     private fun requestedPlatforms(streamType: Settings.StreamType): List<String> {

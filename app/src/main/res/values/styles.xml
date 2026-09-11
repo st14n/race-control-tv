@@ -5,7 +5,15 @@
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowActionBar">false</item>
         <item name="android:windowFullscreen">true</item>
-        <item name="android:windowBackground">@android:color/black</item>
+        <!-- An opaque windowBackground makes the DecorView opaque across the whole
+             window, so View.gatherTransparentRegion() never lets the video
+             SurfaceView punch its hole and the window reports
+             transparentRegionHint=[0,0,0,0]. SurfaceFlinger then cannot tell that the
+             protected HDR video plane below is unobstructed, and the MediaTek HWC
+             falls off its dedicated video plane (green screen on UHD/HDR). The
+             official app's window reports 21 transparent rects here. Black behind the
+             video comes from the SurfaceView's own background layer instead. -->
+        <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:colorBackground">@android:color/black</item>
         <item name="android:windowIsTranslucent">false</item>
     </style>

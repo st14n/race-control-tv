@@ -78,6 +78,8 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         private const val ARG_CHANNEL_ID = "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_CHANNEL_ID"
         private const val ARG_IS_LIVE_SESSION = "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_IS_LIVE_SESSION"
         private const val ARG_SEASON_YEAR = "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_SEASON_YEAR"
+        // DIAGNOSTIC (2026-08-23): see createMediaSource. Off by default.
+        private const val FORCE_WIDEVINE_L3_VALIDATION_DIAGNOSTIC = false
         private const val ARG_FORCE_DIRECT_MEDIA3_HDR_SURFACE =
             "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_FORCE_DIRECT_MEDIA3_HDR_SURFACE"
         private const val ARG_FORCE_PROTECTED_HLG_GRAPH =
@@ -274,11 +276,24 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         val enableHdrToSdrToneMapping = settings.disableHdrOn4kStreams || isForceHdrToSdrToneMapping()
         val enableProtectedHlgVideoGraph = shouldUseProtectedHlgGraph(viewing) && !enableHdrToSdrToneMapping
         val enableOfficialLikeDirectHdrCodecConfig = false
+        // The clean-room raw MediaCodec renderer models ClearVR's explicit
+        // header/access-unit bridge, but it must not replace Media3's HLS
+        // renderer: the TME CMAF route is already demuxed by Media3's HLS
+        // extractor and its format carries no separate header buffer. Keep
+        // the experimental bridge for DASH, where the F1 init-segment repair
+        // path can provide the same kind of initialization boundary.
+        val enableTiledmediaLikeCodecPath = viewing?.let {
+            looksLikeHdrUhdWidevine(it) && (
+                it.streamType?.contains("DASH", ignoreCase = true) == true ||
+                    it.url.toString().contains(".mpd", ignoreCase = true)
+                )
+        } == true
         Log.i(
             TAG,
             "Media3 renderer factory protectedHlgGraph=$enableProtectedHlgVideoGraph " +
                 "enableHdrToSdrToneMapping=$enableHdrToSdrToneMapping " +
                 "officialLikeDirectHdrCodecConfig=$enableOfficialLikeDirectHdrCodecConfig " +
+                "tiledmediaLikeCodecPath=$enableTiledmediaLikeCodecPath " +
                 "forceDirectMedia3HdrSurface=${isForceDirectMedia3HdrSurface()} " +
                 "forceProtectedHlgGraph=${isForceProtectedHlgGraph()} " +
                 "forceHdrToSdrToneMapping=${isForceHdrToSdrToneMapping()} " +
@@ -289,6 +304,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             enableHdrToSdrToneMapping = enableHdrToSdrToneMapping,
             enableProtectedHlgVideoGraph = enableProtectedHlgVideoGraph,
             enableOfficialLikeDirectHdrCodecConfig = enableOfficialLikeDirectHdrCodecConfig,
+            enableTiledmediaLikeCodecPath = enableTiledmediaLikeCodecPath,
             // DIAGNOSTIC (2026-08-22): log CryptoInfo here too, so one session
             // captures BOTH the failing HDR attempt and the working SDR
             // fallback and their encryption layouts can be compared directly.
@@ -697,6 +713,20 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             )
             if (useF1DashUhdHdrFixes) {
                 factory.setManifestParser(F1DynamicHvcCDashManifestParser())
+            }
+            // DIAGNOSTIC (2026-08-23): validate whether forcing Widevine L3
+            // yields correct plaintext at all. Every earlier HEVC-vs-AVC
+            // comparison ran HEVC at L3 and AVC at L1 (the SDR/AVC stream
+            // routes to this fragment, which never applied L3), so "AVC works"
+            // never tested the L3 path. If AVC also corrupts at L3, then L3
+            // forcing is itself broken and every L3-based conclusion in this
+            // investigation -- including the software-decoder C2_CORRUPTED --
+            // is invalid.
+            if (FORCE_WIDEVINE_L3_VALIDATION_DIAGNOSTIC) {
+                Log.i(TAG, "DIAGNOSTIC: forcing Widevine L3 on standard playback path")
+                factory.setDrmSessionManagerProvider(
+                    ForceWidevineL3DrmSessionManagerProvider(httpDataSourceFactory)
+                )
             }
             factory.createMediaSource(mediaItem)
         } else {

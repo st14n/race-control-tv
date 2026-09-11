@@ -6,11 +6,18 @@
     android:layout_height="match_parent"
     android:keepScreenOn="true">
 
-    <!-- Mask layout to hide launcher during buffering/loading -->
+    <!-- Mask layout to hide launcher during buffering/loading.
+         DIAGNOSTIC (2026-09-11): kept GONE. While visible this opaque full-screen
+         View suppresses the window's transparent region entirely
+         (transparentRegionHint came back empty), so SurfaceFlinger never learns the
+         SurfaceView punches a hole and the HWC cannot keep the protected HDR buffer
+         on its dedicated video plane. The official app reports 21 transparent
+         rects here and renders correctly. -->
     <View
         android:id="@+id/playback_black_bg"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:visibility="gone"
         android:background="@android:color/black" />
 
     <androidx.fragment.app.FragmentContainerView

@@ -1,7 +1,15 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <application>
         <activity
             android:name="fr.groggy.racecontrol.tv.ui.channel.playback.CustomRadioProbeActivity"
             android:exported="true" />
+        <!-- DIAGNOSTIC (2026-08-22): exported in debug builds only, so `adb shell am start`
+             can launch a specific channel/content directly for on-device decoder testing
+             without navigating the TV UI. See docs/uhd-hdr-green-video-handoff.md. -->
+        <activity
+            android:name="fr.groggy.racecontrol.tv.ui.channel.playback.ChannelPlaybackActivity"
+            android:exported="true"
+            tools:node="merge" />
     </application>
 </manifest>
