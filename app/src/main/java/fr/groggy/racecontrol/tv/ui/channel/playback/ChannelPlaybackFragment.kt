@@ -80,6 +80,13 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         private const val ARG_SEASON_YEAR = "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_SEASON_YEAR"
         // DIAGNOSTIC (2026-08-23): see createMediaSource. Off by default.
         private const val FORCE_WIDEVINE_L3_VALIDATION_DIAGNOSTIC = false
+        // DIAGNOSTIC (2026-10-11): route the standard (SDR / UHD DASH) path through
+        // KeyStatusLoggingDrmSessionManagerProvider so the Widevine app_info is rewritten
+        // to the official F1 TV identity AND the raw license request/response (including
+        // the granted security_level) is dumped to logcat. This fragment is the one the
+        // emulator actually plays (SDR fallback / tone-mapped HDR), so the HDR-only
+        // logging path never fires here without this. Off by default.
+        private const val LOG_KEY_RESPONSE_STANDARD_PATH = true
         private const val ARG_FORCE_DIRECT_MEDIA3_HDR_SURFACE =
             "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_FORCE_DIRECT_MEDIA3_HDR_SURFACE"
         private const val ARG_FORCE_PROTECTED_HLG_GRAPH =
@@ -727,6 +734,15 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                 factory.setDrmSessionManagerProvider(
                     ForceWidevineL3DrmSessionManagerProvider(httpDataSourceFactory)
                 )
+            } else if (LOG_KEY_RESPONSE_STANDARD_PATH) {
+                Log.i(
+                    TAG,
+                    "DIAGNOSTIC: logging Widevine key status + rewriting identity " +
+                        "on standard playback path"
+                )
+                factory.setDrmSessionManagerProvider(
+                    KeyStatusLoggingDrmSessionManagerProvider(httpDataSourceFactory)
+                )
             }
             factory.createMediaSource(mediaItem)
         } else {
@@ -736,8 +752,27 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             } else {
                 httpDataSourceFactory
             }
-            HlsMediaSource.Factory(dataSourceFactory)
-                .createMediaSource(mediaItem)
+            val hlsFactory = HlsMediaSource.Factory(dataSourceFactory)
+            // DIAGNOSTIC (2026-10-11): the HDR CMAF HLS source carries the real
+            // widevine_l1 license exchange, but only the DASH branch above
+            // attached the logging/rewriting DRM provider, so the exchange on
+            // this path was never captured. Apply the same switch here.
+            if (FORCE_WIDEVINE_L3_VALIDATION_DIAGNOSTIC) {
+                Log.i(TAG, "DIAGNOSTIC: forcing Widevine L3 on standard playback path (HLS)")
+                hlsFactory.setDrmSessionManagerProvider(
+                    ForceWidevineL3DrmSessionManagerProvider(httpDataSourceFactory)
+                )
+            } else if (LOG_KEY_RESPONSE_STANDARD_PATH) {
+                Log.i(
+                    TAG,
+                    "DIAGNOSTIC: logging Widevine key status + rewriting identity " +
+                        "on standard playback path (HLS)"
+                )
+                hlsFactory.setDrmSessionManagerProvider(
+                    KeyStatusLoggingDrmSessionManagerProvider(httpDataSourceFactory)
+                )
+            }
+            hlsFactory.createMediaSource(mediaItem)
         }
     }
 
