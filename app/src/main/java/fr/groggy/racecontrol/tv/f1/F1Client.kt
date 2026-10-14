@@ -179,11 +179,14 @@ class F1Client @Inject constructor(
                         laURL = response.resultObj.laURL
                     )
                     if (preferHdrManifest && !acceptedHdrCandidate) {
-                        // Only keep true standard responses as the last-resort fallback.
-                        // Rejected HDR override probes must not become the final viewing,
-                        // otherwise a mismatched SDR response can short-circuit the rest
-                        // of the HDR candidate search.
-                        if (candidate.overrideStreamType == null && fallbackViewing == null) {
+                        // Only keep true standard Widevine responses (non-blank laURL) as
+                        // the last-resort fallback. Rejected HDR override probes must not
+                        // become the final viewing, and a plain-HLS (no-DRM) viewing must
+                        // never be returned — the app always lands on the Widevine path.
+                        if (candidate.overrideStreamType == null &&
+                            fallbackViewing == null &&
+                            !response.resultObj.laURL.isNullOrBlank()
+                        ) {
                             fallbackViewing = viewing
                         }
                         Log.i(
@@ -421,12 +424,17 @@ class F1Client @Inject constructor(
             )
         }
 
+        // TV-tier DASH Widevine (BIG_SCREEN_HLS + android_tv/kirkwood) is tried FIRST:
+        // it is the route that returns the TV "widevine_l1" license endpoint (the L1
+        // grant path). The browser-tier TME route (device=web) returns a lower-tier
+        // "widevine" (L3) license for the same content, so it is tried AFTER the TV
+        // DASH/WEB Widevine candidates and only used if none of them yield a manifest.
         Log.i(
             TAG,
-            "HDR manifest preference requested; probing DASH Widevine HDR before HLS CMAF Widevine HDR"
+            "HDR manifest preference requested; probing TV DASH Widevine HDR before browser TME CMAF"
         )
 
-        return tmeCandidates + hdrCandidates + standardCandidates
+        return hdrCandidates + tmeCandidates + standardCandidates
     }
 
     private fun requestedPlatforms(streamType: Settings.StreamType): List<String> {

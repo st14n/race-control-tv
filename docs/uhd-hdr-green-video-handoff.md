@@ -14,6 +14,320 @@ Copying the official app "exactly" is not realistic or safe as-is because it wou
 
 Current direction after rejecting licensed SDKs: keep Media3, keep requesting the real UHD/HDR stream, and fix the protected HDR presentation path instead of avoiding HDR.
 
+## 2026-10-13 10:20: Real Streamer L1 GRANT — HW_SECURE_DECODE ACHIEVED (READ FIRST)
+
+**STATUS: L1 GRANT ACHIEVED.** On the real Google TV Streamer
+(`adb -s 192.168.178.151:5555`, kirkwood / MediaTek mt8696 / OP-TEE fused,
+Android 14, Widevine CDM `18.0.0@343700000`), the debug app
+(`com.st14n.f1.debug`, auto sign-in with the stored premium creds) played the
+2026 Singapore GP replay and received an **HTTP 200 L1 (HW_SECURE_DECODE)
+license** from the TV endpoint
+`https://f1tv.formula1.com/3.0/R/ENG/BIG_SCREEN_HLS/ALL/CONTENT/LA/widevine_l1?contentId=1000010398&player=player_bm`
+(POST 2542B attestation -> 694B license, 118.4ms). CDM key status:
+`PlayAllowed=True, PersistAllowed=True, LicenseType=Streaming,
+PlaybackDurationRemaining=345600 (96h), RenewAllowed=False`. The replay
+played back in HDR on the streamer.
+
+**Why the 09:36 streamer run fell back to 1080p SDR:** the debug build's
+`disable_uhd_manifests` pref was still ON, so `preferHdrManifestForDevice=false`
+and the app never even requested the HDR manifest (no Widevine UHD license
+POST at all). The user turned the setting OFF; the 10:20 run then logged
+`preferHdrManifestForDevice=true` -> `actualStreamType=HDR_UHD_DASHWV`,
+`drmType=widevine`. Manifest token: kid=104, exp=1791966007, ttl=1440,
+geo:NL, sessionId `35198171_01M4T5HWD4E7ZP044GHBJSQ1D_PP`.
+
+**Decoded L1 request (2542B)** — pristine natively-signed streamer
+attestation (rewriter OFF, `spoofOfficialIdentity=false`): app_info KVs
+`application_name=com.st14n.f1.debug` (DEBUG name),
+package_certificate_hash = debug cert
+`bu9VD8NtGpFtE03emuyECzreLlE3vfDk42pqGalzUyA=`, `company_name=Google`,
+`model_name=Google TV Streamer`, `device_name/product_name=kirkwood`,
+`architecture_name=armeabi-v7a`,
+`build_info=google/kirkwood/kirkwood:14/UTTK.260317.003/15205007:user/release-keys`,
+`widevine_cdm_version=18.0.0@343700000`, oem_json
+`{"soc_vendor":"MediaTek","soc_model":"mt8696","ta_ver":"18.5.0+Jul 29 2025...",
+"uses_opk":true,"tee_os":"OP-TEE","tee_os_ver":"3.18","form_factor":"Tablet",
+"fused":true,...}`. Device block (f6) all-varint caps
+`{1,1,5,18,0,0,0,1,0,3,1,1}`; 72B DER signature; oem f9 90B
+('MediaTek'/'mt8696'); f10=2. Requested keys: content
+`6a6c85fbebf14256a708b901de6abe90` + provider
+`05DDE7F99D3AAD0C8404000000000000` ('buydrmkeyos').
+
+**Decoded L1 grant (694B):** f1=2; f2 LEN=391 { signing KeyContainer
+`05DDE7F99D3AAD0C8404000000000000` + `5d2ab38a...`; policy f1=f2=1,
+f4=f5=f6=345600, f15=1; 102B KeyContainer; content KeyContainer
+f1=`6a6c85fbebf14256a708b901de6abe90`, f2=`e1d88421865c6ecef54e0eacf38675f1`,
+f3=32B IV, f4=2, f5=1, f6/f7 12B, f8 18B, f12='HD' }; f4=**91B ECDSA P-256
+DER signature**; f7='19.15.0'; **f8=2**; f9=153B oem; f11=0.
+
+**CORRECTED L1/L3 DISCRIMINATOR (supersedes "KeyContainer f6=2"):** diffing
+the streamer 694B grant vs the emulator 860B grant
+(`tools/wv/diff_l1_l3.py`): exactly two envelope fields differ — **f8: 2 (L1)
+vs 1 (L3)** and **f4 signature: 91B ECDSA P-256 DER vs 256B RSA**. Everything
+else is identical (f1=2, f2 LEN=391, f3 LEN=32, f7 LEN=9, f9 LEN=153, f11=0)
+and the **content KeyContainer is structurally identical in both grants**.
+Success criterion: **envelope f8=2 + 91B ECDSA P-256 DER sig in f4 => L1
+granted**.
+
+**KID rotates per manifest:** `84BF0641...` (10-12) -> `4096C585...`
+(10-13 emulator) -> kid 104 / `6a6c85fbebf14256a708b901de6abe90` (10-13
+streamer). `splicer.py`'s hardcoded F1_KEY_ID is stale — read the kid live
+from the DASH manifest ContentProtection.
+
+**Artifacts (copied to `tools/wv/`, originals in `C:\Users\stijn\.qwen\tmp\wv\`):**
+`key_request_hdr_20261013.bin` (2542B streamer L1 request),
+`license_response_hdr_20261013.bin` (694B streamer L1 grant),
+`license_response_20261013.bin` (860B emulator L3 baseline),
+`key_request_20261013.bin` (2922B emulator L3 request),
+`decode_out_20261013.txt` (full decoded dumps), `decode2.py` (protobuf
+dumper), `diff_l1_l3.py` (envelope diff), plus the carried rewriter/matrix/
+replay infra (`rw.py`, `matrix.py`, `host_replay.py`, `splicer.py`,
+`find_session.py`).
+
+**Validated:** replay path on a real L1 device (L1 grant + HDR playback),
+AND the live code path via dry run (next section).
+**Remaining:** definitive LIVE validation — drive `ChannelPlaybackActivity`
+with `ARG_IS_LIVE_SESSION=true` + a currently-live contentId/sessionId
+(seasonYear 2026) and confirm `widevine_l1` + envelope f8=2 at the live
+edge. Next live window: **US GP 2026-10-23 00:00 → 2026-10-25 23:59 UTC**
+(meetingKey 1297). Path B (host-side splice/replay) is unblocked: the
+streamer produces pristine L1 attestations on demand via ADB, and the
+emulator JWT is valid until ~2026-10-16/17.
+
+## 2026-10-13 12:18: Live-Path Dry Run — ARG_IS_LIVE_SESSION=true Re-Granted L1
+
+**Result: live code path validated on the real streamer.** Same Google TV
+Streamer (`adb -s 192.168.178.151:5555`), replay content `1000010398`
+(sessionId `1000010398`, seasonYear 2026) launched with
+`ARG_IS_LIVE_SESSION=true` → viewing = `HDR_UHD_DASHWV` + `widevine`
+(laUrl `.../LA/widevine_l1?contentId=1000010398&player=player_bm`), and the
+app took the official-like secure SurfaceView path
+(OfficialLikeHdrPlaybackFragment / ClearVrLikeRenderer). Fresh license
+exchange: **2541B request → 694B response (HTTP 200)**; decoded response =
+**envelope f8=2 (L1) + 91B ECDSA P-256 DER sig in f4** (identical shape to
+the 10:20 grant; content key `6a6c85fbebf14256a708b901de6abe90`, f12='HD',
+96h/345600 policy). CDM key status: PersistAllowed=True, PlayAllowed=True,
+PlaybackDurationRemaining=345600, RenewAllowed=False,
+LicenseType=Streaming.
+
+**Playback verified continuous in real time:** first frame
+(`ExoPlayerPlaybackTransportControlGlue: onTracksChanged`) at
+12:18:28.590; at the capture tail (12:34:45) still playing — `mediaPos≈975s`
+(16:15) matching ~16.25 min of real time since start,
+`ClearVrLikeRenderer` rendering (`codec=true`), fetching HDR_UHD_DASHWV
+video + SDR_HD_DASH_SINGLE audio segments with the **auto-renewed manifest
+token (exp 1791973107)** — token renewal during long playback works.
+
+**Live flag code path (verified in source):** `ARG_IS_LIVE_SESSION` only
+affects the `F1DashInitSegmentFixingDataSource.Factory` (live vs replay
+hardcoded hvcC fallback, `F1DashInitSegmentFixingDataSource.kt:339`) and
+custom-radio gating (`ChannelPlaybackFragment.kt:1330`). It does NOT change
+the license request path — consistent with the dry run re-granting L1
+identically.
+
+**Gotcha (repeat for the live test):** the streamer display MUST be awake
+before `am start`: `adb -s 192.168.178.151:5555 shell input keyevent 224`
+(verify `dumpsys power | findstr mWakefulness` → Awake). With the display
+off the fragment commit crashes (`IllegalStateException: Can not perform
+this action after onSaveInstanceState`, ChannelPlaybackActivity.kt:823)
+and the error dialog it tries to show crashes too (pre-existing
+non-AppCompat theme bug).
+
+**No live session exists as of 2026-10-13.** Next live window: **US GP
+2026-10-23 00:00 → 2026-10-25 23:59 UTC** (meeting id 1500000324,
+meetingKey 1297 — `find_session.py` requires the meetingKey, not the
+numeric id). Definitive live test:
+
+```
+python tools/wv/find_session.py 2026        # pick the in-window session
+adb -s 192.168.178.151:5555 shell input keyevent 224   # WAKE DISPLAY FIRST
+adb -s 192.168.178.151:5555 shell am start -n com.st14n.f1.debug/fr.groggy.racecontrol.tv.ui.channel.playback.ChannelPlaybackActivity --es fr.groggy.racecontrol.tv.ui.channel.playback.ARG_CONTENT_ID <liveId> --es fr.groggy.racecontrol.tv.ui.channel.playback.ARG_SESSION_ID <liveId> --ei fr.groggy.racecontrol.tv.ui.channel.playback.ARG_SEASON_YEAR 2026 --ez fr.groggy.racecontrol.tv.ui.channel.playback.ARG_IS_LIVE_SESSION true
+```
+
+Keep logcat capture running; success = `widevine_l1` + envelope f8=2 +
+playing at the live edge.
+
+**Artifacts:** `tools/wv/key_request_live_dryrun_20261013.bin` (2541B),
+`tools/wv/license_response_live_dryrun_20261013.bin` (694B, f8=2),
+`tools/wv/logcat_live_dryrun_20261013.txt` (~5MB full capture), extraction
+script `C:\Users\stijn\.qwen\tmp\wv\extract_live_dryrun.py`.
+
+## 2026-10-13: Autonomous Emulator Run — Verified Working End-to-End
+
+No rewriter active (`spoofOfficialIdentity=FALSE`): the app auto signed in
+(fresh JWT, `14stijn@gmail.com`), played the latest session (contentId
+`1000010398`), took the **Widevine TV path** — viewing response
+`profile=android_tv_bitmovin_HDR_UHD_DASHWV`, `laUrl=.../LA/widevine_l1?contentId=1000010398&player=player_bm`
+(NOT plain HLS) — POSTed a 2922B attestation and received **HTTP 200, 860B
+license** (fresh logcat `logcat_emu_20261012.txt`, 2026-10-13 00:5x local). CDM
+key status: `PlayAllowed=True, PlaybackDurationRemaining=345600,
+LicenseType=Streaming`, then `drmKeysLoaded`.
+
+**Root cause of the "1080p SDR fallback" (repeated user observation):** NOT a
+license rejection. The license IS granted; the emulator's CDM/Surface HDR
+decode path then fails with `ERROR_CODE_FAILED_RUNTIME_CHECK (1004)`
+(IllegalStateException "Invalid to call at Released state"), the app falls back
+to `SDR_HD_DASH_SINGLE` (1080p h264, no DRM) and THAT plays fine
+(`rawState=3 isPlaying=true`, position advancing). On a real L1 device the
+HDR path is what gets the secure decode.
+
+**Extracted from this run (in `C:\Users\stijn\.qwen\tmp\wv\`):**
+`key_request_20261013.bin` (2922B pristine emulator attestation, fresh
+challenge+signature), `license_response_20261013.bin` (860B grant; top fields
+f1=2, f2 LEN=391, f3=32, f4=256, f7=9, f8=1, f9=153, f11=0 — same shape as the
+10-12 pristine grant), `license_post_headers_20261013.txt` (all POST headers +
+both JWTs). Extraction script: `extract_20261013.py`.
+
+**NEW KEY ID:** `4096C5857020FC1F2B00000000000000` (was
+`84BF0641BBD357402300000000000000` on 10-12) — confirmed in RAW_KEY_REQUEST
+and inside the license binary. Key IDs rotate per manifest/session; any
+replay/splice tool must read the kid live from the DASH manifest
+ContentProtection, never hardcode it.
+
+**License POST auth for host replay:** `x-f1-device-info: device=android_tv;screen=bigscreen;os=android;model=kirkwood;osVersion=34;appVersion=30482001;playerVersion=3.112.0;tms=1;`,
+`entitlementToken` + `ascendonToken` JWTs (exp 1792191088 ≈ 2026-10-16/17 UTC
+→ host-replay window currently open), `Content-Type: application/octet-stream`.
+Note the grant came from the TV `widevine_l1` endpoint (not the WEB_HLS one).
+
+**Next (superseded 2026-10-13 10:20):** the L1 grant was subsequently
+ACHIEVED on the real streamer — see the top section. `splicer.py`'s
+hardcoded F1_KEY_ID is still stale — read the kid live from the DASH
+manifest (10-13 streamer run: kid 104 /
+`6a6c85fbebf14256a708b901de6abe90`).
+
+## 2026-10-12: L1 License — Decisive Finding & Cold-Resume
+
+**Goal (restated):** make F1TV's Widevine/KeyOS license server grant a
+`HW_SECURE_DECODE` (L1, `security_level=2`) license to our app
+(`com.st14n.f1.debug`) so we get UHD/HDR instead of 1080p SDR. Spoofing the
+official identity is in scope. The LICENSE RESPONSE is the deliverable; real HW
+decode is deferred to a real L1 device (the Google TV Streamer).
+
+### DECISIVE FINDING (host replay, `tools/wv/matrix.py` -> `matrix_out.txt`)
+
+We built a Python rewriter (`tools/wv/rw.py`, canonical) and replayed ~60
+combinations of app_info / device-block / oem_json / signature edits against the
+live F1 license server. Result:
+
+- **V0 pristine** (raw emulator identity, byte-for-byte unmodified) -> **HTTP 200**
+  (860B license, L3/HD grant, `security_level` = SW_SECURE_DECODE, `f12='HD'`).
+- **ANY change to app_info KVs** (application_name, package_certificate_hash_bytes,
+  oem_json, company/model/device/product/build/arch, cdm version) -> **403
+  INVALID_SIGNATURE** (err 371000005). These KVs are inside the signed message M.
+- **ANY change to the device block (f6)** (e.g. add `f16="HW_SECURE_DECODE"` +
+  `f5=2`) -> **403 LICENSE_REQUEST_PARSE_ERROR** (370000001). The device block is
+  NOT signature-covered but has a strict parse schema (pristine is all-varint
+  `{1,2,4,5,6,8,9,10,11,12,13,14}`); a wire-type-2 string breaks parsing.
+
+**Consequence:** the app's in-flight rewriter (pkg+cert+oem+devkvs+devblock)
+CURRENTLY produces a 403 — the app gets NO license. The "1080p SDR fallback" is
+the license-REJECTED path, not a capped-L3 grant. To claim L1 without a 403, the
+server must see a SIGNED L1 attestation. Host-side editing cannot produce one.
+
+### The L1 claim lives in TWO signature-relevant places
+
+1. `oem_json` KV -> `form_factor:"L1"` (signature-covered, so forging it 403s).
+2. device block `f5`/`f16` (`f5=2` + `f16="HW_SECURE_DECODE"`) (strict-parse,
+   NOT signature-covered).
+
+### TWO REMAINING PATHS
+
+- **Path B (robust, RECOMMENDED):** capture a real L1 device's coherent
+  attestation (app_info + challenge + signature) and splice it in, keeping the
+  F1 key ID + a valid JWT. Needs a real L1 device — the user HAS a Google TV
+  Streamer. This also answers the open question: does F1 gate L1 on the DEVICE
+  attestation (L1 CDM -> L1) or on the APP identity (only
+  `com.formulaone.production` -> L1)?
+- **Path A (hard):** forge a fully self-consistent L1 attestation from scratch.
+  Needs the 1472-bit curve params, the exact RSA-flavored signing (S=65537), the
+  exact message-M serialization, the h32 derivation, and a matching private key.
+
+### CRYPTO SHAPE (non-standard)
+
+- signature = 270B = complete DER `SEQ(266){ R=INTEGER(257B=2048-bit),
+  S=INTEGER(3B=0x010001=65537) }` (RSA public exponent, NOT standard ECDSA).
+- public key = 369B = `04`+X(184B)+Y(184B) = 1472-bit, not on any known curve.
+- h32 = 32B opaque (NOT sha256 of pub/X/Y/dev_id/blob256).
+- Attestation = app_info f2 (1694B signed blob): f1 = 734B payload {f1=2,
+  f2=32B dev_id, f3 varint ts, f4=270B sig, f5=33100, f9=1, f10=410B{f1=1,
+  f2=0, f3=369B pub, f4=32B h32}}; f2=256B opaque TEE blob; f3=695B block695
+  (f1.f4 = second 270B signature, != sig).
+
+### PRISTINE 860B RESPONSE (the 200 / L3-HD grant)
+
+Top f1=2; f2 LEN=391 { f1 LEN=66 key {f1=key ID `84BF0641BBD357402300000000000000`,
+f2=16B encrypted key, f9=1791817125}, f2=37 license-policy, f3 LEN=102,
+f3 LEN=126 {f4=2,f5=1,f12='HD'}, f4=1791817125, f7=1667392371, f14 LEN=38
+{f6='buydrm'} }. Quality marker = `f12='HD'`; NO top-level f6; 'UHD'/'4K'/
+'HW_SECURE'/'level' ABSENT. The `KeyContainer f6=2` (L1) marker must be located
+against a REAL L1 response, not this L3/HD grant.
+
+### APP TOKEN FLOW (verified 2026-10-12)
+
+Web login stores a `login-session` cookie -> `URLDecoder.decode` -> JSON
+`F1LoginToken.data.subscriptionToken` (a JWT) -> `CredentialsService.saveToken`
+-> `TokenService.getToken()` -> `F1Client` sends it as the `ascendonToken`
+header. `loadEntitlementToken(token)` does GET
+`.../2.0/R/ENG/BIG_SCREEN_HLS/ALL/USER/ENTITLEMENT` (headers: User-Agent, Origin,
+Referer, `x-f1-device-info`=f1DeviceInfo, `ascendonToken`, `CD-DeviceType=49`,
+`CD-DistributionChannel`) -> `F1TvEntitlementResponse.token()` ->
+`cachedEntitlementToken`. PLAY requests are GET
+`.../%s/R/ENG/%s/ALL/CONTENT/PLAY?contentId=..&player=..` (+&channelId) with
+those headers + optional `x-f1-override-video-stream`. The license URL at playback
+comes from the viewing response's `laURL` field (NOT buildWidevineUrl).
+
+The JWT was valid at capture time (exp=1792080930 -> 2026-10-15 16:15 UTC).
+Key IDs rotate; re-capture if the JWT has expired.
+
+### WV-vs-HLS SELECTION (F1Client) — changed 2026-10-12
+
+Main video path = `Settings.StreamType.DASH` + `preferHdrManifestForDevice`
+(= !disableUhdManifests && shouldRequestHdrManifest && seasonYear>=2026).
+`isAcceptedHdrCandidate` requires (override or returned streamType looks
+UHD/HDR) AND, for CMAF: `WV` present + drmType==widevine + laURL non-blank; for
+DASH: drmType==widevine + laURL non-blank.
+
+Two fixes applied so the app ALWAYS takes the Widevine (TV) path:
+
+1. `requestedCandidates` order changed from `tme + hdr + standard` to
+   **`hdr + tme + standard`** so the TV DASH-Widevine route (BIG_SCREEN_HLS +
+   `f1DeviceInfo` android_tv/kirkwood, which returns the TV `widevine_l1`
+   endpoint) is tried BEFORE the browser-tier TME route (device=web, L3
+   `widevine` endpoint).
+2. `getViewing` fallback-keep now also requires `!laURL.isNullOrBlank()` so a
+   plain-HLS (no-DRM) viewing is never returned — the app always lands on
+   Widevine.
+
+### ACTIVE DRM PROVIDER (changed 2026-10-12)
+
+`ChannelPlaybackFragment`: FORCE_WIDEVINE_L3_VALIDATION_DIAGNOSTIC=false,
+LOG_KEY_RESPONSE_STANDARD_PATH=true -> both DASH and HLS sources use
+`KeyStatusLoggingDrmSessionManagerProvider(httpDataSourceFactory)`.
+**Default `spoofOfficialIdentity` is now FALSE** (the rewriter is proven to 403;
+off = the CDM sends its own clean, natively-signed L1 attestation). Requests
+securityLevel=L1 (forceL3=false). RAW_KEY_REQUEST is logged POST-rewrite, so with
+spoof OFF it logs the CLEAN attestation; RAW_LICENSE_RESPONSE logs the grant.
+
+### COLD-RESUME STEPS (to get the L1 license)
+
+1. Build: `gradlew.bat :app:assembleDebug`.
+2. Install on the **Google TV Streamer** (a real L1 device).
+3. Log in with the premium F1 account (web login -> subscriptionToken).
+4. Play a **UHD/HDR** race (2026 season, seasonYear>=2026).
+5. Capture logcat: `RAW_KEY_REQUEST` (clean L1 attestation) +
+   `RAW_LICENSE_RESPONSE`.
+   - If the response has **envelope f8=2 + a 91B ECDSA P-256 DER signature in
+     f4** -> **L1 GRANTED**. (ACHIEVED 2026-10-13 10:20 on the real streamer —
+     see the top section. The earlier "KeyContainer f6=2" marker was a
+     misdecode: the content KeyContainer is structurally identical in L1 and
+     L3 grants.)
+   - If only `f12='HD'` with envelope f8=1 -> that CDM is L3 (e.g. emulator).
+     A real L1 device grants L1 regardless of app identity (verified with the
+     debug app on the streamer); Path B (host-side splice/replay) is only
+     needed to replay against the server from a non-L1 host.
+6. Host-side replay harness: `tools/wv/host_replay.py`; canonical rewriter:
+   `tools/wv/rw.py`; matrix experiment: `tools/wv/matrix.py`.
+
 ## Current Evidence
 
 Latest useful log files:
@@ -48,17 +362,42 @@ Official app comparison:
 
 ## Current Uncommitted Changes
 
-As of this handoff, these files are modified:
+As of 2026-10-13 (verified with `git status --short`, on top of checkpoint
+commit `ab74763`), these files are modified/untracked:
 
-- `app/src/main/AndroidManifest.xml`
-- `app/src/main/java/fr/groggy/racecontrol/tv/f1/F1Client.kt`
-- `app/src/main/java/fr/groggy/racecontrol/tv/ui/channel/playback/ChannelPlaybackActivity.kt`
-- `app/src/main/java/fr/groggy/racecontrol/tv/ui/channel/playback/ChannelPlaybackFragment.kt`
-- `app/src/main/java/fr/groggy/racecontrol/tv/ui/channel/playback/HdrToneMappingRenderersFactory.kt`
-- `app/src/main/java/fr/groggy/racecontrol/tv/ui/channel/playback/MediaSourceItemFactory.kt`
-- `app/src/main/java/fr/groggy/racecontrol/tv/utils/DeviceInfo.kt`
-- `app/src/main/res/values/styles.xml`
-- `docs/uhd-hdr-green-video-handoff.md`
+- `app/src/main/java/fr/groggy/racecontrol/tv/f1/F1Client.kt` (M) — WV vs
+  HLS selection (always take the Widevine TV path, never plain HLS).
+- `app/src/main/java/fr/groggy/racecontrol/tv/ui/channel/playback/ChannelPlaybackFragment.kt` (M) —
+  live/replay + custom-radio gating; secure-surface binding.
+- `app/src/main/java/fr/groggy/racecontrol/tv/ui/channel/playback/KeyStatusLoggingDrmSessionManagerProvider.kt` (M,
+  further modified after the checkpoint) — logs RAW_KEY_REQUEST /
+  RAW_LICENSE_RESPONSE base64 chunks + CDM key status; this is how the L1
+  blobs are extractable from logcat.
+- `app/src/main/java/fr/groggy/racecontrol/tv/ui/channel/playback/WidevineIdentityRewriter.kt` (NEW,
+  untracked) — optional attestation rewriter; OFF by default. All
+  successful L1 runs used the pristine path with it disabled (any
+  app_info/device-block rewrite → 403, see 2026-10-12 matrix).
+- `docs/uhd-hdr-green-video-handoff.md` (M) — this doc.
+- `tools/wv/` (NEW, untracked, 33 files) — Widevine tooling + artifacts:
+  `decode2.py` (bounds-checked protobuf dumper), `diff_l1_l3.py`,
+  `hexdump.py`, `rw.py` (canonical rewriter), `matrix.py` /
+  `matrix_out.txt` (403 matrix), `host_replay.py`, `splicer.py` (stale
+  hardcoded F1_KEY_ID — read the kid live from the DASH manifest),
+  `find_session.py` (F1TV catalog; use meetingKey, not numeric id),
+  extraction scripts, captured request/response blobs (`key_request_*`,
+  `license_response_*` — incl. the 10:20 L1 grant and the 12:18
+  live-dry-run grant, the 860B L3 baseline, 11 matrix responses),
+  `license_post_headers_20261013.txt`, and logcat captures
+  (`logcat_emu_20261012.txt`, `logcat_live_dryrun_20261013.txt`).
+- `.qwen/` (NEW, untracked) — agent config; not part of the app.
+
+Already committed to checkpoint `ab74763` (for reference): the secure
+SurfaceView / ClearVr-like renderer stack (`ClearVrLikeVideoRenderer.kt`,
+`CryptoAsyncMediaCodecAdapter.kt`, `OfficialLikeHdrPlaybackFragment.kt`),
+`ChannelPlaybackActivity.kt`, `HdrToneMappingRenderersFactory.kt`,
+`MediaSourceItemFactory.kt`, `DeviceInfo.kt`, `styles.xml`,
+`AndroidManifest.xml`, dynamic-hvcC/DASH-fixing sources, and the first
+version of `KeyStatusLoggingDrmSessionManagerProvider.kt`.
 
 Important: some late experiments should be reviewed before committing:
 
@@ -1922,3 +2261,77 @@ content (see the "KID mismatch" hypothesis in that file's own class-level commen
 2026-08-22, which was never actually verified against real licence bytes until now -- and
 turned out to be false; the KID is correctly matched, only the granted security level
 differs).
+
+## 2026-09-11 (later) -- code change: clean L3 re-test now possible
+
+The clean L3 re-test the previous entry specifies requires the licence-logging
+provider (KeyStatusLoggingDrmSessionManagerProvider) to be wired AND L3 to be
+forced in the same provider. Previously the FORCE_WIDEVINE_L3_VALIDATION_DIAGNOSTIC
+flag in ChannelPlaybackFragment swapped in a separate, licence-blind provider
+(ForceWidevineL3DrmSessionManagerProvider), so the granted SecurityLevel/track_label
+for that run was unknown and any verdict was untrustworthy.
+
+Code change (2 files, 68 insertions / 22 deletions, gradlew :app:compileDebugKotlin
+clean):
+
+- KeyStatusLoggingDrmSessionManagerProvider gained an optional orceL3: Boolean =
+  false constructor parameter. When 	rue, the existing L1-request is replaced
+  with the same MediaDrm.setPropertyString("securityLevel", "L3") mechanism
+  ForceWidevineL3DrmSessionManagerProvider uses, applied to the same
+  KeyStatusLoggingExoMediaDrm wrapper so RAW_LICENSE_RESPONSE and
+  queryKeyStatus still fire. Default behaviour (L1 request, no force) is
+  unchanged for every other call site.
+- ChannelPlaybackFragment.FORCE_WIDEVINE_L3_VALIDATION_DIAGNOSTIC now wires
+  KeyStatusLoggingDrmSessionManagerProvider(httpDataSourceFactory, forceL3 = true)
+  instead of ForceWidevineL3DrmSessionManagerProvider(httpDataSourceFactory). No
+  other flag is touched. Renderer, manifest parser, init segment repair, audio,
+  tunneling all stock -- exactly what the previous entry asked for.
+
+ForceWidevineL3DrmSessionManagerProvider.kt is left in place because
+OfficialLikeHdrPlaybackFragment still references it for its own diagnostic
+flags; that fragment is not used in this re-test.
+
+### How to run the re-test
+
+1. Flip ChannelPlaybackFragment.FORCE_WIDEVINE_L3_VALIDATION_DIAGNOSTIC to 	rue.
+2. ./gradlew.bat :app:assembleDebug --console=plain.
+3. Install on the device, open a live broadcast.
+4. Capture logcat (PowerShell):
+
+`powershell
+adb logcat -c
+adb logcat -v time > C:\race-control-tv-st14n\logcat_l3_clean_test.txt
+`
+
+5. After the test, filter for the signals that matter (PowerShell):
+
+`powershell
+Select-String -Path C:\race-control-tv-st14n\logcat_l3_clean_test.txt -Pattern 'Forced Widevine securityLevel|RAW_LICENSE_RESPONSE|CDM key status|queryKeyStatus|c2\.mtk\.hevc\.decoder(?!.*secure)|c2\.mtk\.hevc\.decoder\.secure|renderedFirstFrame|drmKeysLoaded|android\._dataspace|MtkHdmiService|setVideoResolution: hdrMode|setVideoConfig hdrMode|Player error|F1DashInit|F1DashChunk|F1DynamicHvcC'
+`
+
+### What to look for
+
+- Forced Widevine securityLevel=L3 (software decode diagnostic) confirms L3
+  was applied. Its absence means the reflection path failed and the test is
+  invalid; rebuild without that line is suspect.
+- RAW_LICENSE_RESPONSE begin size=... confirms the licence was logged. Decode
+  the base64 chunks with the offline proto decoder this session has been using
+  to confirm the granted KeyContainer.level and 	rack_label for THIS run.
+  Expected on a clean re-test: same level=SW_SECURE_CRYPTO, same
+  	rack_label="HD" as the official com.formulaone.production comparison --
+  because F1's policy decides per package cert, and we are still presenting
+  com.st14n.f1.debug's cert. If level=HW_SECURE_DECODE shows up, that is
+  itself a new finding (the server granted L1 hardware to a session
+  advertising L3 software, which the OEMCrypto spec says it can do but F1 has
+  not been seen to do).
+- c2.mtk.hevc.decoder (with no .secure suffix) confirms the non-secure
+  MediaTek decoder was selected. If c2.mtk.hevc.decoder.secure appears
+  instead, Media3 picked the secure decoder anyway and the L3 force was
+  ignored at the decoder level; the test is then not a clean L3 run.
+- enderedFirstFrame + visual: if first frame rendered and the picture is
+  not green, SW_SECURE_CRYPTO + non-secure decode produces correct output on
+  this content -- the green was strictly a key/decoder mismatch, fixable in
+  app code by forcing L3. If still green, the previous entry's
+  "unfilled protected output buffer" hypothesis is wrong and the search widens.
+- Player error / [LAT][Err] for any new VPU error code, to capture
+  whatever the non-secure decoder does on real F1 cbcs content.
