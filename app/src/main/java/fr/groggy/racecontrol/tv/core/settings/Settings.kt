@@ -12,8 +12,15 @@ data class Settings(
     val useExternalAudio: Boolean,
     /** Manual A/V sync offset in milliseconds (positive = audio ahead of video). */
     val audioOffsetMs: Long,
-    /** Custom radio initial sync delay in milliseconds. */
+    /** Custom radio initial sync delay in milliseconds (used when auto-sync is off or unavailable). */
     val customRadioDelayMs: Long,
+    /** Keep the custom radio delayed by however far the video is behind live, plus a correction. */
+    val customRadioAutoSync: Boolean,
+    /**
+     * Auto-sync correction in milliseconds (negative = radio earlier); absorbs the radio's own latency.
+     * Null until first calibrated, so it can be derived from the manual delay the user already tuned.
+     */
+    val customRadioAutoSyncCorrectionMs: Long?,
     /** Optional custom radio stream URL. Empty string = use default candidates. */
     val customRadioUrl: String,
     /** Auto-switch to custom radio when a built-in or saved custom stream is available. */
@@ -44,6 +51,8 @@ data class Settings(
             useExternalAudio = false,
             audioOffsetMs = 0L,
             customRadioDelayMs = 20_000L,
+            customRadioAutoSync = true,
+            customRadioAutoSyncCorrectionMs = null,
             customRadioUrl = "",
             autoSelectCustomRadio = true,
             restrictCustomRadioToLiveSessions = false,
@@ -59,6 +68,8 @@ data class Settings(
         const val KEY_USE_EXTERNAL_AUDIO = "use_external_audio"
         const val KEY_AUDIO_OFFSET_MS = "audio_offset_ms"
         const val KEY_CUSTOM_RADIO_DELAY_MS = "custom_radio_delay_ms"
+        const val KEY_CUSTOM_RADIO_AUTO_SYNC = "custom_radio_auto_sync"
+        const val KEY_CUSTOM_RADIO_AUTO_SYNC_CORRECTION_MS = "custom_radio_auto_sync_correction_ms"
         const val KEY_CUSTOM_RADIO_URL = "custom_radio_url"
         const val KEY_AUTO_SELECT_CUSTOM_RADIO = "auto_select_custom_radio"
         const val KEY_RESTRICT_CUSTOM_RADIO_TO_LIVE_SESSIONS = "restrict_custom_radio_to_live_sessions"

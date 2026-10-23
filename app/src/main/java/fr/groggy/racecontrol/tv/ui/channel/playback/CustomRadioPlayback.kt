@@ -36,6 +36,10 @@ internal interface CustomRadioEngine {
     fun setVolume(volume: Int)  // 0 = mute, 100 = full
     /** Set the audio output delay in milliseconds without reconnecting the live stream. */
     fun setAudioDelay(delayMs: Long)
+    /** How long ago the audio currently playing was received, or null when it can't be measured yet. */
+    fun currentDelayMs(): Long?
+    /** The largest delay the buffered radio stream can currently provide, or null when unknown. */
+    fun maxDelayMs(): Long?
     fun release()
 }
 
@@ -226,9 +230,29 @@ internal class ExoCustomRadioEngine(
 
         val durationMs = player.duration
         if (durationMs == C.TIME_UNSET || durationMs <= 0L) return
-        val targetPositionMs = hlsPositionForDelay(durationMs, targetDelayMs)
+        // Prefer the wall-clock live offset (from the playlist's program date time): it is what
+        // currentDelayMs() reports, so auto-sync converges instead of oscillating around the target.
+        val liveOffsetMs = player.currentLiveOffset
+        val targetPositionMs = if (liveOffsetMs != C.TIME_UNSET) {
+            (player.currentPosition + liveOffsetMs - targetDelayMs).coerceIn(0L, durationMs)
+        } else {
+            hlsPositionForDelay(durationMs, targetDelayMs)
+        }
         player.seekTo(targetPositionMs)
-        Log.i("ExoCustomRadio", "delay -> ${targetDelayMs}ms position=${targetPositionMs}ms duration=${durationMs}ms")
+        Log.i("ExoCustomRadio", "delay -> ${targetDelayMs}ms position=${targetPositionMs}ms duration=${durationMs}ms liveOffset=${liveOffsetMs}ms")
+    }
+
+    override fun currentDelayMs(): Long? {
+        if (!supportsDelaySeek || !initialDelaySeekApplied) return null
+        return player.currentLiveOffset.takeIf { it != C.TIME_UNSET }
+    }
+
+    override fun maxDelayMs(): Long? {
+        if (!supportsDelaySeek || !initialDelaySeekApplied) return null
+        val liveOffsetMs = player.currentLiveOffset
+        if (liveOffsetMs == C.TIME_UNSET) return null
+        // The oldest buffered audio is at position 0, i.e. currentPosition further back than now.
+        return liveOffsetMs + player.currentPosition
     }
 
     private fun hlsPositionForDelay(durationMs: Long, delayMs: Long): Long {

@@ -198,6 +198,7 @@ dependencies {
 
     implementation("androidx.core:core-ktx:1.18.0")
     implementation("androidx.fragment:fragment-ktx:1.8.9")
+    implementation("androidx.webkit:webkit:1.14.0")
     val leanbackVersion = "1.2.0"
     implementation("androidx.leanback:leanback:$leanbackVersion")
     implementation("androidx.leanback:leanback-preference:$leanbackVersion")

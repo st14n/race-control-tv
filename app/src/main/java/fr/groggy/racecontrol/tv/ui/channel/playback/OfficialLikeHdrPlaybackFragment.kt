@@ -67,6 +67,29 @@ class OfficialLikeHdrPlaybackFragment : VideoSupportFragment(), Player.Listener 
     private val handler = Handler(Looper.getMainLooper())
     private var appliedForcedTrackOverride = false
     private var appliedSdrTrackExclusion = false
+    private val customRadio by lazy {
+        CustomRadioController(
+            fragment = this,
+            settingsRepository = settingsRepository,
+            host = object : CustomRadioHost {
+                override val mainPlayer: ExoPlayer? get() = if (prepared) player else null
+                override fun setMainAudioMuted(muted: Boolean, reason: String) {
+                    // Volume rather than disabling the audio track: no track reselection on this
+                    // protected HDR pipeline
+                    player.volume = if (muted) 0f else 1f
+                    Log.i(TAG, "Main player audio muted=$muted reason=$reason")
+                }
+                override fun refreshRadioOverlay() {
+                    playbackGlue?.refreshSubtitle()
+                }
+                override fun onRadioDialogInteraction() = Unit
+                override fun onRadioDialogDismissed() {
+                    playbackGlue?.notifyMenuDismissed()
+                }
+            },
+            tag = TAG
+        )
+    }
 
     private val trackSelector: DefaultTrackSelector by lazy {
         DefaultTrackSelector(requireContext()).apply {
@@ -223,6 +246,7 @@ class OfficialLikeHdrPlaybackFragment : VideoSupportFragment(), Player.Listener 
 
     override fun onPause() {
         player.pause()
+        customRadio.pause()
         Log.i(TAG, "Paused official-like HDR player")
         super.onPause()
     }
@@ -239,6 +263,7 @@ class OfficialLikeHdrPlaybackFragment : VideoSupportFragment(), Player.Listener 
 
     override fun onDestroy() {
         cancelNativeHdrPresentationWatchdog()
+        customRadio.release()
         player.release()
         Log.i(TAG, "Released official-like HDR player")
         super.onDestroy()
@@ -296,12 +321,22 @@ class OfficialLikeHdrPlaybackFragment : VideoSupportFragment(), Player.Listener 
             requireActivity(),
             player,
             trackSelector,
-            isCustomRadioSelectable = { false },
+            onCustomRadioRequested = customRadio::inject,
+            onCustomRadioSyncRequested = customRadio::showSyncDialog,
+            onAudioTrackSelected = customRadio::stop,
+            isCustomRadioSelectable = { customRadio.isSelectable() },
+            isCustomRadioActive = { customRadio.isActive },
+            currentAudioLabelOverride = {
+                if (customRadio.isActive) customRadio.overlayLabel() else null
+            },
+            onCustomRadioOffsetAdjust = customRadio::adjust,
             onPlayRequested = {
                 player.play()
+                customRadio.resume()
             },
             onPauseRequested = {
                 player.pause()
+                customRadio.pause()
             },
             onControlsInteraction = {
                 showControlsOverlay(true)
@@ -697,6 +732,19 @@ class OfficialLikeHdrPlaybackFragment : VideoSupportFragment(), Player.Listener 
                 "playWhenReady=${player.playWhenReady} isPlaying=${player.isPlaying} " +
                 "position=${player.currentPosition} buffered=${player.bufferedPosition}"
         )
+        if (playbackState == Player.STATE_READY) {
+            customRadio.onMainPlayerReady()
+        }
+    }
+
+    override fun onPositionDiscontinuity(
+        oldPosition: Player.PositionInfo,
+        newPosition: Player.PositionInfo,
+        reason: Int
+    ) {
+        if (reason == Player.DISCONTINUITY_REASON_SEEK) {
+            customRadio.onMainPlayerSeek()
+        }
     }
 
     override fun onIsPlayingChanged(isPlaying: Boolean) {

@@ -109,6 +109,7 @@ package fr.groggy.racecontrol.tv.ui.signin
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.text.InputType
 import android.util.Log
@@ -128,6 +129,8 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.BuildConfig
 import fr.groggy.racecontrol.tv.R
@@ -138,22 +141,192 @@ import fr.groggy.racecontrol.tv.ui.home.HomeActivity
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import org.json.JSONTokener
 import javax.inject.Inject
+import kotlin.coroutines.resume
 
 @AndroidEntryPoint
 class SignInActivity : ComponentActivity() {
 
     companion object {
         private val TAG = SignInActivity::class.simpleName
-        private const val F1_LOGIN_URL = "https://account.formula1.com/#/en/login"
+        private const val F1TV_URL = "https://f1tv.formula1.com/"
+        private const val F1TV_HOST = "f1tv.formula1.com"
+        // Only used when the "Sign in" link can't be found on the F1 TV homepage.
+        // Redirect to F1 TV after login so a full page load happens once the login-session cookie is set
+        private const val F1_LOGIN_FALLBACK_URL =
+            "https://account.formula1.com/#/en/login?redirect=https%3A%2F%2Ff1tv.formula1.com%2F"
+        private const val SIGN_IN_LINK_POLL_DELAY_MS = 1_000L
+        private const val SIGN_IN_LINK_POLL_ATTEMPTS = 15
         private const val EXTRA_SILENT_REAUTH = "silent_reauth"
+
+        /**
+         * Clicks the "accept" button of whatever cookie consent dialog is shown, matched on its visible text.
+         * F1's dialog lives in a cross-origin iframe (consent.formula1.com), and account.formula1.com only
+         * redirects to the login page after consent, so this is also injected into every frame at document start.
+         */
+        private val COOKIE_CONSENT_JS = """
+        (function() {
+            if (window.__f1CookieConsentAutomationInstalled) {
+                return 'already-installed';
+            }
+            window.__f1CookieConsentAutomationInstalled = true;
+
+            var includeTerms = ['accept all', 'allow all', 'accept cookies', 'allow cookies', 'accept', 'agree', 'got it'];
+            var excludeTerms = ['reject', 'decline', 'deny', 'manage', 'settings', 'preferences', 'learn more'];
+            var observer = null;
+            var intervalId = null;
+
+            function isVisible(element) {
+                return element.offsetParent !== null && !element.disabled;
+            }
+
+            function collectButtons(root, found) {
+                try {
+                    root.querySelectorAll('button, [role="button"], input[type="button"], input[type="submit"]').forEach(function(element) {
+                        found.push(element);
+                    });
+                    root.querySelectorAll('*').forEach(function(element) {
+                        if (element.shadowRoot) {
+                            collectButtons(element.shadowRoot, found);
+                        }
+                    });
+                } catch (error) {
+                    console.log('CookieConsent: scan failed: ' + error);
+                }
+            }
+
+            function labelOf(element) {
+                return [element.innerText, element.value, element.getAttribute('aria-label')]
+                    .filter(Boolean).join(' ').trim().toLowerCase();
+            }
+
+            function findAcceptButton() {
+                var buttons = [];
+                collectButtons(document, buttons);
+                buttons = buttons.filter(isVisible).filter(function(element) {
+                    var label = labelOf(element);
+                    return label.length > 0 && label.length < 60
+                        && !excludeTerms.some(function(term) { return label.indexOf(term) !== -1; });
+                });
+                // Prefer the most specific term, e.g. "Accept all" over a generic "Accept"
+                for (var i = 0; i < includeTerms.length; i++) {
+                    var match = buttons.find(function(element) { return labelOf(element).indexOf(includeTerms[i]) !== -1; });
+                    if (match) {
+                        return match;
+                    }
+                }
+                return null;
+            }
+
+            function stop() {
+                if (observer) {
+                    observer.disconnect();
+                }
+                if (intervalId) {
+                    clearInterval(intervalId);
+                }
+            }
+
+            function clickConsentButton() {
+                var candidate = findAcceptButton();
+                if (!candidate) {
+                    return false;
+                }
+                console.log('CookieConsent: clicking "' + labelOf(candidate) + '" in ' + location.host);
+                stop();
+                candidate.click();
+                return true;
+            }
+
+            function start() {
+                if (clickConsentButton()) {
+                    return;
+                }
+                try {
+                    observer = new MutationObserver(clickConsentButton);
+                    observer.observe(document.documentElement, { childList: true, subtree: true });
+                } catch (error) {
+                    console.log('CookieConsent: observer install failed: ' + error);
+                }
+                var attempts = 0;
+                intervalId = setInterval(function() {
+                    attempts += 1;
+                    if (clickConsentButton() || attempts >= 30) {
+                        stop();
+                    }
+                }, 1000);
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', start);
+                return 'deferred';
+            }
+            start();
+            return 'started';
+        })();
+        """.trimIndent()
+
+        /**
+         * Locates the login form by its shape instead of F1-specific ids/classes, so it survives login page changes.
+         * Only visible fields count: account.formula1.com keeps hidden forgot/reset-password forms in the DOM whose
+         * submit button would otherwise get clicked.
+         */
+        private val FIND_LOGIN_FORM_JS = """
+            function isVisible(element) {
+                return !!element && element.offsetParent !== null && !element.disabled;
+            }
+
+            function visibleIn(root, selector) {
+                return Array.prototype.slice.call(root.querySelectorAll(selector)).filter(isVisible);
+            }
+
+            function findLoginForm() {
+                var passwords = visibleIn(document, 'input[type="password"]');
+                var password = passwords.find(function(input) {
+                    return input.autocomplete === 'current-password';
+                }) || passwords.find(function(input) {
+                    return input.autocomplete !== 'new-password';
+                });
+                if (!password) {
+                    return {};
+                }
+
+                var root = password.closest('form') || document;
+                var textInputs = visibleIn(root, 'input:not([type]), input[type="text"], input[type="email"]');
+                var login = textInputs.find(function(input) {
+                    return input.autocomplete === 'username' || input.autocomplete === 'email'
+                        || input.type === 'email' || /user|email|login/i.test(input.name + ' ' + input.id);
+                }) || textInputs[0];
+
+                var buttons = visibleIn(root, 'button, input[type="submit"]');
+                var submit = buttons.find(function(button) {
+                    return /^(submit|form-submit)$/i.test(button.getAttribute('type') || '');
+                }) || buttons.find(function(button) {
+                    return /(sign|log)\s*in/i.test(button.innerText || button.value || '');
+                });
+
+                return { login: login, password: password, submit: submit };
+            }
+        """.trimIndent()
         private const val AUTO_FILL_RETRY_DELAY_MS = 2_000L
         private const val AUTO_FILL_RETRY_ATTEMPTS = 8
+        private const val EXTRA_FRESH_LOGIN = "fresh_login"
+        // A cookie token closer to expiry than this triggers a full login instead of being reused
+        private const val MIN_TOKEN_REMAINING_VALIDITY_MS = 24L * 60 * 60 * 1000
+        // Homepage + sign-in link + consent + login page + redirect back can take a while on a TV
+        private const val SILENT_REAUTH_TIMEOUT_MS = 60_000L
 
         fun intent(context: Context) = Intent(context, SignInActivity::class.java)
 
         fun intentClearTask(context: Context) = intent(context).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+
+        /** For when F1 rejected the token: drops the WebView session first so the cookie token isn't reused. */
+        fun intentFreshLogin(context: Context) = intentClearTask(context).apply {
+            putExtra(EXTRA_FRESH_LOGIN, true)
         }
 
         /** Triggered when the token is still valid but 6 hours have elapsed — re-authenticates
@@ -172,6 +345,10 @@ class SignInActivity : ComponentActivity() {
     private var isSilentReAuth = false
     private var hasShownInitialSetupPrompt = false
     private var pendingAutoFillRetry: Job? = null
+    // Set once we've left the F1 TV homepage via its "Sign in" link; every page after that is part of the login flow
+    private var loginFlowStarted = false
+    // Set once the WebView cookies were cleared to force a full login; after that any unexpired token is accepted
+    private var hasResetSession = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Log.d(TAG, "onCreate")
@@ -185,9 +362,9 @@ class SignInActivity : ComponentActivity() {
             loginWebView.visibility = android.view.View.INVISIBLE
             reauthOverlay.visibility = android.view.View.VISIBLE
             Log.d(TAG, "Silent re-auth mode: WebView hidden.")
-            // Safety net: if auth doesn't complete within 30 s, navigate home anyway
+            // Safety net: if auth doesn't complete in time, navigate home anyway
             lifecycleScope.launch {
-                delay(30_000)
+                delay(SILENT_REAUTH_TIMEOUT_MS)
                 if (!isFinishing) {
                     Log.w(TAG, "Silent re-auth timed out — proceeding to home")
                     navigateToHome()
@@ -195,7 +372,26 @@ class SignInActivity : ComponentActivity() {
             }
         }
 
-        lifecycleScope.launch { setupWebView() }
+        setupWebView()
+        if (intent.getBooleanExtra(EXTRA_FRESH_LOGIN, false)) {
+            Log.d(TAG, "Fresh login requested: clearing WebView session first")
+            restartWithFreshSession()
+        } else {
+            Log.d(TAG, "Loading F1 TV homepage: $F1TV_URL")
+            loginWebView.loadUrl(F1TV_URL)
+        }
+    }
+
+    private fun restartWithFreshSession() {
+        hasResetSession = true
+        loginFlowStarted = false
+        pendingAutoFillRetry?.cancel()
+        CookieManager.getInstance().removeAllCookies {
+            if (!isFinishing) {
+                Log.d(TAG, "WebView session cleared. Loading F1 TV homepage: $F1TV_URL")
+                loginWebView.loadUrl(F1TV_URL)
+            }
+        }
     }
 
     private fun setupWebView() {
@@ -203,6 +399,13 @@ class SignInActivity : ComponentActivity() {
         loginWebView.settings.domStorageEnabled = true
         loginWebView.settings.useWideViewPort = true
         loginWebView.settings.javaScriptEnabled = true
+
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            // Runs in iframes too, unlike evaluateJavascript, so it can reach the cross-origin consent dialog
+            WebViewCompat.addDocumentStartJavaScript(loginWebView, COOKIE_CONSENT_JS, setOf("*"))
+        } else {
+            Log.w(TAG, "DOCUMENT_START_SCRIPT not supported; cookie consent can only be accepted in the main frame")
+        }
 
         // Add JavaScript interface to capture credentials if user types them manually
         loginWebView.addJavascriptInterface(object {
@@ -230,14 +433,30 @@ class SignInActivity : ComponentActivity() {
                 autoAcceptCookieDialog()
 
                 val cookies = CookieManager.getInstance().getCookie(url)
-                if (credentialsService.storeToken(cookies)) {
-                    Log.d(TAG, "Session token found and stored. Navigating home.")
-                    navigateToHome()
+                val minRemainingValidityMs = if (hasResetSession) 0L else MIN_TOKEN_REMAINING_VALIDITY_MS
+                when (credentialsService.storeToken(cookies, minRemainingValidityMs)) {
+                    CredentialsService.CookieTokenResult.STORED -> {
+                        Log.d(TAG, "Session token found and stored. Navigating home.")
+                        navigateToHome()
+                        return
+                    }
+                    CredentialsService.CookieTokenResult.STALE -> if (!hasResetSession) {
+                        Log.d(TAG, "Cookie token is expired or about to expire. Forcing a full login.")
+                        restartWithFreshSession()
+                        return
+                    }
+                    CredentialsService.CookieTokenResult.MISSING -> Unit
+                }
+
+                if (!loginFlowStarted) {
+                    // On the F1 TV homepage: follow its own "Sign in" link so we always use F1's current login URL
+                    loginFlowStarted = true
+                    lifecycleScope.launch { navigateToSignIn() }
                     return
                 }
 
                 // Check if we are currently on the login page
-                if (url?.startsWith(F1_LOGIN_URL) == true) {
+                if (isLoginPage(url)) {
                     // We are on the login page. Attempt auto-fill.
                     Log.d(TAG, "Login page finished loading. Attempting auto-fill...")
                     // Also setup capture in case auto-fill fails and user enters manually
@@ -251,177 +470,59 @@ class SignInActivity : ComponentActivity() {
             }
         }
 
-        // Clear cookies specifically for the domain before loading to ensure a clean slate?
-        // CookieManager.getInstance().removeSessionCookies(null) // Use carefully
-        // CookieManager.getInstance().flush()
-        Log.d(TAG, "Loading login URL: $F1_LOGIN_URL")
-        loginWebView.loadUrl(F1_LOGIN_URL)
+    }
+
+    private suspend fun navigateToSignIn() {
+        val signInUrl = findSignInUrl()
+        if (isFinishing) {
+            return
+        }
+        if (signInUrl != null) {
+            Log.d(TAG, "Found sign-in link on F1 TV homepage: $signInUrl")
+            loginWebView.loadUrl(signInUrl)
+        } else {
+            Log.w(TAG, "Sign-in link not found on F1 TV homepage, using fallback: $F1_LOGIN_FALLBACK_URL")
+            loginWebView.loadUrl(F1_LOGIN_FALLBACK_URL)
+        }
+    }
+
+    /** The F1 TV homepage renders its "Sign in" link client-side, so poll until it shows up. */
+    private suspend fun findSignInUrl(): String? {
+        val jsCode = """
+        (function() {
+            var links = Array.prototype.slice.call(document.querySelectorAll('a[href]'));
+            var link = links.find(function(a) { return /\/login\b/i.test(a.href); })
+                || links.find(function(a) { return /^\s*(sign|log)\s*in\s*$/i.test(a.innerText || ''); });
+            return link ? link.href : null;
+        })();
+        """
+        repeat(SIGN_IN_LINK_POLL_ATTEMPTS) {
+            val result = evaluateJavascript(jsCode)
+            if (result != null && result != "null") {
+                // evaluateJavascript returns a JSON-encoded string
+                return JSONTokener(result).nextValue() as? String
+            }
+            if (isFinishing) {
+                return null
+            }
+            delay(SIGN_IN_LINK_POLL_DELAY_MS)
+        }
+        return null
+    }
+
+    private suspend fun evaluateJavascript(jsCode: String): String? = suspendCancellableCoroutine { continuation ->
+        loginWebView.evaluateJavascript(jsCode) { result -> continuation.resume(result) }
+    }
+
+    private fun isLoginPage(url: String?): Boolean {
+        if (!loginFlowStarted || url == null) {
+            return false
+        }
+        return Uri.parse(url).host != F1TV_HOST
     }
 
     private fun autoAcceptCookieDialog() {
-        val jsCode = """
-        javascript:(function() {
-            if (window.__f1CookieConsentAutomationInstalled) {
-                window.__f1CookieConsentKick = Date.now();
-            }
-
-            function collectInteractiveElements(root, found) {
-                if (!root) {
-                    return;
-                }
-
-                var selectors = [
-                    'button',
-                    '[role="button"]',
-                    'input[type="button"]',
-                    'input[type="submit"]',
-                    'a[role="button"]'
-                ];
-
-                selectors.forEach(function(selector) {
-                    try {
-                        root.querySelectorAll(selector).forEach(function(element) {
-                            if (found.indexOf(element) === -1) {
-                                found.push(element);
-                            }
-                        });
-                    } catch (error) {
-                        console.log('CookieConsent: selector scan failed for ' + selector + ': ' + error);
-                    }
-                });
-
-                try {
-                    root.querySelectorAll('*').forEach(function(element) {
-                        if (element.shadowRoot) {
-                            collectInteractiveElements(element.shadowRoot, found);
-                        }
-                    });
-                } catch (error) {
-                    console.log('CookieConsent: shadow DOM scan failed: ' + error);
-                }
-
-                try {
-                    root.querySelectorAll('iframe').forEach(function(frame) {
-                        try {
-                            if (frame.contentDocument) {
-                                collectInteractiveElements(frame.contentDocument, found);
-                            }
-                        } catch (error) {
-                            console.log('CookieConsent: iframe scan skipped: ' + error);
-                        }
-                    });
-                } catch (error) {
-                    console.log('CookieConsent: iframe enumeration failed: ' + error);
-                }
-            }
-
-            function looksLikeAcceptAction(element) {
-                if (!element) {
-                    return false;
-                }
-
-                var text = [
-                    element.innerText,
-                    element.textContent,
-                    element.value,
-                    element.getAttribute('aria-label'),
-                    element.getAttribute('data-testid'),
-                    element.getAttribute('title'),
-                    element.id,
-                    element.className
-                ].filter(Boolean).join(' ').toLowerCase();
-
-                var includeTerms = [
-                    'accept',
-                    'agree',
-                    'allow all',
-                    'accept all',
-                    'accept cookies',
-                    'allow cookies',
-                    'consent',
-                    'got it',
-                    'ok'
-                ];
-                var excludeTerms = [
-                    'reject',
-                    'decline',
-                    'deny',
-                    'manage',
-                    'settings',
-                    'preferences',
-                    'learn more'
-                ];
-
-                return includeTerms.some(function(term) { return text.indexOf(term) !== -1; }) &&
-                    !excludeTerms.some(function(term) { return text.indexOf(term) !== -1; });
-            }
-
-            function clickConsentButton() {
-                var elements = [];
-                collectInteractiveElements(document, elements);
-                var candidate = elements.find(looksLikeAcceptAction);
-
-                if (!candidate) {
-                    console.log('CookieConsent: no matching consent button found.');
-                    return false;
-                }
-
-                console.log('CookieConsent: clicking consent button.');
-                ['pointerdown', 'mousedown', 'mouseup', 'click'].forEach(function(eventName) {
-                    try {
-                        candidate.dispatchEvent(new MouseEvent(eventName, {
-                            bubbles: true,
-                            cancelable: true,
-                            view: window
-                        }));
-                    } catch (error) {
-                        console.log('CookieConsent: dispatch failed for ' + eventName + ': ' + error);
-                    }
-                });
-                try {
-                    candidate.click();
-                } catch (error) {
-                    console.log('CookieConsent: direct click failed: ' + error);
-                }
-                return true;
-            }
-
-            function scheduleRetryLoop() {
-                var attempts = 0;
-                var intervalId = setInterval(function() {
-                    attempts += 1;
-                    if (clickConsentButton() || attempts >= 20) {
-                        clearInterval(intervalId);
-                    }
-                }, 1000);
-            }
-
-            if (!window.__f1CookieConsentAutomationInstalled) {
-                window.__f1CookieConsentAutomationInstalled = true;
-                try {
-                    var observer = new MutationObserver(function() {
-                        clickConsentButton();
-                    });
-                    observer.observe(document.documentElement || document.body, {
-                        childList: true,
-                        subtree: true,
-                        attributes: true
-                    });
-                } catch (error) {
-                    console.log('CookieConsent: observer install failed: ' + error);
-                }
-            }
-
-            if (clickConsentButton()) {
-                return 'clicked-now';
-            }
-
-            scheduleRetryLoop();
-
-            return 'observer-installed';
-        })();
-        """
-        loginWebView.evaluateJavascript(jsCode) { result ->
+        loginWebView.evaluateJavascript(COOKIE_CONSENT_JS) { result ->
             Log.d(TAG, "Cookie consent JS execution result: $result")
         }
     }
@@ -430,13 +531,16 @@ class SignInActivity : ComponentActivity() {
     private fun captureCredentials() {
         val jsCode = """
         javascript:(function() {
-            var loginButton = document.querySelector('button.btn.btn-primary[type="submit"]');
+            $FIND_LOGIN_FORM_JS
+
+            var loginButton = findLoginForm().submit;
             // Check if the listener is already attached
             if (loginButton && !loginButton.hasAttribute('data-listener-attached')) {
                 loginButton.setAttribute('data-listener-attached', 'true'); // Mark as attached
                 loginButton.addEventListener('click', function() {
-                    var loginInput = document.querySelector('.txtLogin');
-                    var passwordInput = document.querySelector('.txtPassword');
+                    var form = findLoginForm();
+                    var loginInput = form.login;
+                    var passwordInput = form.password;
                     var login = loginInput ? loginInput.value : null;
                     var password = passwordInput ? passwordInput.value : null;
                     if (login && password) {
@@ -482,12 +586,11 @@ class SignInActivity : ComponentActivity() {
                     if (isFinishing) {
                         return@launch
                     }
-                    if (!loginWebView.url.orEmpty().startsWith(F1_LOGIN_URL)) {
+                    if (!isLoginPage(loginWebView.url)) {
                         return@launch
                     }
-                    if (credentialsService.hasValidF1Credentials()) {
-                        return@launch
-                    }
+                    // No token check here: during a silent re-auth the old token is still valid.
+                    // navigateToHome() cancels this loop once the new token is stored.
                     Log.d(TAG, "Retrying auto-fill after consent popup / login page settle. attempt=${attempt + 1}")
                     fillLoginForm(
                         login = resolvedCredentials.login,
@@ -520,8 +623,8 @@ class SignInActivity : ComponentActivity() {
         }
     }
 
-    private fun fillLoginForm(login: String, password: String, autoSubmit: Boolean) {
-        Log.d(TAG, "Injecting JS for auto-fill autoSubmit=$autoSubmit")
+    private fun fillLoginForm(login: String, password: String, autoSubmit: Boolean, allowResubmit: Boolean = false) {
+        Log.d(TAG, "Injecting JS for auto-fill autoSubmit=$autoSubmit allowResubmit=$allowResubmit")
         val escapedLogin = login
             .replace("\\", "\\\\")
             .replace("'", "\\'")
@@ -531,6 +634,7 @@ class SignInActivity : ComponentActivity() {
             .replace("'", "\\'")
             .replace("\n", "\\n")
         val shouldAutoSubmit = if (autoSubmit) "true" else "false"
+        val allowResubmitJs = if (allowResubmit) "true" else "false"
 
         val jsCode = """
         javascript:(function() {
@@ -555,39 +659,58 @@ class SignInActivity : ComponentActivity() {
                 return true;
             }
 
-            function findLoginField() {
-                return document.querySelector('.txtLogin')
-                    || document.querySelector('input[type="email"]')
-                    || document.querySelector('input[name="email"]');
+            $FIND_LOGIN_FORM_JS
+
+            var expectedLogin = '$escapedLogin';
+            var expectedPassword = '$escapedPassword';
+
+            function fillFields(form) {
+                return setNativeValue(form.login, expectedLogin) && setNativeValue(form.password, expectedPassword);
             }
 
-            function findPasswordField() {
-                return document.querySelector('.txtPassword')
-                    || document.querySelector('input[type="password"]');
-            }
-
-            function findSubmitButton() {
-                return document.querySelector('button.btn.btn-primary[type="submit"]')
-                    || document.querySelector('button[type="submit"]');
+            // Login widgets can still be initialising (and clear or re-render their fields) right after the page
+            // loads, so only click once the values have stuck and the button is enabled; otherwise refill and wait.
+            function submitWhenSettled(attempt) {
+                setTimeout(function() {
+                    var form = findLoginForm();
+                    var settled = form.login && form.password && form.submit
+                        && form.login.value === expectedLogin
+                        && form.password.value === expectedPassword
+                        && form.submit.getAttribute('aria-disabled') !== 'true';
+                    if (settled) {
+                        console.log('AutoFill: Clicking login button. attempt=' + attempt);
+                        window.__f1AutoFillSubmitted = true;
+                        window.__f1AutoFillPending = false;
+                        form.submit.click();
+                        return;
+                    }
+                    if (attempt >= 20) {
+                        console.log('AutoFill: form never settled, not submitting.');
+                        window.__f1AutoFillPending = false;
+                        return;
+                    }
+                    console.log('AutoFill: form not settled yet, refilling. attempt=' + attempt);
+                    if (form.login && form.password) {
+                        fillFields(form);
+                    }
+                    submitWhenSettled(attempt + 1);
+                }, 1000);
             }
 
             function tryFill() {
-                var loginField = findLoginField();
-                var passwordField = findPasswordField();
-                var loginButton = findSubmitButton();
-                var loginFilled = setNativeValue(loginField, '$escapedLogin');
-                var passwordFilled = setNativeValue(passwordField, '$escapedPassword');
-
-                if (!loginFilled || !passwordFilled) {
+                // Never auto-submit twice on the same page: if the password was wrong, retrying could lock the account
+                if (!$allowResubmitJs && (window.__f1AutoFillSubmitted || window.__f1AutoFillPending)) {
+                    return true;
+                }
+                var form = findLoginForm();
+                if (!form.login || !form.password || !fillFields(form)) {
                     return false;
                 }
 
                 console.log('AutoFill: credentials filled.');
-                if ($shouldAutoSubmit && loginButton) {
-                    setTimeout(function() {
-                        console.log('AutoFill: Clicking login button.');
-                        loginButton.click();
-                    }, 500);
+                if ($shouldAutoSubmit) {
+                    window.__f1AutoFillPending = true;
+                    submitWhenSettled(1);
                 }
                 return true;
             }
@@ -724,7 +847,7 @@ class SignInActivity : ComponentActivity() {
                     )
                     if (email.isNotBlank() && password.isNotBlank()) {
                         credentialsService.saveCredentials(F1Credentials(login = email, password = password))
-                        fillLoginForm(login = email, password = password, autoSubmit = true)
+                        fillLoginForm(login = email, password = password, autoSubmit = true, allowResubmit = true)
                     }
                     dialog.dismiss()
                 }
@@ -745,6 +868,10 @@ class SignInActivity : ComponentActivity() {
     }
 
     private fun navigateToHome() {
+        // onPageFinished can report the token for several page loads in a row
+        if (isFinishing) {
+            return
+        }
         pendingAutoFillRetry?.cancel()
         Log.d(TAG, "Navigating home (isSilentReAuth=$isSilentReAuth isTaskRoot=$isTaskRoot)")
         if (isSilentReAuth && !isTaskRoot) {

@@ -189,6 +189,18 @@ class F1Client @Inject constructor(
                         ) {
                             fallbackViewing = viewing
                         }
+                        // The server ignored the HDR override and sent a standard Widevine stream; that is
+                        // a valid standard viewing, so keep it without the override (which would otherwise
+                        // route it to the HDR-only player).
+                        val serverIgnoredHdrOverride = candidate.overrideStreamType != null &&
+                            !response.resultObj.streamType.isNullOrBlank() &&
+                            !looksLikeUhdOrHdr(response.resultObj.streamType)
+                        if (serverIgnoredHdrOverride &&
+                            fallbackViewing == null &&
+                            !response.resultObj.laURL.isNullOrBlank()
+                        ) {
+                            fallbackViewing = viewing.copy(requestedOverrideStreamType = null)
+                        }
                         Log.i(
                             TAG,
                             "Candidate rejected for HDR playback streamType=${response.resultObj.streamType}; " +
@@ -453,6 +465,12 @@ class F1Client @Inject constructor(
     ): Boolean {
         val overrideLooksHdr = looksLikeUhdOrHdr(candidate.overrideStreamType)
         if (!overrideLooksHdr && !looksLikeUhdOrHdr(streamType)) {
+            return false
+        }
+        // The server can ignore the override: on 2026-10-23 an HDR_UHD_DASHWV request came back as
+        // streamType=HLS with only H.264 <=1080p renditions, which the HDR player can't decode (black
+        // screen). Only treat the response as HDR when the returned stream type says so too.
+        if (!streamType.isNullOrBlank() && !looksLikeUhdOrHdr(streamType)) {
             return false
         }
 

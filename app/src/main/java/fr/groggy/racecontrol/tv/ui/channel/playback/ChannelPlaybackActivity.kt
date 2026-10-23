@@ -227,7 +227,7 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         } catch (e: ViewingService.TokenExpiredException) {
             Log.e(TAG, "Token expired", e)
             handleError(R.string.unable_to_play_video_session_expired) {
-                startActivity(SignInActivity.intentClearTask(this))
+                startActivity(SignInActivity.intentFreshLogin(this))
                 finish()
             }
         } catch (e: Exception) {

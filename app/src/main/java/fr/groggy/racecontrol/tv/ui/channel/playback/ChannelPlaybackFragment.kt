@@ -43,7 +43,6 @@ import fr.groggy.racecontrol.tv.core.settings.Settings
 import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
 import fr.groggy.racecontrol.tv.f1tv.F1TvViewing
 import fr.groggy.racecontrol.tv.R
-import fr.groggy.racecontrol.tv.ui.player.CustomRadioSyncDialog
 import fr.groggy.racecontrol.tv.ui.player.ExoPlayerPlaybackTransportControlGlue
 import fr.groggy.racecontrol.tv.ui.channel.playback.protectedhdr.ProtectedHdrStreamClassifier
 import fr.groggy.racecontrol.tv.ui.channel.playback.protectedhdr.ProtectedHdrCapabilitiesProbe
@@ -58,19 +57,11 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     companion object {
         internal val TAG = ChannelPlaybackFragment::class.simpleName
 
-        private const val CUSTOM_RADIO_DEFAULT_OFFSET_MS = 20_000L
-        private const val CUSTOM_RADIO_MAX_OFFSET_MS = 120_000L
-        private const val CUSTOM_RADIO_EARLY_END_THRESHOLD_MS = 12_000L
-        private const val CUSTOM_RADIO_RETRY_DELAY_MS = 500L
         private const val OVERLAY_AUTO_CLOSE_DELAY_MS = 10_000L
         private const val UHD_STARTUP_BUFFERING_TIMEOUT_MS = 12_000L
         private const val UHD_TONE_MAPPING_FIRST_FRAME_TIMEOUT_MS = 5_000L
         private const val UHD_HDR_PRESENTATION_FRAME_RATE = 50f
         private const val DISPLAY_MODE_REFRESH_TOLERANCE = 0.25f
-        private const val CUSTOM_RADIO_SYNC_DIALOG_TAG = "custom_radio_sync"
-        private const val CUSTOM_RADIO_USER_AGENT =
-            "Mozilla/5.0 (Linux; Android 14; Google TV Streamer Build/UTT3.240625.001.K5; wv) " +
-            "AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/128.0.6613.114 Mobile Safari/537.36"
 
         private const val ARG_VIEWING = "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_VIEWING"
         private const val ARG_SESSION_ID = "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_SESSION_ID"
@@ -134,18 +125,26 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     @Inject internal lateinit var httpDataSourceFactory: HttpDataSource.Factory
     @Inject internal lateinit var settingsRepository: SettingsRepository
 
-    private var customRadioPlayer: CustomRadioEngine? = null
-    private var customRadioInjected: Boolean = false
-    private var customRadioMuted: Boolean = false
-    private var customRadioOffsetMs: Long = CUSTOM_RADIO_DEFAULT_OFFSET_MS
-    private var hasAutoInjectedCustomRadio = false
-    private var lastMainPlayerSeekAtElapsedMs: Long = 0L
-    private var customRadioPlan: List<CustomRadioPlanEntry> = emptyList()
-    private var customRadioPlanIndex: Int = 0
-    private var customRadioAttemptId: Long = 0L
-    private var customRadioStartedAtElapsedMs: Long = 0L
     private var playbackGlue: ExoPlayerPlaybackTransportControlGlue? = null
-    private var customRadioDelayNudgeRunnable: Runnable? = null
+    private val customRadio by lazy {
+        CustomRadioController(
+            fragment = this,
+            settingsRepository = settingsRepository,
+            host = object : CustomRadioHost {
+                override val mainPlayer: ExoPlayer? get() = _player
+                override fun setMainAudioMuted(muted: Boolean, reason: String) =
+                    setMainPlayerAudioDisabled(disabled = muted, reason = reason)
+                override fun refreshRadioOverlay() {
+                    playbackGlue?.refreshSubtitle()
+                }
+                override fun onRadioDialogInteraction() = resetOverlayAutoCloseTimer()
+                override fun onRadioDialogDismissed() {
+                    playbackGlue?.notifyMenuDismissed()
+                }
+            },
+            tag = TAG
+        )
+    }
     private var currentViewing: F1TvViewing? = null
     private var hasRenderedFirstFrameForCurrentSource = false
     private var startupBufferingWatchdogRunnable: Runnable? = null
@@ -168,7 +167,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     private val overlayAutoCloseHandler = Handler(Looper.getMainLooper())
     private val overlayAutoCloseRunnable = Runnable {
         if (!isAdded) return@Runnable
-        dismissCustomRadioSyncDialogIfShown()
+        customRadio.dismissSyncDialog()
         if (isControlsOverlayVisible()) {
             hideControlsOverlay(true)
         }
@@ -425,19 +424,17 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         try {
             val glue = ExoPlayerPlaybackTransportControlGlue(
                 requireActivity(), player, trackSelector,
-                onCustomRadioRequested = ::injectCustomRadio,
-                onCustomRadioSyncRequested = ::showCustomRadioSyncDialog,
-                onAudioTrackSelected = ::stopCustomRadio,
+                onCustomRadioRequested = customRadio::inject,
+                onCustomRadioSyncRequested = customRadio::showSyncDialog,
+                onAudioTrackSelected = customRadio::stop,
                 onPlayRequested = ::resumePlaybackFromTransportControls,
                 onPauseRequested = ::pausePlaybackFromTransportControls,
-                isCustomRadioSelectable = ::isCustomRadioAvailableForCurrentSession,
-                isCustomRadioActive = { customRadioInjected },
+                isCustomRadioSelectable = { customRadio.isSelectable() },
+                isCustomRadioActive = { customRadio.isActive },
                 currentAudioLabelOverride = {
-                    if (customRadioInjected) customRadioOverlayLabel() else null
+                    if (customRadio.isActive) customRadio.overlayLabel() else null
                 },
-                onCustomRadioOffsetAdjust = { deltaMs ->
-                    setCustomRadioOffset(customRadioOffsetMs + deltaMs)
-                },
+                onCustomRadioOffsetAdjust = customRadio::adjust,
                 onControlsInteraction = ::resetOverlayAutoCloseTimer,
                 onPlayerMenuDismissed = ::hidePlayerMenusAndControls
             )
@@ -855,14 +852,8 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                 cancelToneMappingFirstFrameWatchdog()
             }
         }
-        if (playbackState == Player.STATE_READY && !hasAutoInjectedCustomRadio) {
-            hasAutoInjectedCustomRadio = true
-            val settings = settingsRepository.getCurrent()
-            if (
-                shouldAutoInjectCustomRadio(settings)
-            ) {
-                injectCustomRadio()
-            }
+        if (playbackState == Player.STATE_READY) {
+            customRadio.onMainPlayerReady()
         }
     }
 
@@ -977,8 +968,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         reason: Int
     ) {
         if (reason == Player.DISCONTINUITY_REASON_SEEK) {
-            lastMainPlayerSeekAtElapsedMs = android.os.SystemClock.elapsedRealtime()
-            Log.d(TAG, "Main player seek detected — suppressing next GP Radio sync delay")
+            customRadio.onMainPlayerSeek()
         }
     }
 
@@ -1013,10 +1003,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         if (activePlayer.playWhenReady) {
             resumePlaybackFromTransportControls(logSource = "onResume")
         } else {
-            val radio = customRadioPlayer ?: return
-            if (customRadioMuted || customRadioInjected) {
-                radio.play()
-            }
+            customRadio.resume()
         }
     }
 
@@ -1041,7 +1028,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         cancelToneMappingFirstFrameWatchdog()
         cancelOverlayAutoCloseTimer()
         playbackGlue = null
-        releaseCustomRadioPlayer()
+        customRadio.release()
         releasePlayerSafely("onDestroy")
         super.onDestroy()
     }
@@ -1084,12 +1071,11 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     }
 
     private fun pausePlaybackFromTransportControls(logSource: String = "transport") {
-        cancelCustomRadioDelayNudge(resume = false)
         val activePlayer = _player
         if (activePlayer?.isPlaying == true) {
             activePlayer.pause()
         }
-        customRadioPlayer?.pause()
+        customRadio.pause()
         Log.d(TAG, "$logSource: paused main player and custom radio")
     }
 
@@ -1098,85 +1084,8 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         if (activePlayer?.isPlaying == false) {
             activePlayer.play()
         }
-        if (customRadioMuted || customRadioInjected) {
-            customRadioPlayer?.play()
-        }
+        customRadio.resume()
         Log.d(TAG, "$logSource: resumed main player and custom radio")
-    }
-
-    // ── Grand Prix Radio ──────────────────────────────────────────────────────
-
-    internal fun injectCustomRadio() {
-        if (customRadioInjected) return
-        val settings = settingsRepository.getCurrent()
-        if (!isCustomRadioAvailableForCurrentSession(settings)) {
-            Toast.makeText(requireContext(), R.string.custom_radio_live_only_message, Toast.LENGTH_LONG).show()
-            return
-        }
-        // If the radio is already streaming but muted, just unmute — no 20s wait needed
-        if (customRadioMuted && customRadioPlayer != null) {
-            customRadioMuted = false
-            customRadioInjected = true
-            customRadioPlayer!!.setVolume(100)
-            playbackGlue?.refreshSubtitle()
-            setMainPlayerAudioDisabled(disabled = true, reason = "custom_radio_unmute")
-            logCustomRadioTelemetry("unmuted", detail = "Unmuted existing stream, no delay")
-            return
-        }
-        // VLC was muted but died while muted — reset muted flag before fresh start
-        customRadioMuted = false
-        val radioPlan = buildCustomRadioPlan(settings)
-        if (radioPlan.isEmpty()) {
-            logCustomRadioTelemetry("plan_empty", detail = "No custom radio backend available")
-            return
-        }
-        customRadioOffsetMs = settings.customRadioDelayMs
-        customRadioPlan = radioPlan
-        customRadioPlanIndex = 0
-        customRadioInjected = true
-        playbackGlue?.refreshSubtitle()
-        // Mute embedded audio on the main player — GP Radio takes over
-        setMainPlayerAudioDisabled(disabled = true, reason = "custom_radio_start")
-        showCustomRadioWaitingMessage(customRadioOffsetMs)
-        startCustomRadioPlayer()
-    }
-
-    internal fun stopCustomRadio() {
-        if (!customRadioInjected) return
-        // If VLC has connected and started, mute it and keep it alive so switching back is instant.
-        // If it hasn't started yet (still connecting), do a full teardown.
-        val radioStarted = customRadioPlayer != null && customRadioStartedAtElapsedMs > 0L
-        if (radioStarted) {
-            customRadioPlayer!!.setVolume(0)
-            customRadioInjected = false
-            customRadioMuted = true
-            logCustomRadioTelemetry("muted", detail = "Kept stream alive but muted")
-        } else {
-            releaseCustomRadioPlayer()
-            customRadioInjected = false
-            customRadioMuted = false
-            customRadioOffsetMs = settingsRepository.getCurrent().customRadioDelayMs
-            customRadioPlan = emptyList()
-            customRadioPlanIndex = 0
-            customRadioStartedAtElapsedMs = 0L
-        }
-        playbackGlue?.refreshSubtitle()
-        setMainPlayerAudioDisabled(disabled = false, reason = "custom_radio_stop")
-    }
-
-    internal fun showCustomRadioSyncDialog() {
-        view?.post {
-            if (childFragmentManager.findFragmentByTag(CUSTOM_RADIO_SYNC_DIALOG_TAG) != null) {
-                return@post
-            }
-            CustomRadioSyncDialog(
-                currentOffsetMs = customRadioOffsetMs,
-                onOffsetSelected = { offsetMs -> setCustomRadioOffset(offsetMs) },
-                onUserInteraction = ::resetOverlayAutoCloseTimer,
-                onDialogDismissed = { playbackGlue?.notifyMenuDismissed() }
-            ).show(childFragmentManager, CUSTOM_RADIO_SYNC_DIALOG_TAG)
-        }
-        resetOverlayAutoCloseTimer()
     }
 
     private fun hidePlayerMenusAndControls() {
@@ -1203,299 +1112,6 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         }
     }
 
-    private fun startCustomRadioPlayer() {
-        val planEntry = customRadioPlan.getOrNull(customRadioPlanIndex)
-        if (planEntry == null) {
-            logCustomRadioTelemetry("plan_exhausted", detail = "No custom radio plan entry at index $customRadioPlanIndex")
-            stopCustomRadio()
-            return
-        }
-
-        try {
-            releaseCustomRadioPlayer()
-            val attemptId = ++customRadioAttemptId
-            customRadioStartedAtElapsedMs = 0L
-            logCustomRadioTelemetry(
-                event = "start_requested",
-                planEntry = planEntry,
-                detail = "planIndex=$customRadioPlanIndex attemptId=$attemptId"
-            )
-
-            customRadioPlayer = createCustomRadioEngine(
-                context = requireContext(),
-                planEntry = planEntry,
-                userAgent = CUSTOM_RADIO_USER_AGENT,
-                initialAudioDelayMs = customRadioOffsetMs,
-                initialVolume = 100,
-                onStarted = {
-                    if (!isCurrentCustomRadioAttempt(attemptId)) return@createCustomRadioEngine
-                    customRadioStartedAtElapsedMs = android.os.SystemClock.elapsedRealtime()
-                    logCustomRadioTelemetry(
-                        event = "started",
-                        planEntry = planEntry,
-                        detail = "attemptId=$attemptId offsetMs=$customRadioOffsetMs"
-                    )
-                    applyCustomRadioOffset()
-                },
-                onEnded = {
-                    if (!isCurrentCustomRadioAttempt(attemptId)) return@createCustomRadioEngine
-                    handleCustomRadioAttemptEnded(planEntry, attemptId, "ended")
-                },
-                onError = { errorCode, throwable ->
-                    if (!isCurrentCustomRadioAttempt(attemptId)) return@createCustomRadioEngine
-                    handleCustomRadioAttemptEnded(
-                        planEntry = planEntry,
-                        attemptId = attemptId,
-                        outcome = "error",
-                        detail = errorCode,
-                        throwable = throwable
-                    )
-                }
-            )
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to start GP Radio player", e)
-            handleCustomRadioAttemptEnded(
-                planEntry = planEntry,
-                attemptId = customRadioAttemptId,
-                outcome = "exception",
-                detail = e::class.simpleName,
-                throwable = e
-            )
-        }
-    }
-
-    private fun handleCustomRadioAttemptEnded(
-        planEntry: CustomRadioPlanEntry,
-        attemptId: Long,
-        outcome: String,
-        detail: String? = null,
-        throwable: Throwable? = null
-    ) {
-        val elapsedMs = if (customRadioStartedAtElapsedMs > 0L) {
-            android.os.SystemClock.elapsedRealtime() - customRadioStartedAtElapsedMs
-        } else {
-            0L
-        }
-        logCustomRadioTelemetry(
-            event = outcome,
-            planEntry = planEntry,
-            detail = buildString {
-                append("elapsedMs=")
-                append(elapsedMs)
-                append(" attemptId=")
-                append(attemptId)
-                detail?.let {
-                    append(" detail=")
-                    append(it)
-                }
-            },
-            throwable = throwable
-        )
-
-        val failedBeforePlaybackStarted = customRadioStartedAtElapsedMs == 0L
-        val shouldAdvance = failedBeforePlaybackStarted || elapsedMs in 1 until CUSTOM_RADIO_EARLY_END_THRESHOLD_MS
-        if (shouldAdvance && customRadioPlanIndex < customRadioPlan.lastIndex) {
-            customRadioPlanIndex += 1
-            logCustomRadioTelemetry(
-                event = "backend_advanced",
-                planEntry = customRadioPlan[customRadioPlanIndex],
-                detail = "previousBackend=${planEntry.backend.preferenceValue} elapsedMs=$elapsedMs started=${!failedBeforePlaybackStarted}"
-            )
-        }
-
-        releaseCustomRadioPlayer()
-        if (customRadioInjected && isCurrentCustomRadioAttempt(attemptId)) {
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                if (customRadioInjected) {
-                    startCustomRadioPlayer()
-                }
-            }, CUSTOM_RADIO_RETRY_DELAY_MS)
-        }
-    }
-
-    private fun isCurrentCustomRadioAttempt(attemptId: Long): Boolean {
-        return customRadioInjected && customRadioAttemptId == attemptId
-    }
-
-    private fun releaseCustomRadioPlayer() {
-        cancelCustomRadioDelayNudge(resume = false)
-        customRadioPlayer?.release()
-        customRadioPlayer = null
-    }
-
-    private fun isCustomRadioAvailableForCurrentSession(
-        settings: Settings = settingsRepository.getCurrent()
-    ): Boolean {
-        if (!settings.restrictCustomRadioToLiveSessions) return true
-        if (findIsLiveSession(requireActivity())) return true
-
-        return false
-    }
-
-    private fun shouldAutoInjectCustomRadio(
-        settings: Settings = settingsRepository.getCurrent()
-    ): Boolean {
-        if (!settings.autoSelectCustomRadio) return false
-        val viewing = currentViewing
-
-        if (viewing?.externalAudioRequired == true || viewing?.externalAudioUri != null) {
-            Log.i(TAG, "Auto custom radio allowed with external/companion audio; main player audio will be disabled")
-        }
-        if (!isCustomRadioAvailableForCurrentSession(settings)) return false
-        return buildCustomRadioPlan(settings).isNotEmpty()
-    }
-
-    private fun buildCustomRadioPlan(settings: Settings): List<CustomRadioPlanEntry> {
-        val customUrl = settings.customRadioUrl.trim()
-        if (customUrl.isNotBlank()) {
-            if (!isSupportedCustomRadioUrl(customUrl)) {
-                Log.w(TAG, "Ignoring invalid custom radio URL: $customUrl")
-                return emptyList()
-            }
-            return listOf(
-                CustomRadioPlanEntry(
-                    backend = Settings.CustomRadioBackend.EXOPLAYER,
-                    source = CustomRadioSource(
-                        name = "custom",
-                        url = customUrl,
-                        normalizeWithInAppHls = true
-                    )
-                )
-            )
-        }
-
-        return CustomRadioSources.defaultCandidate?.let {
-            listOf(
-                CustomRadioPlanEntry(
-                    Settings.CustomRadioBackend.EXOPLAYER,
-                    it
-                )
-            )
-        } ?: emptyList()
-    }
-
-    private fun isSupportedCustomRadioUrl(url: String): Boolean {
-        val uri = android.net.Uri.parse(url)
-        val scheme = uri.scheme?.lowercase(Locale.ROOT) ?: return false
-        return scheme in setOf("http", "https") && !uri.host.isNullOrBlank()
-    }
-
-    private fun logCustomRadioTelemetry(
-        event: String,
-        planEntry: CustomRadioPlanEntry? = null,
-        detail: String? = null,
-        throwable: Throwable? = null
-    ) {
-        val message = buildString {
-            append("GP Radio telemetry event=")
-            append(event)
-            planEntry?.let {
-                append(" backend=")
-                append(it.backend.preferenceValue)
-                append(" source=")
-                append(it.source.name)
-                append(" url=")
-                append(it.source.url)
-            }
-            detail?.let {
-                append(' ')
-                append(it)
-            }
-        }
-        if (throwable == null) {
-            Log.i(TAG, message)
-        } else {
-            Log.e(TAG, message, throwable)
-        }
-    }
-
-    private fun setCustomRadioOffset(offsetMs: Long): Long {
-        val clampedOffsetMs = offsetMs.coerceIn(0L, CUSTOM_RADIO_MAX_OFFSET_MS)
-        if (!customRadioInjected) {
-            customRadioOffsetMs = clampedOffsetMs
-            return customRadioOffsetMs
-        }
-        val deltaMs = clampedOffsetMs - customRadioOffsetMs
-        if (deltaMs == 0L) return customRadioOffsetMs
-        cancelCustomRadioDelayNudge(resume = false)
-        customRadioOffsetMs = clampedOffsetMs
-        customRadioPlayer?.setAudioDelay(customRadioOffsetMs)
-        playbackGlue?.refreshSubtitle()
-        logCustomRadioTelemetry("offset_updated", detail = "offsetMs=$customRadioOffsetMs deltaMs=$deltaMs")
-        return customRadioOffsetMs
-    }
-
-    private fun applyCustomRadioOffset() {
-        // audioDelay-based approach: VLC buffers the stream and outputs it [offsetMs] late.
-        // If the main player just seeked, the radio is still running — no re-sync needed.
-        val seekedRecentlyMs = android.os.SystemClock.elapsedRealtime() - lastMainPlayerSeekAtElapsedMs
-        val effectiveOffsetMs = if (lastMainPlayerSeekAtElapsedMs > 0L && seekedRecentlyMs < 5_000L) {
-            Log.d(TAG, "Seek was ${seekedRecentlyMs}ms ago — using 0ms audio delay")
-            0L
-        } else {
-            customRadioOffsetMs
-        }
-        customRadioPlayer?.setAudioDelay(effectiveOffsetMs)
-        logCustomRadioTelemetry("offset_applied", detail = "offsetMs=$effectiveOffsetMs")
-    }
-
-    private fun restartCustomRadio() {
-        releaseCustomRadioPlayer()
-        startCustomRadioPlayer()
-    }
-
-    private fun applyCustomRadioOffsetDelta(deltaMs: Long, targetOffsetMs: Long): Boolean {
-        val secondary = customRadioPlayer ?: return false
-        if (deltaMs == 0L) return true
-
-        if (deltaMs < 0L) {
-            if (secondary.skipAhead(-deltaMs)) {
-                logCustomRadioTelemetry("offset_adjusted_skip", detail = "deltaMs=$deltaMs newOffsetMs=$targetOffsetMs")
-                return true
-            }
-            logCustomRadioTelemetry("offset_adjusted_skip_unavailable", detail = "deltaMs=$deltaMs currentOffsetMs=$customRadioOffsetMs")
-            return false
-        }
-
-        scheduleCustomRadioDelayNudge(secondary, deltaMs, targetOffsetMs)
-        return true
-    }
-
-    private fun scheduleCustomRadioDelayNudge(engine: CustomRadioEngine, delayMs: Long, targetOffsetMs: Long) {
-        cancelCustomRadioDelayNudge(resume = true)
-        engine.pause()
-        val resumeRunnable = Runnable {
-            customRadioDelayNudgeRunnable = null
-            if (customRadioInjected && engine === customRadioPlayer) {
-                engine.play()
-                logCustomRadioTelemetry(
-                    "offset_adjusted_pause",
-                    detail = "delayMs=$delayMs newOffsetMs=$targetOffsetMs"
-                )
-            }
-        }
-        customRadioDelayNudgeRunnable = resumeRunnable
-        overlayAutoCloseHandler.postDelayed(resumeRunnable, delayMs)
-    }
-
-    private fun cancelCustomRadioDelayNudge(resume: Boolean) {
-        val pending = customRadioDelayNudgeRunnable ?: return
-        overlayAutoCloseHandler.removeCallbacks(pending)
-        customRadioDelayNudgeRunnable = null
-        if (resume) {
-            customRadioPlayer?.play()
-        }
-    }
-
-    private fun showCustomRadioWaitingMessage(delayMs: Long) {
-        if (delayMs <= 0L) return
-        Toast.makeText(
-            requireContext(),
-            getString(R.string.custom_radio_waiting_message, formatCustomRadioOffset(delayMs)),
-            Toast.LENGTH_LONG
-        ).show()
-    }
-
     private fun resetOverlayAutoCloseTimer() {
         cancelOverlayAutoCloseTimer()
         overlayAutoCloseHandler.postDelayed(overlayAutoCloseRunnable, OVERLAY_AUTO_CLOSE_DELAY_MS)
@@ -1503,23 +1119,6 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
 
     private fun cancelOverlayAutoCloseTimer() {
         overlayAutoCloseHandler.removeCallbacks(overlayAutoCloseRunnable)
-    }
-
-    private fun dismissCustomRadioSyncDialogIfShown() {
-        (childFragmentManager.findFragmentByTag(CUSTOM_RADIO_SYNC_DIALOG_TAG) as? DialogFragment)
-            ?.dismissAllowingStateLoss()
-    }
-
-    private fun formatCustomRadioOffset(delayMs: Long): String {
-        return String.format(Locale.getDefault(), "%.1f", delayMs / 1000.0)
-    }
-
-    private fun customRadioOverlayLabel(): String {
-        return getString(
-            R.string.custom_radio_overlay_label,
-            getString(R.string.custom_radio_audio_label),
-            formatCustomRadioOffset(customRadioOffsetMs)
-        )
     }
 
     private fun updateVideoSurfaceSize(videoWidth: Int, videoHeight: Int) {

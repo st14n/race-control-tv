@@ -84,7 +84,8 @@ internal class InAppHlsCustomRadioEngine(
 				audioChannels = channels
 				this.sampleRate = sampleRate
 				setOption("hls_time", "1")
-				setOption("hls_list_size", "60")
+				// ~3 minutes of 1 s segments, so auto-sync can follow pausing/rewinding the video
+				setOption("hls_list_size", "180")
 				setOption("hls_delete_threshold", "10")
 				setOption("hls_flags", "delete_segments+omit_endlist+program_date_time+independent_segments")
 				setOption("hls_segment_type", "mpegts")
@@ -216,6 +217,10 @@ internal class InAppHlsCustomRadioEngine(
 		pendingDelayMs = delayMs.coerceAtLeast(0L)
 		child?.setAudioDelay(pendingDelayMs)
 	}
+
+	override fun currentDelayMs(): Long? = child?.currentDelayMs()
+
+	override fun maxDelayMs(): Long? = child?.maxDelayMs()
 
 	override fun release() {
 		if (!released.compareAndSet(false, true)) return

@@ -52,6 +52,22 @@ class SettingsRepository(
         applySettings()
     }
 
+    fun updateCustomRadioAutoSync(enabled: Boolean) {
+        preferences.edit {
+            putBoolean(Settings.KEY_CUSTOM_RADIO_AUTO_SYNC, enabled)
+        }
+
+        applySettings()
+    }
+
+    fun updateCustomRadioAutoSyncCorrection(correctionMs: Long) {
+        preferences.edit {
+            putString(Settings.KEY_CUSTOM_RADIO_AUTO_SYNC_CORRECTION_MS, correctionMs.toString())
+        }
+
+        applySettings()
+    }
+
     private fun getFromStorage(): Settings {
         return with(preferences) {
             Settings(
@@ -66,6 +82,12 @@ class SettingsRepository(
                 customRadioDelayMs = getString(Settings.KEY_CUSTOM_RADIO_DELAY_MS, null)?.toLongOrNull()
                     ?: getString(Settings.KEY_OLD_CUSTOM_RADIO_DELAY_MS, null)?.toLongOrNull()
                     ?: Settings.DEFAULT.customRadioDelayMs,
+                customRadioAutoSync = getBoolean(
+                    Settings.KEY_CUSTOM_RADIO_AUTO_SYNC,
+                    Settings.DEFAULT.customRadioAutoSync
+                ),
+                customRadioAutoSyncCorrectionMs = getString(Settings.KEY_CUSTOM_RADIO_AUTO_SYNC_CORRECTION_MS, null)
+                    ?.toLongOrNull(),
                 customRadioUrl = getString(Settings.KEY_CUSTOM_RADIO_URL, null)
                     ?: getString(Settings.KEY_OLD_CUSTOM_RADIO_URL, null)
                     ?: "",
