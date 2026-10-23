@@ -236,7 +236,7 @@ internal class CustomRadioController(
                         planEntry = planEntry,
                         detail = "attemptId=$currentAttemptId offsetMs=$offsetMs autoSync=$autoSync"
                     )
-                    if (autoSync && autoSyncTargetMs() != null) {
+                    if (autoSync && videoLagMs() != null) {
                         // Keep F1 audio until the radio has buffered enough to sit at its target delay;
                         // switching now would mean hearing it jump towards the target as the buffer fills
                         awaitingAutoSyncLock = true
@@ -447,22 +447,34 @@ internal class CustomRadioController(
         logTelemetry("offset_applied", detail = "offsetMs=$effectiveOffsetMs")
     }
 
-    /** How far the video is behind live (wall clock of the frame on screen) plus the correction. */
+    /** How far the video is behind live: the wall clock of the frame on screen vs now. */
+    private fun videoLagMs(): Long? =
+        host.mainPlayer?.currentLiveOffset?.takeIf { it != C.TIME_UNSET }
+
+    /**
+     * The radio delay (as measured by [CustomRadioEngine.currentDelayMs], i.e. since the audio was
+     * recorded locally) that makes the radio's real age equal the video's lag:
+     * videoLag - connect backlog + correction. The backlog changes with every connection and is
+     * measured; the correction only covers what can't be measured (encoder/commentary latency, a
+     * second or two), so it stays put between sessions.
+     */
     private fun autoSyncTargetMs(): Long? {
-        val videoLagMs = host.mainPlayer?.currentLiveOffset?.takeIf { it != C.TIME_UNSET } ?: return null
+        val videoLagMs = videoLagMs() ?: return null
+        val backlogMs = radioPlayer?.ingestBacklogMs() ?: return null
         if (needsCorrectionSeed) {
-            // First live auto-sync ever: start from the manual delay the user already tuned, so
-            // switching to auto-sync sounds the same and only drift is corrected from here on
+            // First auto-sync with this correction model: start from the manual delay the user already
+            // tuned, so switching to auto-sync sounds the same and only drift is corrected from here on
             needsCorrectionSeed = false
-            autoSyncCorrectionMs = (manualDelayMs - videoLagMs)
+            autoSyncCorrectionMs = (manualDelayMs - (videoLagMs - backlogMs))
                 .coerceIn(-CUSTOM_RADIO_MAX_AUTO_SYNC_CORRECTION_MS, CUSTOM_RADIO_MAX_AUTO_SYNC_CORRECTION_MS)
             settingsRepository.updateCustomRadioAutoSyncCorrection(autoSyncCorrectionMs)
             logTelemetry(
                 "auto_sync_correction_seeded",
-                detail = "manualDelayMs=$manualDelayMs videoLagMs=$videoLagMs correctionMs=$autoSyncCorrectionMs"
+                detail = "manualDelayMs=$manualDelayMs videoLagMs=$videoLagMs backlogMs=$backlogMs " +
+                    "correctionMs=$autoSyncCorrectionMs"
             )
         }
-        return videoLagMs + autoSyncCorrectionMs
+        return videoLagMs - backlogMs + autoSyncCorrectionMs
     }
 
     private fun startAutoSync() {
@@ -518,7 +530,8 @@ internal class CustomRadioController(
         host.refreshRadioOverlay()
         logTelemetry(
             "auto_sync",
-            detail = "videoLagMs=${mainPlayer.currentLiveOffset} correctionMs=$autoSyncCorrectionMs " +
+            detail = "videoLagMs=${mainPlayer.currentLiveOffset} backlogMs=${engine.ingestBacklogMs()} " +
+                "correctionMs=$autoSyncCorrectionMs " +
                 "targetMs=$targetMs appliedMs=$reachableTargetMs actualMs=$actualMs maxMs=${engine.maxDelayMs()}"
         )
     }

@@ -69,7 +69,8 @@ data class Settings(
         const val KEY_AUDIO_OFFSET_MS = "audio_offset_ms"
         const val KEY_CUSTOM_RADIO_DELAY_MS = "custom_radio_delay_ms"
         const val KEY_CUSTOM_RADIO_AUTO_SYNC = "custom_radio_auto_sync"
-        const val KEY_CUSTOM_RADIO_AUTO_SYNC_CORRECTION_MS = "custom_radio_auto_sync_correction_ms"
+        // v2: the correction no longer includes the radio server's connect backlog (measured per connection)
+        const val KEY_CUSTOM_RADIO_AUTO_SYNC_CORRECTION_MS = "custom_radio_auto_sync_correction_v2_ms"
         const val KEY_CUSTOM_RADIO_URL = "custom_radio_url"
         const val KEY_AUTO_SELECT_CUSTOM_RADIO = "auto_select_custom_radio"
         const val KEY_RESTRICT_CUSTOM_RADIO_TO_LIVE_SESSIONS = "restrict_custom_radio_to_live_sessions"

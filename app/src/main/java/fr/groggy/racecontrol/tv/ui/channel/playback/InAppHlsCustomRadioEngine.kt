@@ -3,6 +3,7 @@ package fr.groggy.racecontrol.tv.ui.channel.playback
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.net.toUri
 import androidx.media3.common.MimeTypes
@@ -38,6 +39,11 @@ internal class InAppHlsCustomRadioEngine(
 	private var playRequested = true
 	private var completionReported = false
 	private var probeStartedAtMs = 0L
+	// Written by the ffmpeg worker thread only
+	private var firstFrameTimestampUs = Long.MIN_VALUE
+	private var firstFrameAtElapsedMs = 0L
+	private var maxIngestLeadMs = 0L
+	@Volatile private var ingestBacklogMs: Long? = null
 
 	init {
 		configureJavaCppLogger()
@@ -96,6 +102,7 @@ internal class InAppHlsCustomRadioEngine(
 
 			while (!released.get()) {
 				val frame = localGrabber.grabSamples() ?: break
+				measureIngestBacklog(frame.timestamp)
 				localRecorder.record(frame)
 			}
 
@@ -108,6 +115,29 @@ internal class InAppHlsCustomRadioEngine(
 			}
 		} finally {
 			stopRecorder()
+		}
+	}
+
+	/**
+	 * Icecast/SHOUTcast servers send their buffered backlog in one burst on connect, after which the
+	 * stream stays that far behind the server's live edge. The local playlist's program date times
+	 * count from when recording started, so they make the audio look that much fresher than it is.
+	 * The burst shows up as media time running ahead of wall-clock time; its peak is the backlog.
+	 */
+	private fun measureIngestBacklog(frameTimestampUs: Long) {
+		if (ingestBacklogMs != null) return
+		val nowMs = SystemClock.elapsedRealtime()
+		if (firstFrameTimestampUs == Long.MIN_VALUE) {
+			firstFrameTimestampUs = frameTimestampUs
+			firstFrameAtElapsedMs = nowMs
+			return
+		}
+		val wallMs = nowMs - firstFrameAtElapsedMs
+		val leadMs = (frameTimestampUs - firstFrameTimestampUs) / 1_000L - wallMs
+		if (leadMs > maxIngestLeadMs) maxIngestLeadMs = leadMs
+		if (wallMs >= BACKLOG_MEASURE_WINDOW_MS) {
+			ingestBacklogMs = maxIngestLeadMs.coerceAtLeast(0L)
+			Log.i(TAG, "measured ingest backlog=${ingestBacklogMs}ms over ${wallMs}ms")
 		}
 	}
 
@@ -222,6 +252,8 @@ internal class InAppHlsCustomRadioEngine(
 
 	override fun maxDelayMs(): Long? = child?.maxDelayMs()
 
+	override fun ingestBacklogMs(): Long? = ingestBacklogMs
+
 	override fun release() {
 		if (!released.compareAndSet(false, true)) return
 		handler.removeCallbacksAndMessages(null)
@@ -247,5 +279,7 @@ internal class InAppHlsCustomRadioEngine(
 		const val HLS_START_HEADROOM_MS = 1_500L
 		const val PLAYLIST_POLL_MS = 250L
 		const val PLAYLIST_START_TIMEOUT_MS = 20_000L
+		// The connect burst is over within a few seconds; measure well past it
+		const val BACKLOG_MEASURE_WINDOW_MS = 15_000L
 	}
 }

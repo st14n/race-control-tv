@@ -40,6 +40,11 @@ internal interface CustomRadioEngine {
     fun currentDelayMs(): Long?
     /** The largest delay the buffered radio stream can currently provide, or null when unknown. */
     fun maxDelayMs(): Long?
+    /**
+     * How much older than [currentDelayMs] suggests the audio really is: the backlog the radio server
+     * sent on connect. Null while still being measured (or not measurable for this engine).
+     */
+    fun ingestBacklogMs(): Long? = null
     fun release()
 }
 
