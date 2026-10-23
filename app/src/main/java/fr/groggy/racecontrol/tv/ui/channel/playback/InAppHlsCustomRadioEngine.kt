@@ -7,6 +7,7 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.core.net.toUri
 import androidx.media3.common.MimeTypes
+import androidx.media3.exoplayer.audio.TeeAudioProcessor
 import org.bytedeco.ffmpeg.global.avcodec.AV_CODEC_ID_AAC
 import org.bytedeco.javacv.FFmpegFrameGrabber
 import org.bytedeco.javacv.FFmpegFrameRecorder
@@ -20,6 +21,7 @@ internal class InAppHlsCustomRadioEngine(
 	private val userAgent: String,
 	private val initialAudioDelayMs: Long,
 	initialVolume: Int,
+	private val audioBufferSink: TeeAudioProcessor.AudioBufferSink? = null,
 	private val onStarted: () -> Unit,
 	private val onEnded: () -> Unit,
 	private val onError: (String, Throwable?) -> Unit
@@ -174,6 +176,7 @@ internal class InAppHlsCustomRadioEngine(
 			userAgent = userAgent,
 			initialAudioDelayMs = pendingDelayMs,
 			initialVolume = pendingVolume,
+			audioBufferSink = audioBufferSink,
 			onStarted = {
 				if (released.get()) return@ExoCustomRadioEngine
 				onStarted()

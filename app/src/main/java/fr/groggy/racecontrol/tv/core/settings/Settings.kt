@@ -21,6 +21,8 @@ data class Settings(
      * Null until first calibrated, so it can be derived from the manual delay the user already tuned.
      */
     val customRadioAutoSyncCorrectionMs: Long?,
+    /** Let auto-sync fine-tune its correction by matching the radio's background circuit sound to the F1 audio. */
+    val customRadioAcousticSync: Boolean,
     /** Optional custom radio stream URL. Empty string = use default candidates. */
     val customRadioUrl: String,
     /** Auto-switch to custom radio when a built-in or saved custom stream is available. */
@@ -53,6 +55,7 @@ data class Settings(
             customRadioDelayMs = 20_000L,
             customRadioAutoSync = true,
             customRadioAutoSyncCorrectionMs = null,
+            customRadioAcousticSync = true,
             customRadioUrl = "",
             autoSelectCustomRadio = true,
             restrictCustomRadioToLiveSessions = false,
@@ -71,6 +74,7 @@ data class Settings(
         const val KEY_CUSTOM_RADIO_AUTO_SYNC = "custom_radio_auto_sync"
         // v2: the correction no longer includes the radio server's connect backlog (measured per connection)
         const val KEY_CUSTOM_RADIO_AUTO_SYNC_CORRECTION_MS = "custom_radio_auto_sync_correction_v2_ms"
+        const val KEY_CUSTOM_RADIO_ACOUSTIC_SYNC = "custom_radio_acoustic_sync"
         const val KEY_CUSTOM_RADIO_URL = "custom_radio_url"
         const val KEY_AUTO_SELECT_CUSTOM_RADIO = "auto_select_custom_radio"
         const val KEY_RESTRICT_CUSTOM_RADIO_TO_LIVE_SESSIONS = "restrict_custom_radio_to_live_sessions"

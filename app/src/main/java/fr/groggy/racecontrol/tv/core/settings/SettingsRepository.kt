@@ -88,6 +88,10 @@ class SettingsRepository(
                 ),
                 customRadioAutoSyncCorrectionMs = getString(Settings.KEY_CUSTOM_RADIO_AUTO_SYNC_CORRECTION_MS, null)
                     ?.toLongOrNull(),
+                customRadioAcousticSync = getBoolean(
+                    Settings.KEY_CUSTOM_RADIO_ACOUSTIC_SYNC,
+                    Settings.DEFAULT.customRadioAcousticSync
+                ),
                 customRadioUrl = getString(Settings.KEY_CUSTOM_RADIO_URL, null)
                     ?: getString(Settings.KEY_OLD_CUSTOM_RADIO_URL, null)
                     ?: "",

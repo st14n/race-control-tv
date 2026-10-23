@@ -132,8 +132,15 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             settingsRepository = settingsRepository,
             host = object : CustomRadioHost {
                 override val mainPlayer: ExoPlayer? get() = _player
-                override fun setMainAudioMuted(muted: Boolean, reason: String) =
-                    setMainPlayerAudioDisabled(disabled = muted, reason = reason)
+                override fun setMainAudioMuted(muted: Boolean, reason: String) {
+                    // Volume rather than disabling the audio track, so the F1 audio keeps being decoded
+                    // for acoustic sync
+                    _player?.volume = if (muted) 0f else 1f
+                    Log.i(TAG, "Main player audio muted=$muted reason=$reason")
+                }
+                override val mainAudioFeatures: AcousticFeatureStream get() = this@ChannelPlaybackFragment.mainAudioFeatures
+                override fun setAmbientAudioPreferred(preferred: Boolean): Boolean =
+                    _player?.selectAmbientAudioTrack(preferred) ?: false
                 override fun refreshRadioOverlay() {
                     playbackGlue?.refreshSubtitle()
                 }
@@ -276,6 +283,9 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
 
 
 
+    /** Fingerprint of the decoded F1 audio, for radio acoustic sync. */
+    private val mainAudioFeatures = AcousticFeatureStream()
+
     private val renderersFactory: RenderersFactory by lazy {
         val settings = settingsRepository.getCurrent()
         val viewing = findViewing(this)
@@ -314,7 +324,8 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             // DIAGNOSTIC (2026-08-22): log CryptoInfo here too, so one session
             // captures BOTH the failing HDR attempt and the working SDR
             // fallback and their encryption layouts can be compared directly.
-            enableCryptoDiagnostics = false
+            enableCryptoDiagnostics = false,
+            audioBufferSink = mainAudioFeatures
         )
     }
 

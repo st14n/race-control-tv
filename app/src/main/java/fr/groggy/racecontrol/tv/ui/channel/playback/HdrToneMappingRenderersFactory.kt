@@ -13,6 +13,9 @@ import androidx.media3.effect.RgbAdjustment
 import androidx.media3.effect.SingleInputVideoGraph
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.Renderer
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.exoplayer.audio.TeeAudioProcessor
 import androidx.media3.exoplayer.mediacodec.MediaCodecAdapter
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.SynchronousMediaCodecAdapter
@@ -30,8 +33,24 @@ class HdrToneMappingRenderersFactory(
     private val enableHardwareToneMapping: Boolean = false,
     private val enableCryptoDiagnostics: Boolean = false,
     private val enableSoftwareVideoDecoder: Boolean = false,
-    private val enableTiledmediaLikeCodecPath: Boolean = false
+    private val enableTiledmediaLikeCodecPath: Boolean = false,
+    /** Receives the decoded audio (e.g. for radio acoustic sync); null leaves the audio sink stock. */
+    private val audioBufferSink: TeeAudioProcessor.AudioBufferSink? = null
 ) : DefaultRenderersFactory(context) {
+
+    override fun buildAudioSink(
+        context: Context,
+        enableFloatOutput: Boolean,
+        enableAudioOutputPlaybackParameters: Boolean
+    ): AudioSink? {
+        val sink = audioBufferSink
+            ?: return super.buildAudioSink(context, enableFloatOutput, enableAudioOutputPlaybackParameters)
+        return DefaultAudioSink.Builder(context)
+            .setEnableFloatOutput(enableFloatOutput)
+            .setEnableAudioOutputPlaybackParameters(enableAudioOutputPlaybackParameters)
+            .setAudioProcessors(arrayOf(TeeAudioProcessor(sink)))
+            .build()
+    }
 
     companion object {
         private val TAG = HdrToneMappingRenderersFactory::class.simpleName

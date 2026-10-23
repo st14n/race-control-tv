@@ -14,6 +14,7 @@ import fr.groggy.racecontrol.tv.core.settings.Settings
 import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
 import fr.groggy.racecontrol.tv.ui.player.CustomRadioSyncDialog
 import java.util.Locale
+import java.util.concurrent.Executors
 import kotlin.math.abs
 
 /** What a playback fragment provides to run the Grand Prix / custom radio on top of its player. */
@@ -25,6 +26,13 @@ internal interface CustomRadioHost {
     fun refreshRadioOverlay()
     fun onRadioDialogInteraction()
     fun onRadioDialogDismissed()
+    /** Fingerprint of the F1 audio as it's decoded (keeps running while muted); null if not tapped. */
+    val mainAudioFeatures: AcousticFeatureStream?
+    /**
+     * Prefer the F1 stream's ambient-only (FX) audio track while muted under the radio: without
+     * commentary it matches the radio's background circuit sound better. Returns whether it changed.
+     */
+    fun setAmbientAudioPreferred(preferred: Boolean): Boolean
 }
 
 /**
@@ -54,6 +62,15 @@ internal class CustomRadioController(
         private const val CUSTOM_RADIO_AUTO_SYNC_SETTLE_MS = 2_000L
         private const val CUSTOM_RADIO_BUFFER_MARGIN_MS = 2_000L
         private const val CUSTOM_RADIO_EARLY_END_THRESHOLD_MS = 12_000L
+        private const val ACOUSTIC_SYNC_INTERVAL_MS = 5_000L
+        // Correlation strength / peak-vs-runner-up needed before trusting an acoustic estimate.
+        // Logged with every estimate so these can be tuned on real sessions.
+        private const val ACOUSTIC_MIN_SCORE = 0.12
+        private const val ACOUSTIC_MIN_PEAK_RATIO = 1.3
+        // Two consecutive estimates must agree this closely before the correction is changed
+        private const val ACOUSTIC_AGREEMENT_MS = 250L
+        // Smaller offsets are within what the measurement itself can resolve
+        private const val ACOUSTIC_DEADBAND_MS = 150L
         private const val CUSTOM_RADIO_RETRY_DELAY_MS = 500L
         private const val CUSTOM_RADIO_SYNC_DIALOG_TAG = "custom_radio_sync"
         private const val CUSTOM_RADIO_USER_AGENT =
@@ -82,6 +99,24 @@ internal class CustomRadioController(
     private var hasWarnedBufferExceeded = false
     /** Auto-sync started but the radio isn't at its target delay yet; F1 audio plays until it is. */
     private var awaitingAutoSyncLock = false
+    private val radioAudioFeatures = AcousticFeatureStream()
+    private var acousticSync = true
+    /** The user nudged the sync by hand this session; acoustic sync then leaves the correction alone. */
+    private var acousticSuspendedByUser = false
+    private var ambientAudioPreferred = false
+    /** Last time the radio alignment changed; acoustic estimates only use audio after it. */
+    private var lastAlignmentChangeAtMs = 0L
+    private var pendingAcousticEstimate: RadioAcousticCorrelator.Estimate? = null
+    private var acousticEstimateInFlight = false
+    private val acousticExecutor = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "radio-acoustic-sync").apply { isDaemon = true }
+    }
+    private val acousticSyncRunnable = object : Runnable {
+        override fun run() {
+            requestAcousticEstimate()
+            handler.postDelayed(this, ACOUSTIC_SYNC_INTERVAL_MS)
+        }
+    }
     private val handler = Handler(Looper.getMainLooper())
     private val autoSyncRunnable = object : Runnable {
         override fun run() {
@@ -119,6 +154,7 @@ internal class CustomRadioController(
     fun release() {
         releasePlayer()
         dismissSyncDialog()
+        acousticExecutor.shutdownNow()
     }
 
     fun isSelectable(settings: Settings = settingsRepository.getCurrent()): Boolean {
@@ -156,6 +192,7 @@ internal class CustomRadioController(
             }
             radioPlayer!!.setVolume(100)
             host.setMainAudioMuted(true, "custom_radio_unmute")
+            preferAmbientMainAudio()
             logTelemetry("unmuted", detail = "Unmuted existing stream, no delay")
             return
         }
@@ -167,6 +204,9 @@ internal class CustomRadioController(
             return
         }
         autoSync = settings.customRadioAutoSync
+        acousticSync = settings.customRadioAcousticSync
+        acousticSuspendedByUser = false
+        pendingAcousticEstimate = null
         autoSyncCorrectionMs = settings.customRadioAutoSyncCorrectionMs ?: 0L
         needsCorrectionSeed = settings.customRadioAutoSyncCorrectionMs == null
         manualDelayMs = settings.customRadioDelayMs
@@ -200,6 +240,7 @@ internal class CustomRadioController(
             planIndex = 0
             startedAtElapsedMs = 0L
         }
+        restoreMainAudioTrack()
         host.refreshRadioOverlay()
         host.setMainAudioMuted(false, "custom_radio_stop")
     }
@@ -228,6 +269,7 @@ internal class CustomRadioController(
                 userAgent = CUSTOM_RADIO_USER_AGENT,
                 initialAudioDelayMs = offsetMs,
                 initialVolume = 100,
+                audioBufferSink = radioAudioFeatures,
                 onStarted = {
                     if (!isCurrentAttempt(currentAttemptId)) return@createCustomRadioEngine
                     startedAtElapsedMs = SystemClock.elapsedRealtime()
@@ -247,6 +289,7 @@ internal class CustomRadioController(
                     }
                     applyOffset()
                     startAutoSync()
+                    startAcousticSync()
                 },
                 onEnded = {
                     if (!isCurrentAttempt(currentAttemptId)) return@createCustomRadioEngine
@@ -330,6 +373,7 @@ internal class CustomRadioController(
 
     private fun releasePlayer() {
         stopAutoSync()
+        stopAcousticSync()
         awaitingAutoSyncLock = false
         radioPlayer?.release()
         radioPlayer = null
@@ -384,6 +428,10 @@ internal class CustomRadioController(
             setOffset(offsetMs + deltaMs)
             return
         }
+        if (acousticSync && !acousticSuspendedByUser) {
+            acousticSuspendedByUser = true
+            logTelemetry("acoustic_sync_suspended", detail = "manual nudge deltaMs=$deltaMs")
+        }
         autoSyncCorrectionMs = (autoSyncCorrectionMs + deltaMs)
             .coerceIn(-CUSTOM_RADIO_MAX_AUTO_SYNC_CORRECTION_MS, CUSTOM_RADIO_MAX_AUTO_SYNC_CORRECTION_MS)
         // Remembered so the radio's own latency only has to be calibrated once per station
@@ -412,7 +460,91 @@ internal class CustomRadioController(
         if (!isActive) return
         radioPlayer?.setVolume(100)
         host.setMainAudioMuted(true, "custom_radio_$reason")
+        preferAmbientMainAudio()
         logTelemetry("audio_switched_to_radio", detail = "reason=$reason offsetMs=$offsetMs")
+    }
+
+    // ── Acoustic sync ────────────────────────────────────────────────────────
+
+    private fun preferAmbientMainAudio() {
+        if (!acousticSync || !autoSync || ambientAudioPreferred) return
+        ambientAudioPreferred = host.setAmbientAudioPreferred(true)
+        logTelemetry("ambient_audio_track", detail = "selected=$ambientAudioPreferred")
+    }
+
+    private fun restoreMainAudioTrack() {
+        if (!ambientAudioPreferred) return
+        ambientAudioPreferred = false
+        host.setAmbientAudioPreferred(false)
+    }
+
+    private fun startAcousticSync() {
+        stopAcousticSync()
+        if (!acousticSync || host.mainAudioFeatures == null) return
+        handler.postDelayed(acousticSyncRunnable, ACOUSTIC_SYNC_INTERVAL_MS)
+    }
+
+    private fun stopAcousticSync() {
+        handler.removeCallbacks(acousticSyncRunnable)
+        pendingAcousticEstimate = null
+    }
+
+    private fun requestAcousticEstimate() {
+        val mainFeatures = host.mainAudioFeatures ?: return
+        val mainPlayer = host.mainPlayer ?: return
+        if (!autoSync || !acousticSync || acousticSuspendedByUser || !isActive || awaitingAutoSyncLock) return
+        if (!mainPlayer.isPlaying || acousticEstimateInFlight) return
+        val notBeforeMs = lastAlignmentChangeAtMs.toDouble()
+        acousticEstimateInFlight = true
+        acousticExecutor.execute {
+            val estimate = runCatching {
+                RadioAcousticCorrelator.estimate(mainFeatures, radioAudioFeatures, notBeforeMs)
+            }.onFailure { Log.w(tag, "Acoustic estimate failed", it) }.getOrNull()
+            handler.post {
+                acousticEstimateInFlight = false
+                if (estimate != null) onAcousticEstimate(estimate, notBeforeMs)
+            }
+        }
+    }
+
+    private fun onAcousticEstimate(estimate: RadioAcousticCorrelator.Estimate, notBeforeMs: Double) {
+        // The alignment changed while this was computing: it describes audio that no longer applies
+        if (lastAlignmentChangeAtMs.toDouble() != notBeforeMs || !isActive || acousticSuspendedByUser) return
+        val confident = estimate.score >= ACOUSTIC_MIN_SCORE && estimate.peakRatio >= ACOUSTIC_MIN_PEAK_RATIO
+        logTelemetry(
+            "acoustic_estimate",
+            detail = "lagMs=${estimate.lagMs} score=${String.format(Locale.ROOT, "%.3f", estimate.score)} " +
+                "peakRatio=${String.format(Locale.ROOT, "%.2f", estimate.peakRatio)} confident=$confident"
+        )
+        if (!confident) return
+        if (abs(estimate.lagMs) < ACOUSTIC_DEADBAND_MS) {
+            pendingAcousticEstimate = null
+            return
+        }
+        val previous = pendingAcousticEstimate
+        if (previous == null || abs(previous.lagMs - estimate.lagMs) > ACOUSTIC_AGREEMENT_MS) {
+            pendingAcousticEstimate = estimate
+            return
+        }
+        pendingAcousticEstimate = null
+        val lagMs = (previous.lagMs + estimate.lagMs) / 2
+        // Radio behind the F1 audio by lagMs: take that much off the radio's delay
+        autoSyncCorrectionMs = (autoSyncCorrectionMs - lagMs)
+            .coerceIn(-CUSTOM_RADIO_MAX_AUTO_SYNC_CORRECTION_MS, CUSTOM_RADIO_MAX_AUTO_SYNC_CORRECTION_MS)
+        settingsRepository.updateCustomRadioAutoSyncCorrection(autoSyncCorrectionMs)
+        logTelemetry("acoustic_correction", detail = "lagMs=$lagMs correctionMs=$autoSyncCorrectionMs")
+        if (abs(lagMs) >= 500L && fragment.isAdded) {
+            Toast.makeText(
+                fragment.requireContext(),
+                fragment.getString(
+                    R.string.custom_radio_acoustic_corrected,
+                    String.format(Locale.getDefault(), "%+.1f", -lagMs / 1000.0)
+                ),
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+        tickAutoSync(force = true)
+        host.refreshRadioOverlay()
     }
 
     private fun setOffset(newOffsetMs: Long): Long {
@@ -526,6 +658,8 @@ internal class CustomRadioController(
 
         engine.setAudioDelay(reachableTargetMs)
         lastAutoSyncSeekAtElapsedMs = nowMs
+        lastAlignmentChangeAtMs = nowMs
+        pendingAcousticEstimate = null
         offsetMs = reachableTargetMs
         host.refreshRadioOverlay()
         logTelemetry(

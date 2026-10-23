@@ -11,7 +11,11 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.exoplayer.audio.TeeAudioProcessor
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import fr.groggy.racecontrol.tv.core.settings.Settings
@@ -67,6 +71,7 @@ internal fun createCustomRadioEngine(
     userAgent: String,
     initialAudioDelayMs: Long = 0L,
     initialVolume: Int = 100,
+    audioBufferSink: TeeAudioProcessor.AudioBufferSink? = null,
     onStarted: () -> Unit,
     onEnded: () -> Unit,
     onError: (String, Throwable?) -> Unit
@@ -78,6 +83,7 @@ internal fun createCustomRadioEngine(
             userAgent = userAgent,
             initialAudioDelayMs = initialAudioDelayMs,
             initialVolume = initialVolume,
+            audioBufferSink = audioBufferSink,
             onStarted = onStarted,
             onEnded = onEnded,
             onError = onError
@@ -91,6 +97,7 @@ internal fun createCustomRadioEngine(
             userAgent = userAgent,
             initialAudioDelayMs = initialAudioDelayMs,
             initialVolume = initialVolume,
+            audioBufferSink = audioBufferSink,
             onStarted = onStarted,
             onEnded = onEnded,
             onError = onError
@@ -104,12 +111,13 @@ internal class ExoCustomRadioEngine(
     userAgent: String,
     initialAudioDelayMs: Long,
     initialVolume: Int,
+    audioBufferSink: TeeAudioProcessor.AudioBufferSink? = null,
     private val onStarted: () -> Unit,
     private val onEnded: () -> Unit,
     private val onError: (String, Throwable?) -> Unit
 ) : CustomRadioEngine {
 
-    private val player = ExoPlayer.Builder(context).build()
+    private val player = ExoPlayer.Builder(context, TappedAudioRenderersFactory(context, audioBufferSink)).build()
     private val handler = Handler(Looper.getMainLooper())
     private val supportsDelaySeek = source.mimeType == MimeTypes.APPLICATION_M3U8
         || source.url.endsWith(".m3u8", ignoreCase = true)
@@ -268,5 +276,25 @@ internal class ExoCustomRadioEngine(
         released = true
         handler.removeCallbacksAndMessages(null)
         player.release()
+    }
+}
+
+/** Default renderers, plus a tap on the decoded audio when [audioBufferSink] is set. */
+private class TappedAudioRenderersFactory(
+    context: Context,
+    private val audioBufferSink: TeeAudioProcessor.AudioBufferSink?
+) : DefaultRenderersFactory(context) {
+    override fun buildAudioSink(
+        context: Context,
+        enableFloatOutput: Boolean,
+        enableAudioOutputPlaybackParameters: Boolean
+    ): AudioSink? {
+        val sink = audioBufferSink
+            ?: return super.buildAudioSink(context, enableFloatOutput, enableAudioOutputPlaybackParameters)
+        return DefaultAudioSink.Builder(context)
+            .setEnableFloatOutput(enableFloatOutput)
+            .setEnableAudioOutputPlaybackParameters(enableAudioOutputPlaybackParameters)
+            .setAudioProcessors(arrayOf(TeeAudioProcessor(sink)))
+            .build()
     }
 }

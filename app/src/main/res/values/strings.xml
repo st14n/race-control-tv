@@ -63,6 +63,9 @@
     <string name="custom_radio_sync_switch_to_manual">Manual</string>
     <string name="custom_radio_sync_switch_to_auto">Auto-sync</string>
     <string name="custom_radio_buffer_exceeded_message">Too far behind live for the radio buffer: the radio can\'t stay in sync.</string>
+    <string name="custom_radio_acoustic_corrected">Radio synced to the circuit sound (%1$s s)</string>
+    <string name="settings_custom_radio_acoustic_sync_title">Match radio to circuit sound</string>
+    <string name="settings_custom_radio_acoustic_sync_summary">Fine-tune auto-sync by comparing the circuit sound under the radio commentary with the F1 audio. A manual correction pauses this for the session.</string>
     <string name="settings_custom_radio_auto_sync_title">Radio auto-sync</string>
     <string name="settings_custom_radio_auto_sync_summary">Follow how far the video is behind live automatically. Fine-tune the correction with Radio sync while watching.</string>
     <string name="custom_radio_live_only_message">Custom radio is restricted to live sessions.</string>

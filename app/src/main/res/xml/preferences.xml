@@ -68,6 +68,13 @@
             android:summary="@string/settings_custom_radio_auto_sync_summary"
             android:defaultValue="true" />
 
+        <SwitchPreference
+            android:key="custom_radio_acoustic_sync"
+            android:dependency="custom_radio_auto_sync"
+            android:title="@string/settings_custom_radio_acoustic_sync_title"
+            android:summary="@string/settings_custom_radio_acoustic_sync_summary"
+            android:defaultValue="true" />
+
         <ListPreference
             android:key="custom_radio_delay_ms"
             android:title="@string/settings_custom_radio_delay_title"

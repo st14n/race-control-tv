@@ -58,6 +58,9 @@
     <string name="custom_radio_sync_switch_to_manual">Handmatig</string>
     <string name="custom_radio_sync_switch_to_auto">Auto-sync</string>
     <string name="custom_radio_buffer_exceeded_message">Te ver achter live voor de radiobuffer: de radio kan niet synchroon blijven.</string>
+    <string name="custom_radio_acoustic_corrected">Radio afgestemd op het circuitgeluid (%1$s s)</string>
+    <string name="settings_custom_radio_acoustic_sync_title">Radio afstemmen op circuitgeluid</string>
+    <string name="settings_custom_radio_acoustic_sync_summary">Verfijn de automatische sync door het circuitgeluid onder het radiocommentaar te vergelijken met het F1-geluid. Handmatig bijsturen zet dit uit voor die sessie.</string>
     <string name="settings_custom_radio_auto_sync_title">Automatische radio-sync</string>
     <string name="settings_custom_radio_auto_sync_summary">Volg automatisch hoe ver het beeld achter live loopt. Stel de correctie bij via Radio sync tijdens het kijken.</string>
     <string name="settings_category_other_title">Andere</string>

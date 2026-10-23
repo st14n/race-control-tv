@@ -83,6 +83,9 @@ class OfficialLikeHdrPlaybackFragment : VideoSupportFragment(), Player.Listener 
                     playbackGlue?.refreshSubtitle()
                 }
                 override fun onRadioDialogInteraction() = Unit
+                override val mainAudioFeatures: AcousticFeatureStream get() = this@OfficialLikeHdrPlaybackFragment.mainAudioFeatures
+                override fun setAmbientAudioPreferred(preferred: Boolean): Boolean =
+                    if (prepared) player.selectAmbientAudioTrack(preferred) else false
                 override fun onRadioDialogDismissed() {
                     playbackGlue?.notifyMenuDismissed()
                 }
@@ -96,6 +99,9 @@ class OfficialLikeHdrPlaybackFragment : VideoSupportFragment(), Player.Listener 
             setParameters(buildUponParameters().applyOfficialTrackParameters().build())
         }
     }
+
+    /** Fingerprint of the decoded F1 audio, for radio acoustic sync. */
+    private val mainAudioFeatures = AcousticFeatureStream()
 
     private val renderersFactory by lazy {
         // Do NOT enable MediaCodec codec config overrides (enableOfficialLikeDirectHdrCodecConfig).
@@ -136,7 +142,8 @@ class OfficialLikeHdrPlaybackFragment : VideoSupportFragment(), Player.Listener 
             // pattern: SDR is hev1.1.6 (Main, 8-bit) and works, HDR is
             // hev1.2.4 (Main10, 10-bit) and is green -- pointing at MediaTek's
             // 10-bit HEVC handling. Software decode bypasses it completely.
-            enableSoftwareVideoDecoder = SOFTWARE_DECODER_DIAGNOSTIC
+            enableSoftwareVideoDecoder = SOFTWARE_DECODER_DIAGNOSTIC,
+            audioBufferSink = mainAudioFeatures
         )
     }
 
