@@ -80,6 +80,8 @@ internal class CustomRadioController(
     private var manualDelayMs: Long = CUSTOM_RADIO_DEFAULT_OFFSET_MS
     private var lastAutoSyncSeekAtElapsedMs: Long = 0L
     private var hasWarnedBufferExceeded = false
+    /** Auto-sync started but the radio isn't at its target delay yet; F1 audio plays until it is. */
+    private var awaitingAutoSyncLock = false
     private val handler = Handler(Looper.getMainLooper())
     private val autoSyncRunnable = object : Runnable {
         override fun run() {
@@ -146,8 +148,13 @@ internal class CustomRadioController(
         if (isMuted && radioPlayer != null) {
             isMuted = false
             isActive = true
-            radioPlayer!!.setVolume(100)
             host.refreshRadioOverlay()
+            if (awaitingAutoSyncLock) {
+                // Still filling up to its target delay; tickAutoSync switches over once it's there
+                logTelemetry("unmuted", detail = "Waiting for auto-sync lock before switching audio")
+                return
+            }
+            radioPlayer!!.setVolume(100)
             host.setMainAudioMuted(true, "custom_radio_unmute")
             logTelemetry("unmuted", detail = "Unmuted existing stream, no delay")
             return
@@ -229,8 +236,15 @@ internal class CustomRadioController(
                         planEntry = planEntry,
                         detail = "attemptId=$currentAttemptId offsetMs=$offsetMs autoSync=$autoSync"
                     )
-                    // Mute embedded audio on the main player — the radio takes over
-                    host.setMainAudioMuted(true, "custom_radio_start")
+                    if (autoSync && autoSyncTargetMs() != null) {
+                        // Keep F1 audio until the radio has buffered enough to sit at its target delay;
+                        // switching now would mean hearing it jump towards the target as the buffer fills
+                        awaitingAutoSyncLock = true
+                        radioPlayer?.setVolume(0)
+                    } else {
+                        // Mute embedded audio on the main player — the radio takes over
+                        host.setMainAudioMuted(true, "custom_radio_start")
+                    }
                     applyOffset()
                     startAutoSync()
                 },
@@ -316,6 +330,7 @@ internal class CustomRadioController(
 
     private fun releasePlayer() {
         stopAutoSync()
+        awaitingAutoSyncLock = false
         radioPlayer?.release()
         radioPlayer = null
     }
@@ -386,8 +401,18 @@ internal class CustomRadioController(
         if (autoSync) {
             hasWarnedBufferExceeded = false
             tickAutoSync(force = true)
+        } else if (awaitingAutoSyncLock) {
+            switchAudioToRadio("auto_sync_off")
         }
         host.refreshRadioOverlay()
+    }
+
+    private fun switchAudioToRadio(reason: String) {
+        awaitingAutoSyncLock = false
+        if (!isActive) return
+        radioPlayer?.setVolume(100)
+        host.setMainAudioMuted(true, "custom_radio_$reason")
+        logTelemetry("audio_switched_to_radio", detail = "reason=$reason offsetMs=$offsetMs")
     }
 
     private fun setOffset(newOffsetMs: Long): Long {
@@ -465,19 +490,27 @@ internal class CustomRadioController(
             CUSTOM_RADIO_MAX_OFFSET_MS,
             engine.maxDelayMs()?.minus(CUSTOM_RADIO_BUFFER_MARGIN_MS) ?: CUSTOM_RADIO_MAX_OFFSET_MS
         ).coerceAtLeast(0L)
-        val reachableTargetMs = if (targetMs > bufferLimitMs) {
-            if (!hasWarnedBufferExceeded) {
-                hasWarnedBufferExceeded = true
-                Toast.makeText(fragment.requireContext(), R.string.custom_radio_buffer_exceeded_message, Toast.LENGTH_LONG).show()
-            }
-            bufferLimitMs
+        val reachableTargetMs: Long
+        if (targetMs > bufferLimitMs) {
+            // Not enough radio buffered for the target. Don't chase the growing buffer with a seek every
+            // tick (audible as stutter): while starting, F1 audio keeps playing until the buffer suffices;
+            // later (e.g. after a long pause) jump to the oldest audio once and warn.
+            if (awaitingAutoSyncLock || hasWarnedBufferExceeded) return
+            hasWarnedBufferExceeded = true
+            Toast.makeText(fragment.requireContext(), R.string.custom_radio_buffer_exceeded_message, Toast.LENGTH_LONG).show()
+            reachableTargetMs = bufferLimitMs
         } else {
             hasWarnedBufferExceeded = false
-            targetMs
+            reachableTargetMs = targetMs
         }
 
         val actualMs = engine.currentDelayMs()
-        if (!force && actualMs != null && abs(actualMs - reachableTargetMs) < CUSTOM_RADIO_AUTO_SYNC_TOLERANCE_MS) return
+        val inSync = actualMs != null && abs(actualMs - reachableTargetMs) < CUSTOM_RADIO_AUTO_SYNC_TOLERANCE_MS
+        if (inSync && awaitingAutoSyncLock) {
+            switchAudioToRadio("auto_sync_locked")
+            return
+        }
+        if (!force && inSync) return
 
         engine.setAudioDelay(reachableTargetMs)
         lastAutoSyncSeekAtElapsedMs = nowMs
