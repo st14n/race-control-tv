@@ -64,11 +64,18 @@ internal class CustomRadioController(
         private const val CUSTOM_RADIO_EARLY_END_THRESHOLD_MS = 12_000L
         private const val ACOUSTIC_SYNC_INTERVAL_MS = 5_000L
         // Correlation strength / peak-vs-runner-up needed before trusting an acoustic estimate.
-        // Logged with every estimate so these can be tuned on real sessions.
-        private const val ACOUSTIC_MIN_SCORE = 0.12
-        private const val ACOUSTIC_MIN_PEAK_RATIO = 1.3
-        // Two consecutive estimates must agree this closely before the correction is changed
+        // Real matches on live sessions score 0.27-0.52 with a peak ratio of 2-7; chance matches on
+        // commentary-only stretches reached 0.13 / 1.34 and moved the radio 10 s off (2026-10-24
+        // quali, patched official app). Logged with every estimate so these can be tuned further.
+        private const val ACOUSTIC_MIN_SCORE = 0.25
+        private const val ACOUSTIC_MIN_PEAK_RATIO = 2.0
+        // Lags this close to the correlator's 10 s search limit are mostly edge artefacts
+        private const val ACOUSTIC_MAX_TRUSTED_LAG_MS = 8_500L
+        // Two estimates must agree this closely before the correction is changed...
         private const val ACOUSTIC_AGREEMENT_MS = 250L
+        // ...and come from different audio: estimates run every 5 s over a 30 s window, so
+        // neighbours share most of their input. Require a full window between them.
+        private const val ACOUSTIC_INDEPENDENT_MS = 30_000L
         // Smaller offsets are within what the measurement itself can resolve
         private const val ACOUSTIC_DEADBAND_MS = 150L
         private const val CUSTOM_RADIO_RETRY_DELAY_MS = 500L
@@ -107,6 +114,7 @@ internal class CustomRadioController(
     /** Last time the radio alignment changed; acoustic estimates only use audio after it. */
     private var lastAlignmentChangeAtMs = 0L
     private var pendingAcousticEstimate: RadioAcousticCorrelator.Estimate? = null
+    private var pendingAcousticEstimateAtMs = 0L
     private var acousticEstimateInFlight = false
     private val acousticExecutor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "radio-acoustic-sync").apply { isDaemon = true }
@@ -510,7 +518,8 @@ internal class CustomRadioController(
     private fun onAcousticEstimate(estimate: RadioAcousticCorrelator.Estimate, notBeforeMs: Double) {
         // The alignment changed while this was computing: it describes audio that no longer applies
         if (lastAlignmentChangeAtMs.toDouble() != notBeforeMs || !isActive || acousticSuspendedByUser) return
-        val confident = estimate.score >= ACOUSTIC_MIN_SCORE && estimate.peakRatio >= ACOUSTIC_MIN_PEAK_RATIO
+        val confident = estimate.score >= ACOUSTIC_MIN_SCORE && estimate.peakRatio >= ACOUSTIC_MIN_PEAK_RATIO &&
+            abs(estimate.lagMs) <= ACOUSTIC_MAX_TRUSTED_LAG_MS
         logTelemetry(
             "acoustic_estimate",
             detail = "lagMs=${estimate.lagMs} score=${String.format(Locale.ROOT, "%.3f", estimate.score)} " +
@@ -522,10 +531,14 @@ internal class CustomRadioController(
             return
         }
         val previous = pendingAcousticEstimate
+        val now = SystemClock.elapsedRealtime()
         if (previous == null || abs(previous.lagMs - estimate.lagMs) > ACOUSTIC_AGREEMENT_MS) {
             pendingAcousticEstimate = estimate
+            pendingAcousticEstimateAtMs = now
             return
         }
+        // Agrees, but measured on (largely) the same audio: wait for an independent confirmation
+        if (now - pendingAcousticEstimateAtMs < ACOUSTIC_INDEPENDENT_MS) return
         pendingAcousticEstimate = null
         val lagMs = (previous.lagMs + estimate.lagMs) / 2
         // Radio behind the F1 audio by lagMs: take that much off the radio's delay
