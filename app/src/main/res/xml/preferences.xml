@@ -46,7 +46,7 @@
             android:key="disable_uhd_manifests"
             android:title="@string/settings_disable_uhd_manifests_title"
             android:summary="@string/settings_disable_uhd_manifests_summary"
-            android:defaultValue="false" />
+            android:defaultValue="@bool/default_disable_uhd_manifests" />
 
         <SwitchPreferenceCompat
             app:key="force_sdr_tone_mapping"

@@ -10,8 +10,12 @@ rootProject.file(".env").takeIf { it.exists() }?.forEachLine { line ->
         }
     }
 }
-val f1BuildUsername = envProps["F1_username"] ?: ""
-val f1BuildPassword = envProps["F1_password"] ?: ""
+// -Pf1.cleanBuild=true: a shareable build without the .env account baked in (sign in on the TV)
+val cleanBuild = (project.findProperty("f1.cleanBuild") as String?)?.toBoolean() == true
+val f1BuildUsername = if (cleanBuild) "" else envProps["F1_username"] ?: ""
+val f1BuildPassword = if (cleanBuild) "" else envProps["F1_password"] ?: ""
+// -Pf1.uhdDefaultOff=true: "Disable UHD (4K) manifests" starts switched on (1080p) on a fresh install
+val uhdDefaultOff = (project.findProperty("f1.uhdDefaultOff") as String?)?.toBoolean() == true
 val appApplicationId = "com.st14n.f1"
 val appVersionCode = 4
 val appVersionName = "1.0.3"
@@ -69,6 +73,8 @@ android {
             "\"${f1BuildUsername.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
         buildConfigField("String", "F1_PASSWORD",
             "\"${f1BuildPassword.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        buildConfigField("boolean", "DEFAULT_DISABLE_UHD_MANIFESTS", "$uhdDefaultOff")
+        resValue("bool", "default_disable_uhd_manifests", "$uhdDefaultOff")
         buildConfigField("long", "TOKEN_REFRESH_INTERVAL_MS", "${tokenRefreshIntervalMs}L")
         buildConfigField("String", "CUSTOM_RADIO_URL",
             "\"${customRadioUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")

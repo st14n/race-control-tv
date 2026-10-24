@@ -1,5 +1,7 @@
 package fr.groggy.racecontrol.tv.core.settings
 
+import fr.groggy.racecontrol.tv.BuildConfig
+
 data class Settings(
     val bypassChannelSelection: Boolean,
     val displayThumbnailsEnabled: Boolean,
@@ -48,7 +50,7 @@ data class Settings(
             bypassChannelSelection = false,
             displayThumbnailsEnabled = true,
             openWithExternalPlayer = false,
-            disableUhdManifests = false,
+            disableUhdManifests = BuildConfig.DEFAULT_DISABLE_UHD_MANIFESTS,
             disableHdrOn4kStreams = false,
             useExternalAudio = false,
             audioOffsetMs = 0L,
