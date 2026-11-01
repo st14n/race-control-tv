@@ -17,13 +17,15 @@ val f1BuildPassword = if (cleanBuild) "" else envProps["F1_password"] ?: ""
 // -Pf1.uhdDefaultOff=true: "Disable UHD (4K) manifests" starts switched on (1080p) on a fresh install
 val uhdDefaultOff = (project.findProperty("f1.uhdDefaultOff") as String?)?.toBoolean() == true
 val appApplicationId = "com.st14n.f1"
-val appVersionCode = 4
-val appVersionName = "1.0.3"
+val appVersionCode = 5
+val appVersionName = "1.0.4"
 // Token refresh interval: default 6 hours; override in .env for testing (e.g. 300000 = 5 min)
 val tokenRefreshIntervalMs = envProps["TOKEN_REFRESH_INTERVAL_MS"]?.toLongOrNull()
     ?: (6L * 60 * 60 * 1000)
 // Custom Radio stream URL (set CUSTOM_RADIO_URL in .env to override defaults)
-val customRadioUrl = envProps["CUSTOM_RADIO_URL"]
+// -Pf1.noRadio=true: the same app without a preconfigured radio stream (and a different update variant)
+val noRadio = (project.findProperty("f1.noRadio") as String?)?.toBoolean() == true
+val customRadioUrl = if (noRadio) "" else envProps["CUSTOM_RADIO_URL"]
     ?: ""
 val hasCustomReleaseSigning = listOf(
     "signing.key.store.path",
