@@ -420,22 +420,6 @@ class F1Client @Inject constructor(
             )
         }
 
-        // F1's web TME route is separately authorized from BIG_SCREEN_HLS. It
-        // returns a TME feed catalog instead of a manifest URL; the clean-room
-        // adapter above selects the channel feed and keeps Media3 as our own
-        // demux/decrypt/render implementation.
-        val tmeCandidates = listOf("HDR_UHD_CMAFWV", "HDR_UHD_DASHWV").map { overrideStreamType ->
-            PlayRequestCandidate(
-                playApiVersion = PLAY_API_V3,
-                platform = "WEB_HLS",
-                deviceInfo = DeviceInfo.tmeWebDeviceInfo,
-                player = TILED_MEDIA_PLAYER,
-                profile = "web_tme_$overrideStreamType",
-                overrideStreamType = overrideStreamType,
-                userAgent = DeviceInfo.tmeWebUserAgent
-            )
-        }
-
         // TV-tier DASH Widevine (BIG_SCREEN_HLS + android_tv/kirkwood) is tried FIRST:
         // it is the route that returns the TV "widevine_l1" license endpoint (the L1
         // grant path). The browser-tier TME route (device=web) returns a lower-tier
@@ -443,10 +427,10 @@ class F1Client @Inject constructor(
         // DASH/WEB Widevine candidates and only used if none of them yield a manifest.
         Log.i(
             TAG,
-            "HDR manifest preference requested; probing TV DASH Widevine HDR before browser TME CMAF"
+            "HDR manifest preference requested; probing TV DASH Widevine HDR"
         )
 
-        return hdrCandidates + tmeCandidates + standardCandidates
+        return hdrCandidates + standardCandidates
     }
 
     private fun requestedPlatforms(streamType: Settings.StreamType): List<String> {

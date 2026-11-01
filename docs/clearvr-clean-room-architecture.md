@@ -53,26 +53,4 @@ This will tell us whether the remaining failure is caused by Media3's renderer c
 
 The current `player_bm` response has `tmePresent=false`; the direct `player_tm` probe is rejected by F1 with `Failed to evaluate stream rule`. Therefore this app cannot obtain the official TME/native feed merely by changing a query parameter. An independent renderer can reproduce the public Android codec/render contract against the accessible subscription manifest, but it cannot manufacture Tiledmedia's server authorization or substitute for a legitimately supplied TME payload.
 
-## Browser-authorized TME route (2026-08-23)
-
-A browser capture from the same subscription shows a separate, authorized route:
-
-- `WEB_HLS` + `player_tm` returns HTTP 200 with `tmePresent=true` and no top-level manifest URL.
-- The response contains `streamType`, `drmType`, `laURL`, `pipelineVersion`, and a `tme` object.
-- The TME object contains `metadata`, `advanced.tile_size` (`960x544`), `version`, and a `feeds` array. The captured response contained 26 channel feeds, each with a channel id, UUID, signed manifest URL, and audio/subtitle names.
-- Without an override, the response is `SDR_HD_CMAFWV`. With authorized HDR overrides, the same route returned `HDR_UHD_CMAFWV` and `HDR_UHD_DASHWV` TME payloads. The channel feed paths were the corresponding HDR-UHD CMAF or DASH manifests.
-- The Android-TV identity on `BIG_SCREEN_HLS` still receives the server-side rule failure, and changing only the Android identity on the web route also fails. The TME route is gated on the web identity/capability declaration, not just `player_tm`.
-
-The app now has a clean-room diagnostic adapter that requests those web TME responses, selects the feed matching the requested channel, and passes that signed feed URL and returned license URL into the app's own Media3 pipeline. It does not embed the Tiledmedia SDK or reuse its native implementation. This isolates the useful question: whether the TME-delivered UHD CMAF/DASH packaging and DRM metadata avoid the green result. It is not yet equivalent to ClearVR's native MSE/tile scheduler, which still owns feed selection, access-unit parsing, DRM session handling, and protected frame presentation in the official player.
-
-### TME playback test result
-
-The diagnostic build was installed and tested against a real broadcast after wireless ADB was restored.
-
-- The app selected `web_tme_HDR_UHD_CMAFWV`; the response was `OK`, `tmePresent=true`, Widevine, and contained no top-level manifest URL.
-- The channel-specific feed was selected from the TME catalog. The app then used the returned TME license URL and the web-route device identity for the main video DRM request.
-- The main feed reached `c2.mtk.hevc.decoder.secure`. It queued encrypted samples with the expected `cbcs` pattern metadata, produced a decoded frame, and transitioned through 360p, 1080p, and 3840x2160 output sizes.
-- Decoder output reported BT.2020 HLG (`color-standard=6`, `color-transfer=7`, dataspace `302383104`). No `[LAT][Err]` lines were observed during this secure TME run.
-- The user still observed solid green video.
-
-Conclusion: TME feed acquisition and HDR-UHD CMAF packaging are not sufficient by themselves. The TME route changes the upstream feed and reaches decode, but the green result remains in the current app's Media3 protected-surface/presentation path. The remaining ClearVR difference is therefore still the native render/scheduling/DRM bridge, not merely the PLAY response or manifest URL. The TME adapter remains useful as a clean-room control path, but it is not yet a ClearVR-equivalent implementation.
+The web-identity TME route that was once probed here has been removed from the app.

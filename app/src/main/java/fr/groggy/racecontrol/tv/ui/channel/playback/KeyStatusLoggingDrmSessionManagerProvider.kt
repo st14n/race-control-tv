@@ -46,21 +46,6 @@ class KeyStatusLoggingDrmSessionManagerProvider(
      * true  -> request Widevine L3
      */
     private val forceL3: Boolean = false,
-
-    /**
-     * When true, the Widevine `app_info` identity is rewritten to the official
-     * F1 TV app before the request is sent.
-     *
-     * PROVEN 2026-10-12 (host replay, matrix.py): this rewrite makes F1's
-     * licence server reject the request with 403 INVALID_SIGNATURE (app_info
-     * KVs are signature-covered) or 403 LICENSE_REQUEST_PARSE_ERROR (the
-     * device block is NOT signature-covered but has a strict parse schema).
-     * Only the PRISTINE (unrewritten) request is granted a license. So the
-     * default is OFF: the CDM sends its own clean, natively-signed attestation,
-     * which is what a real L1 device (Google TV Streamer) must present to
-     * receive a HW_SECURE_DECODE (L1) grant.
-     */
-    private val spoofOfficialIdentity: Boolean = false,
 ) : DrmSessionManagerProvider {
 
     private val exoMediaDrmProvider = ExoMediaDrm.Provider { uuid ->
@@ -85,8 +70,7 @@ class KeyStatusLoggingDrmSessionManagerProvider(
                 TAG,
                 "DRM diagnostic app identity: " +
                     "app_name=$OUR_APP_NAME " +
-                    "cert_sha256=$OUR_APP_CERT_SHA256 " +
-                    "spoof_official=$spoofOfficialIdentity"
+                    "cert_sha256=$OUR_APP_CERT_SHA256"
             )
 
             // -------------------------------------------------------------
@@ -154,7 +138,7 @@ class KeyStatusLoggingDrmSessionManagerProvider(
 
             // Wrap the real Widevine implementation with our diagnostic
             // delegate.
-            KeyStatusLoggingExoMediaDrm(delegate, spoofOfficialIdentity)
+            KeyStatusLoggingExoMediaDrm(delegate)
 
         } else {
 
@@ -225,15 +209,11 @@ class KeyStatusLoggingDrmSessionManagerProvider(
     /**
      * Diagnostic wrapper around the real ExoMediaDrm implementation.
      *
-     * Calls are forwarded to the actual Widevine implementation. When
-     * [spoofOfficialIdentity] is set, the Widevine request's `app_info`
-     * identity is rewritten to the official F1 TV app before it is sent, so
-     * the licence server grants a hardware-secure (HW_SECURE_DECODE / L1)
-     * licence.
+     * Calls are forwarded unchanged to the actual Widevine implementation;
+     * requests are only logged.
      */
     private class KeyStatusLoggingExoMediaDrm(
-        private val delegate: ExoMediaDrm,
-        private val spoofOfficialIdentity: Boolean = false
+        private val delegate: ExoMediaDrm
     ) : ExoMediaDrm by delegate {
 
         override fun getKeyRequest(
@@ -248,42 +228,7 @@ class KeyStatusLoggingDrmSessionManagerProvider(
                 keyType,
                 optionalParameters
             )
-            if (spoofOfficialIdentity) {
-                request = maybeRewriteIdentity(request)
-            }
             logRawKeyRequest(request.data)
-            return request
-        }
-
-        /**
-         * Rewrites the client identity in the Widevine [ExoMediaDrm.KeyRequest]
-         * to the official F1 TV app so the licence server grants
-         * HW_SECURE_DECODE (L1) instead of SW_SECURE_CRYPTO (L2).
-         *
-         * Returns the original request unchanged when the rewriter does not
-         * recognise the request (e.g. it is not a Widevine request carrying
-         * our package name).
-         */
-        private fun maybeRewriteIdentity(
-            request: ExoMediaDrm.KeyRequest
-        ): ExoMediaDrm.KeyRequest {
-            val rewritten = WidevineIdentityRewriter.rewrite(
-                request.data,
-                OUR_APP_NAME
-            )
-            if (rewritten !== request.data) {
-                Log.i(
-                    TAG,
-                    "Widevine identity rewritten: ${request.data.size}B -> " +
-                        "${rewritten.size}B " +
-                        "(original=$OUR_APP_NAME target=$TARGET_APP_NAME)"
-                )
-                return ExoMediaDrm.KeyRequest(
-                    rewritten,
-                    request.licenseServerUrl,
-                    request.requestType
-                )
-            }
             return request
         }
 
@@ -299,11 +244,8 @@ class KeyStatusLoggingDrmSessionManagerProvider(
             Log.i(
                 TAG,
                 "DRM licence identity: " +
-                    "original=$OUR_APP_NAME/" +
-                    "${OUR_APP_CERT_SHA256.take(16)}... " +
-                    "target=$TARGET_APP_NAME/" +
-                    "${TARGET_APP_CERT_SHA256.take(16)}... " +
-                    "spoof=$spoofOfficialIdentity"
+                    "app=$OUR_APP_NAME/" +
+                    "${OUR_APP_CERT_SHA256.take(16)}..."
             )
 
             // -------------------------------------------------------------
@@ -443,16 +385,6 @@ class KeyStatusLoggingDrmSessionManagerProvider(
 
             private const val TAG =
                 "DrmKeyStatus"
-
-            /**
-             * Identity we rewrite the request to (the official F1 TV app), so
-             * the licence server grants HW_SECURE_DECODE (L1).
-             */
-            private const val TARGET_APP_NAME =
-                WidevineIdentityRewriter.OFFICIAL_PACKAGE_NAME
-
-            private const val TARGET_APP_CERT_SHA256 =
-                WidevineIdentityRewriter.OFFICIAL_CERT_SHA256_HEX
         }
     }
 }

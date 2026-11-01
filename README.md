@@ -27,6 +27,14 @@ This repository is an updated fork focused on current Android TV devices, local 
 - A valid F1 TV subscription with access to the content you want to watch.
 - Sideloading enabled if you are installing the APK manually.
 
+## Legal Notice
+
+- This is an unofficial, independent project. It is not affiliated with, endorsed by, or sponsored by Formula 1, Formula One Licensing, F1 TV, Tiledmedia, Grand Prix Radio or any broadcaster. "F1" and "F1 TV" are trademarks of their respective owners.
+- The app only plays content from your own, valid F1 TV subscription, and only through the player and DRM (Widevine) of your own device. It does not bypass, spoof or weaken DRM, and it does not contain F1 code, keys or content. Using a third-party client may be against the F1 TV terms of use; you use it at your own risk and responsibility.
+- **Custom radio:** the source code contains no radio stream URL; you can enter your own (`CUSTOM_RADIO_URL` or the setting), and you are responsible for that stream and the rights to it. Distributed builds may come with the third-party stream *Grand Prix Radio* preconfigured as a convenience. That is a separate service, not owned, hosted, endorsed or controlled here and not affiliated with this project; its own terms apply, and it can be removed or replaced at any time.
+- The software is provided "as is" under the license in [LICENSE](LICENSE): st14n's own source-available license for the changes made in this fork, while the upstream MIT-licensed code keeps its MIT license. No warranty and no liability.
+- Rights holders who object to something in this repository can open an issue and it will be looked at promptly.
+
 ## Install
 
 This project is distributed as a sideloaded APK. It is not maintained through the Play Store.
