@@ -23,6 +23,7 @@ import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.core.credentials.CredentialsService
 import fr.groggy.racecontrol.tv.core.season.SeasonService
 import fr.groggy.racecontrol.tv.f1tv.Archive
+import fr.groggy.racecontrol.tv.update.UpdateManager
 import fr.groggy.racecontrol.tv.ui.season.browse.SeasonBrowseActivity
 import fr.groggy.racecontrol.tv.ui.settings.SettingsActivity
 import fr.groggy.racecontrol.tv.ui.signin.SignInActivity
@@ -45,6 +46,7 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
 
     @Inject internal lateinit var seasonService: SeasonService
     @Inject internal lateinit var credentialsService: CredentialsService
+    @Inject internal lateinit var updateManager: UpdateManager
     private var teaserImage: ImageView? = null
     private var teaserContainer: View? = null
     private var settingsButton: View? = null
@@ -128,7 +130,10 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
         // Re-check here so a silent re-auth is triggered without requiring a force-close.
         if (credentialsService.shouldReLogin()) {
             startActivity(SignInActivity.intentSilentReAuth(this))
+            return
         }
+        // MainActivity finishes right after launching this screen, so this is where "app opened" lands
+        updateManager.onLandingResumed(this)
     }
 
     override fun onPause() {

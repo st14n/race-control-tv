@@ -34,7 +34,9 @@ data class Settings(
     /** F1TV account email (stored locally for auto-fill). */
     val f1Username: String,
     /** F1TV account password (stored locally for auto-fill). */
-    val f1Password: String
+    val f1Password: String,
+    /** Check GitHub releases for a newer version whenever the app is opened. */
+    val autoUpdateCheck: Boolean
 ) {
     enum class StreamType(val rawName: String) {
         HLS("HLS"), DASH("DASH"), DASH_HLS("HLS")
@@ -62,7 +64,8 @@ data class Settings(
             autoSelectCustomRadio = true,
             restrictCustomRadioToLiveSessions = false,
             f1Username = "",
-            f1Password = ""
+            f1Password = "",
+            autoUpdateCheck = true
         )
 
         const val KEY_BYPASS_CHANNEL_SELECTION = "bypass_channel_selection"
@@ -84,5 +87,6 @@ data class Settings(
         const val KEY_OLD_CUSTOM_RADIO_URL = "gp_radio_custom_url"
         const val KEY_F1_USERNAME = "f1_username"
         const val KEY_F1_PASSWORD = "f1_password"
+        const val KEY_AUTO_UPDATE_CHECK = "auto_update_check"
     }
 }

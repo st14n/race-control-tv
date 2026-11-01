@@ -78,6 +78,9 @@ android {
         buildConfigField("long", "TOKEN_REFRESH_INTERVAL_MS", "${tokenRefreshIntervalMs}L")
         buildConfigField("String", "CUSTOM_RADIO_URL",
             "\"${customRadioUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        // Which release APK this build updates to (see update/UpdateChecker.kt)
+        buildConfigField("String", "UPDATE_VARIANT",
+            "\"${if (customRadioUrl.isNotBlank()) "radio" else "standard"}\"")
     }
 
     signingConfigs {

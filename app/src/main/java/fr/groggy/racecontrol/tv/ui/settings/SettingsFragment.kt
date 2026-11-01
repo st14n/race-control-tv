@@ -12,6 +12,7 @@ import android.webkit.CookieManager
 import android.widget.EditText
 import android.widget.Toast
 import androidx.annotation.Keep
+import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.EditTextPreference
@@ -22,11 +23,14 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceScreen
 import dagger.hilt.android.AndroidEntryPoint
+import fr.groggy.racecontrol.tv.BuildConfig
 import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.core.settings.Settings
 import fr.groggy.racecontrol.tv.core.settings.SettingsViewModel
 import fr.groggy.racecontrol.tv.ui.signin.SignInActivity
+import fr.groggy.racecontrol.tv.update.UpdateManager
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @Keep
 @AndroidEntryPoint
@@ -81,6 +85,7 @@ class SettingsFragment: LeanbackSettingsFragmentCompat() {
     @AndroidEntryPoint
     class PreferenceFragment: LeanbackPreferenceFragmentCompat() {
         private val viewModel: SettingsViewModel by viewModels({ requireParentFragment() })
+        @Inject internal lateinit var updateManager: UpdateManager
         private var currentAccountPreference: Preference? = null
 
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
@@ -107,6 +112,14 @@ class SettingsFragment: LeanbackSettingsFragmentCompat() {
                 viewModel.resetSettings()
                 activity?.finish()
                 true
+            }
+
+            findPreference<Preference>("check_for_updates_now")?.apply {
+                summary = getString(R.string.update_available_message_current, BuildConfig.VERSION_NAME)
+                setOnPreferenceClickListener {
+                    updateManager.checkNow(requireActivity() as FragmentActivity)
+                    true
+                }
             }
 
             findPreference<Preference>("donations")?.setOnPreferenceClickListener {

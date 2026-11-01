@@ -118,6 +118,16 @@
             android:entryValues="@array/app_locale_values"
             android:defaultValue="system" />
 
+        <SwitchPreference
+            android:key="auto_update_check"
+            android:title="@string/settings_auto_update_check_title"
+            android:summary="@string/settings_auto_update_check_summary"
+            android:defaultValue="true" />
+
+        <Preference
+            android:key="check_for_updates_now"
+            android:title="@string/settings_check_for_updates_now_title" />
+
         <Preference
             android:key="donations"
             android:title="@string/settings_donations_title"

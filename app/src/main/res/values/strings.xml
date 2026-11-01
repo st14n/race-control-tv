@@ -101,4 +101,26 @@
     <string name="settings_restrict_custom_radio_to_live_sessions_title">Use custom radio for live sessions only</string>
     <string name="settings_restrict_custom_radio_to_live_sessions_summary">Prevent custom radio from being selected automatically or manually for VOD and replay sessions.</string>
     <string name="settings_app_locale_title">App language</string>
+
+    <string name="settings_auto_update_check_title">Check for updates when the app opens</string>
+    <string name="settings_auto_update_check_summary">Offer to install a newer release from GitHub every time the app is opened.</string>
+    <string name="settings_check_for_updates_now_title">Check for updates now</string>
+    <string name="update_available_title">Update available: %1$s</string>
+    <string name="update_available_message">You have version %1$s. Install %2$s now?</string>
+    <string name="update_install_now">Install now</string>
+    <string name="update_later">Later</string>
+    <string name="update_dont_remind">Don\'t remind me</string>
+    <string name="update_dont_remind_toast">Update checks turned off. You can turn them on again in Settings.</string>
+    <string name="update_up_to_date">You are up to date (%1$s)</string>
+    <string name="update_check_failed">Could not check for updates: %1$s</string>
+    <string name="update_checking">Checking for updates…</string>
+    <string name="update_downloading_title">Downloading %1$s</string>
+    <string name="update_download_failed">Download failed: %1$s</string>
+    <string name="update_installing">Installing update…</string>
+    <string name="update_install_failed">Update not installed: %1$s</string>
+    <string name="update_permission_title">Allow installing updates</string>
+    <string name="update_permission_message">To install updates this app needs the \"Install unknown apps\" permission. Press OK, switch it on for this app, then come back. You will be asked again next time you open the app while an update is waiting.</string>
+    <string name="update_available_message_current">Current version: %1$s</string>
+    <string name="update_cancel">Cancel</string>
+    <string name="update_ok">OK</string>
 </resources>

@@ -100,5 +100,27 @@
     <string name="settings_disable_uhd_manifests_summary">Forceer 1080p SDR-weergave en sla UHD/HDR-manifesten over, zelfs op apparaten die de 4K HDR-stream kunnen afspelen of tone-mappen.</string>
     <string name="settings_disable_hdr_on_4k_streams_title">Schakel HDR uit op 4K-streams (SDR Tone Mapping)</string>
     <string name="settings_disable_hdr_on_4k_streams_summary">Als u een groen scherm ervaart op 4K-streams, schakel dit dan in om HDR-video naar SDR te converteren met behoud van 4K-resolutie.</string>
+
+    <string name="settings_auto_update_check_title">Controleer op updates bij het openen van de app</string>
+    <string name="settings_auto_update_check_summary">Bied elke keer dat de app wordt geopend aan om een nieuwere release van GitHub te installeren.</string>
+    <string name="settings_check_for_updates_now_title">Nu op updates controleren</string>
+    <string name="update_available_title">Update beschikbaar: %1$s</string>
+    <string name="update_available_message">Je hebt versie %1$s. %2$s nu installeren?</string>
+    <string name="update_install_now">Nu installeren</string>
+    <string name="update_later">Later</string>
+    <string name="update_dont_remind">Niet meer herinneren</string>
+    <string name="update_dont_remind_toast">Updatecontrole uitgezet. Je kunt dit weer aanzetten in Instellingen.</string>
+    <string name="update_up_to_date">Je bent up-to-date (%1$s)</string>
+    <string name="update_check_failed">Kon niet op updates controleren: %1$s</string>
+    <string name="update_checking">Controleren op updates…</string>
+    <string name="update_downloading_title">%1$s downloaden</string>
+    <string name="update_download_failed">Downloaden mislukt: %1$s</string>
+    <string name="update_installing">Update installeren…</string>
+    <string name="update_install_failed">Update niet geïnstalleerd: %1$s</string>
+    <string name="update_permission_title">Installeren van updates toestaan</string>
+    <string name="update_permission_message">Om updates te installeren heeft deze app de toestemming \"Onbekende apps installeren\" nodig. Druk op OK, zet die aan voor deze app en kom terug. Bij het volgende openen van de app word je opnieuw gevraagd zolang er een update wacht.</string>
+    <string name="update_available_message_current">Huidige versie: %1$s</string>
+    <string name="update_cancel">Annuleren</string>
+    <string name="update_ok">OK</string>
 </resources>
 

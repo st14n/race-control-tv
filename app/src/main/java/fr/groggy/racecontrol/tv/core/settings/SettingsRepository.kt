@@ -68,6 +68,14 @@ class SettingsRepository(
         applySettings()
     }
 
+    fun updateAutoUpdateCheck(enabled: Boolean) {
+        preferences.edit {
+            putBoolean(Settings.KEY_AUTO_UPDATE_CHECK, enabled)
+        }
+
+        applySettings()
+    }
+
     private fun getFromStorage(): Settings {
         return with(preferences) {
             Settings(
@@ -104,7 +112,8 @@ class SettingsRepository(
                     Settings.DEFAULT.restrictCustomRadioToLiveSessions
                 ),
                 f1Username = getString(Settings.KEY_F1_USERNAME, "") ?: "",
-                f1Password = getString(Settings.KEY_F1_PASSWORD, "") ?: ""
+                f1Password = getString(Settings.KEY_F1_PASSWORD, "") ?: "",
+                autoUpdateCheck = getBoolean(Settings.KEY_AUTO_UPDATE_CHECK, Settings.DEFAULT.autoUpdateCheck)
             )
         }
     }

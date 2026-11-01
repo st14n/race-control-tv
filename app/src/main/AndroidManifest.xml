@@ -48,6 +48,10 @@
         <activity android:name=".ui.home.HomeActivity"/>
         <activity android:name=".ui.settings.SettingsActivity"/>
 
+        <receiver
+            android:name=".update.UpdateInstallReceiver"
+            android:exported="false" />
+
     </application>
 
 </manifest>
