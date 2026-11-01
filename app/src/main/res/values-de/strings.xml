@@ -84,7 +84,6 @@
 
   <string name="channel_selection_switch_channel">Switch channel</string>
     <string name="settings_disable_uhd_manifests_title">UHD (4K)-Manifeste deaktivieren</string>
-    <string name="settings_disable_uhd_manifests_summary">Erzwinge 1080p SDR-Wiedergabe und überspringe UHD/HDR-Manifeste, selbst auf Geräten, die den 4K HDR-Stream abspielen oder Tone-Mapping durchführen können.</string>
     <string name="settings_disable_hdr_on_4k_streams_title">HDR bei 4K-Streams deaktivieren (SDR Tone Mapping)</string>
     <string name="settings_disable_hdr_on_4k_streams_summary">Wenn bei 4K-Streams ein grüner Bildschirm angezeigt wird, aktivieren Sie dies, um HDR-Videos in SDR zu konvertieren und dabei die 4K-Auflösung beizubehalten.</string>
 </resources>

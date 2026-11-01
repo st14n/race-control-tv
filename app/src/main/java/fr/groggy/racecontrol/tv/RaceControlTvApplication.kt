@@ -13,6 +13,7 @@ class RaceControlTvApplication: Application() {
     override fun onCreate() {
         super.onCreate()
 
+        fr.groggy.racecontrol.tv.utils.LanguageOverride.apply(this)
         AndroidThreeTen.init(this)
         updateManager.register(this)
     }

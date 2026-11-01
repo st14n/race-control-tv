@@ -85,7 +85,6 @@
 
     <string name="channel_selection_switch_channel">Switch channel</string>
     <string name="settings_disable_uhd_manifests_title">Отключить манифесты UHD (4K)</string>
-    <string name="settings_disable_uhd_manifests_summary">Принудительное воспроизведение 1080p SDR и пропуск манифестов UHD/HDR, даже на устройствах, которые могут воспроизводить или преобразовывать тональность потока 4K HDR.</string>
     <string name="settings_disable_hdr_on_4k_streams_title">Отключить HDR в потоках 4K (SDR Tone Mapping)</string>
     <string name="settings_disable_hdr_on_4k_streams_summary">Если вы видите зеленый экран на потоках 4K, включите это для преобразования HDR-видео в SDR с сохранением разрешения 4K.</string>
 </resources>

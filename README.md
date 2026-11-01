@@ -18,7 +18,7 @@ This repository is an updated fork focused on current Android TV devices, local 
 ## Playback Notes
 
 - Playback capability depends on what F1 TV returns for a given session, region, account tier, and device path.
-- The app can use higher-quality streams, including 50 fps content and 4k HDR variants, when your subscription is eligible and the device can decode them.
+- **UHD/4K does not work in this app at the moment** (the picture stays green or black). "Disable UHD (4K) manifests" is therefore **on by default** for every install, which gives 1080p SDR. Turning it off is unsupported. The official F1 TV app is not affected by this limitation.
 - If a preferred playback path fails, the app falls back to more widely compatible stream variants automatically.
 
 ## Requirements
@@ -69,6 +69,8 @@ TOKEN_REFRESH_INTERVAL_MS=
 CUSTOM_RADIO_URL=
 ```
 
+Gradle switches: `-Pf1.cleanBuild=true` leaves the account out of the APK (releases are built this way), `-Pf1.noRadio=true` leaves out the preconfigured radio stream, `-Pf1.defaultLanguage=nl|en|auto` sets the language used until you choose one in Settings (the app is translated into Dutch and English; other languages fall back to English).
+
 These are optional. The normal flow is still signing in on device and changing settings from the app UI.
 
 ## Development
@@ -103,6 +105,7 @@ These are optional. The normal flow is still signing in on device and changing s
 
 ## Limitations
 
+- UHD/4K playback does not work (see Playback Notes); the app plays in 1080p.
 - This app only plays streams and metadata that F1 TV currently exposes to the authenticated account.
 - Availability of subtitles, alternate audio, onboard feeds, HDR, or higher resolutions varies by session, subscription and device.
 - Buffering or stream-rule failures are often upstream service issues rather than local player bugs.

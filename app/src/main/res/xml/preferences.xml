@@ -111,6 +111,15 @@
     <PreferenceCategory android:title="@string/settings_category_other_title">
 
         <ListPreference
+            android:key="app_language"
+            android:title="@string/settings_language_title"
+            android:summary="@string/settings_language_summary"
+            android:entries="@array/language_entries"
+            android:entryValues="@array/language_values"
+            android:defaultValue="@string/language_default" />
+
+
+        <ListPreference
             android:key="app_locale"
             android:title="@string/settings_app_locale_title"
             android:summary="%s"

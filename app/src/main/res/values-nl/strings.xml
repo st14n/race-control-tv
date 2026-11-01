@@ -97,7 +97,7 @@
     <string name="custom_radio_live_only_message">Aangepaste radio is beperkt tot live-sessies.</string>
     <string name="settings_app_locale_title">App-taal</string>
     <string name="settings_disable_uhd_manifests_title">UHD (4K)-manifesten uitschakelen</string>
-    <string name="settings_disable_uhd_manifests_summary">Forceer 1080p SDR-weergave en sla UHD/HDR-manifesten over, zelfs op apparaten die de 4K HDR-stream kunnen afspelen of tone-mappen.</string>
+    <string name="settings_disable_uhd_manifests_summary">UHD/4K-weergave werkt op dit moment niet in deze app (groen of zwart beeld), daarom staat dit standaard aan. Het forceert 1080p SDR en slaat UHD/HDR-manifesten over. Laat dit aan.</string>
     <string name="settings_disable_hdr_on_4k_streams_title">Schakel HDR uit op 4K-streams (SDR Tone Mapping)</string>
     <string name="settings_disable_hdr_on_4k_streams_summary">Als u een groen scherm ervaart op 4K-streams, schakel dit dan in om HDR-video naar SDR te converteren met behoud van 4K-resolutie.</string>
 
@@ -122,5 +122,7 @@
     <string name="update_available_message_current">Huidige versie: %1$s</string>
     <string name="update_cancel">Annuleren</string>
     <string name="update_ok">OK</string>
+    <string name="settings_language_title">Taal</string>
+    <string name="settings_language_summary">%s. Herstart de app om toe te passen.</string>
 </resources>
 

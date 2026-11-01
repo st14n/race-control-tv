@@ -173,4 +173,15 @@
         <item>pt</item>
         <item>ru</item>
     </string-array>
+
+    <string-array name="language_entries">
+        <item>Automatic (system language)</item>
+        <item>Nederlands</item>
+        <item>English</item>
+    </string-array>
+    <string-array name="language_values">
+        <item>auto</item>
+        <item>nl</item>
+        <item>en</item>
+    </string-array>
 </resources>
