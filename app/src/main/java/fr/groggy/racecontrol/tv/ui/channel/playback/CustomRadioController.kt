@@ -65,10 +65,14 @@ internal class CustomRadioController(
         private const val ACOUSTIC_SYNC_INTERVAL_MS = 5_000L
         // Correlation strength / peak-vs-runner-up needed before trusting an acoustic estimate.
         // Real matches on live sessions score 0.27-0.52 with a peak ratio of 2-7; chance matches on
-        // commentary-only stretches reached 0.13 / 1.34 and moved the radio 10 s off (2026-10-24
-        // quali, patched official app). Logged with every estimate so these can be tuned further.
-        private const val ACOUSTIC_MIN_SCORE = 0.25
-        private const val ACOUSTIC_MIN_PEAK_RATIO = 2.0
+        // commentary-only stretches reached 0.13 / 1.34 and, at the 10 s search edge, moved the radio
+        // 10 s off (2026-10-24 quali). Thresholds of 0.25 / 2.0 on top of that never let it correct at
+        // all (2026-11-01 race). So: a moderate bar, no edge lags, two independent agreeing estimates,
+        // and a clearly strong estimate is applied on its own. Logged so these can be tuned further.
+        private const val ACOUSTIC_MIN_SCORE = 0.15
+        private const val ACOUSTIC_MIN_PEAK_RATIO = 1.4
+        private const val ACOUSTIC_STRONG_SCORE = 0.30
+        private const val ACOUSTIC_STRONG_PEAK_RATIO = 2.5
         // Lags this close to the correlator's 10 s search limit are mostly edge artefacts
         private const val ACOUSTIC_MAX_TRUSTED_LAG_MS = 8_500L
         // Two estimates must agree this closely before the correction is changed...
@@ -532,15 +536,17 @@ internal class CustomRadioController(
         }
         val previous = pendingAcousticEstimate
         val now = SystemClock.elapsedRealtime()
-        if (previous == null || abs(previous.lagMs - estimate.lagMs) > ACOUSTIC_AGREEMENT_MS) {
+        val strong = estimate.score >= ACOUSTIC_STRONG_SCORE && estimate.peakRatio >= ACOUSTIC_STRONG_PEAK_RATIO
+        val agrees = previous != null && abs(previous.lagMs - estimate.lagMs) <= ACOUSTIC_AGREEMENT_MS
+        if (!strong && !agrees) {
             pendingAcousticEstimate = estimate
             pendingAcousticEstimateAtMs = now
             return
         }
         // Agrees, but measured on (largely) the same audio: wait for an independent confirmation
-        if (now - pendingAcousticEstimateAtMs < ACOUSTIC_INDEPENDENT_MS) return
+        if (!strong && now - pendingAcousticEstimateAtMs < ACOUSTIC_INDEPENDENT_MS) return
         pendingAcousticEstimate = null
-        val lagMs = (previous.lagMs + estimate.lagMs) / 2
+        val lagMs = if (agrees && previous != null) (previous.lagMs + estimate.lagMs) / 2 else estimate.lagMs
         // Radio behind the F1 audio by lagMs: take that much off the radio's delay
         autoSyncCorrectionMs = (autoSyncCorrectionMs - lagMs)
             .coerceIn(-CUSTOM_RADIO_MAX_AUTO_SYNC_CORRECTION_MS, CUSTOM_RADIO_MAX_AUTO_SYNC_CORRECTION_MS)

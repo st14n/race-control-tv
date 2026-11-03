@@ -14,12 +14,13 @@ rootProject.file(".env").takeIf { it.exists() }?.forEachLine { line ->
 val cleanBuild = (project.findProperty("f1.cleanBuild") as String?)?.toBoolean() == true
 val f1BuildUsername = if (cleanBuild) "" else envProps["F1_username"] ?: ""
 val f1BuildPassword = if (cleanBuild) "" else envProps["F1_password"] ?: ""
-// UHD/4K does not work in this app: "Disable UHD (4K) manifests" is on by default for every install.
+// UHD/4K does not work for live sessions in this app: live always plays 1080p (see ChannelPlaybackActivity);
+// "Disable UHD (4K) manifests" is a user override for replays and is off by default.
 // -Pf1.defaultLanguage=nl|en|auto: language used until the user picks one in Settings (auto = system)
 val defaultLanguage = (project.findProperty("f1.defaultLanguage") as String?)?.takeIf { it in listOf("auto", "nl", "en") } ?: "auto"
 val appApplicationId = "com.st14n.f1"
-val appVersionCode = 6
-val appVersionName = "1.0.5"
+val appVersionCode = 7
+val appVersionName = "1.0.6"
 // Token refresh interval: default 6 hours; override in .env for testing (e.g. 300000 = 5 min)
 val tokenRefreshIntervalMs = envProps["TOKEN_REFRESH_INTERVAL_MS"]?.toLongOrNull()
     ?: (6L * 60 * 60 * 1000)
@@ -76,8 +77,8 @@ android {
             "\"${f1BuildUsername.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
         buildConfigField("String", "F1_PASSWORD",
             "\"${f1BuildPassword.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
-        buildConfigField("boolean", "DEFAULT_DISABLE_UHD_MANIFESTS", "true")
-        resValue("bool", "default_disable_uhd_manifests", "true")
+        buildConfigField("boolean", "DEFAULT_DISABLE_UHD_MANIFESTS", "false")
+        resValue("bool", "default_disable_uhd_manifests", "false")
         buildConfigField("String", "DEFAULT_LANGUAGE", "\"$defaultLanguage\"")
         resValue("string", "language_default", defaultLanguage)
         buildConfigField("long", "TOKEN_REFRESH_INTERVAL_MS", "${tokenRefreshIntervalMs}L")

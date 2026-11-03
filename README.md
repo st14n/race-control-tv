@@ -18,7 +18,7 @@ This repository is an updated fork focused on current Android TV devices, local 
 ## Playback Notes
 
 - Playback capability depends on what F1 TV returns for a given session, region, account tier, and device path.
-- **UHD/4K does not work in this app at the moment** (the picture stays green or black). "Disable UHD (4K) manifests" is therefore **on by default** for every install, which gives 1080p SDR. Turning it off is unsupported. The official F1 TV app is not affected by this limitation.
+- **UHD/4K works for replays only.** For live sessions UHD does not work in this app at the moment (the picture stays green or black), so live sessions always play in 1080p. "Disable UHD (4K) manifests" additionally switches replays to 1080p SDR. The official F1 TV app is not affected by this limitation.
 - If a preferred playback path fails, the app falls back to more widely compatible stream variants automatically.
 
 ## Requirements
@@ -105,7 +105,7 @@ These are optional. The normal flow is still signing in on device and changing s
 
 ## Limitations
 
-- UHD/4K playback does not work (see Playback Notes); the app plays in 1080p.
+- UHD/4K does not work for live sessions (see Playback Notes); live plays in 1080p, replays can use UHD.
 - This app only plays streams and metadata that F1 TV currently exposes to the authenticated account.
 - Availability of subtitles, alternate audio, onboard feeds, HDR, or higher resolutions varies by session, subscription and device.
 - Buffering or stream-rule failures are often upstream service issues rather than local player bugs.

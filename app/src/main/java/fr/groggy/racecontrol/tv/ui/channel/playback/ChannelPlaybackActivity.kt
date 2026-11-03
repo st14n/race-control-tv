@@ -69,7 +69,11 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
 
     private val preferHdrManifestForDevice: Boolean by lazy(LazyThreadSafetyMode.NONE) {
         if (FORCE_SDR_AVC_MANIFEST_DIAGNOSTIC) return@lazy false
-        val preferHdrManifest = !settingsRepository.getCurrent().disableUhdManifests &&
+        // UHD/4K does not work for live sessions in this app (green/black picture), so live always
+        // uses the standard manifest; replays may use UHD unless the user switched it off.
+        val isLive = ChannelPlaybackFragment.findIsLiveSession(this)
+        val preferHdrManifest = !isLive &&
+            !settingsRepository.getCurrent().disableUhdManifests &&
             DeviceInfo.shouldRequestHdrManifest(this) &&
             allowsUhdPlaybackForSeason()
         Log.i(TAG, "preferHdrManifestForDevice=$preferHdrManifest")
