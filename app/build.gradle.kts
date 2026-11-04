@@ -19,8 +19,8 @@ val f1BuildPassword = if (cleanBuild) "" else envProps["F1_password"] ?: ""
 // -Pf1.defaultLanguage=nl|en|auto: language used until the user picks one in Settings (auto = system)
 val defaultLanguage = (project.findProperty("f1.defaultLanguage") as String?)?.takeIf { it in listOf("auto", "nl", "en") } ?: "auto"
 val appApplicationId = "com.st14n.f1"
-val appVersionCode = 7
-val appVersionName = "1.0.6"
+val appVersionCode = 8
+val appVersionName = "1.0.7"
 // Token refresh interval: default 6 hours; override in .env for testing (e.g. 300000 = 5 min)
 val tokenRefreshIntervalMs = envProps["TOKEN_REFRESH_INTERVAL_MS"]?.toLongOrNull()
     ?: (6L * 60 * 60 * 1000)

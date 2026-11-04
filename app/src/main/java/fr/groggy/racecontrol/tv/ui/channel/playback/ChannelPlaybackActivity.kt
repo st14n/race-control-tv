@@ -88,6 +88,10 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         // (and therefore custom radio) while enabled.
         private const val SKIP_COMPANION_AUDIO_DIAGNOSTIC = false
 
+        // The 1.0.3+ experiments (official-like bare SurfaceView, protected HDR renderer). Off: the
+        // 1.0.2 internal player plays UHD replays on more TVs.
+        private const val USE_EXPERIMENTAL_HDR_PATHS = false
+
         // DIAGNOSTIC (2026-08-22): cycle every UHD/HDR stream variant F1 will
         // serve, playing each for a few seconds with an on-screen label, so a
         // working combination (if any exists) can be found empirically instead
@@ -386,6 +390,14 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
                         "disableHdrOn4kStreams=${settings.disableHdrOn4kStreams}"
                 )
                 openToneMappedHdrPlayer(viewing, "initial_device_or_setting_policy")
+                return
+            }
+            // 1.0.2 played everything (UHD replays included) in the normal internal player; the
+            // experimental bare-SurfaceView and protected-HDR paths added in 1.0.3 only work for
+            // part of the replays on some TVs (user reports), so they are off unless re-enabled here.
+            if (!USE_EXPERIMENTAL_HDR_PATHS) {
+                Log.d(TAG, "Opening with internal player (experimental HDR paths off).")
+                openWithInternalPlayer(viewing)
                 return
             }
             if (isHdrUhdWidevine) {
