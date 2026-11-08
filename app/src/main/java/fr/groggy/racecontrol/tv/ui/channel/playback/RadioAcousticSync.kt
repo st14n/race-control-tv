@@ -214,6 +214,9 @@ internal object RadioAcousticCorrelator {
     private const val MIN_COVERAGE = 0.9
     private const val SECOND_PEAK_EXCLUSION_MS = 600L
 
+    /** Why the last call gave no estimate (for the log): settling after a change, or too little audio. */
+    @Volatile var lastSkip: String = ""
+
     fun estimate(main: AcousticFeatureStream, radio: AcousticFeatureStream, notBeforeMs: Double): Estimate? {
         val hop = AcousticFeatureStream.HOP_MS
         val maxLag = (MAX_LAG_MS / hop).toInt()
@@ -221,12 +224,19 @@ internal object RadioAcousticCorrelator {
         val nowMs = SystemClock.elapsedRealtime().toDouble()
         val mainStart = nowMs - END_MARGIN_MS - MAX_LAG_MS - WINDOW_MS
         val radioStart = mainStart - MAX_LAG_MS
-        if (radioStart < notBeforeMs) return null
+        if (radioStart < notBeforeMs) {
+            lastSkip = "settling: ${Math.round((notBeforeMs - radioStart) / 1000.0)} s until the first usable window"
+            return null
+        }
 
         val mainGrid = main.gridded(mainStart, n)
         val radioGrid = radio.gridded(radioStart, n + 2 * maxLag)
-        if (mainGrid.count { it != null } < n * MIN_COVERAGE) return null
-        if (radioGrid.count { it != null } < (n + 2 * maxLag) * MIN_COVERAGE) return null
+        val mainCoverage = mainGrid.count { it != null }.toDouble() / n
+        val radioCoverage = radioGrid.count { it != null }.toDouble() / (n + 2 * maxLag)
+        if (mainCoverage < MIN_COVERAGE || radioCoverage < MIN_COVERAGE) {
+            lastSkip = "too little audio: F1 ${(mainCoverage * 100).toInt()}%, radio ${(radioCoverage * 100).toInt()}% (need ${(MIN_COVERAGE * 100).toInt()}%)"
+            return null
+        }
 
         val bands = AcousticFeatureStream.BAND_COUNT
         val correlation = DoubleArray(2 * maxLag + 1)

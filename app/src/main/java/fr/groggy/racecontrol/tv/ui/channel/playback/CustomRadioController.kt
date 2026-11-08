@@ -77,6 +77,7 @@ internal class CustomRadioController(
         private const val ACOUSTIC_MAX_TRUSTED_LAG_MS = 8_500L
         // Two estimates must agree this closely before the correction is changed...
         private const val ACOUSTIC_AGREEMENT_MS = 250L
+        private const val ACOUSTIC_PENDING_MAX_MS = 90_000L
         // ...and come from different audio: estimates run every 5 s over a 30 s window, so
         // neighbours share most of their input. Require a full window between them.
         private const val ACOUSTIC_INDEPENDENT_MS = 30_000L
@@ -501,9 +502,20 @@ internal class CustomRadioController(
         pendingAcousticEstimate = null
     }
 
+    private var nextAcousticLogAtMs = 0L
+
+    /** Why no acoustic estimate is being made, at most every 20 s. */
+    private fun logAcousticIdle(reason: String) {
+        val now = SystemClock.elapsedRealtime()
+        if (now < nextAcousticLogAtMs) return
+        nextAcousticLogAtMs = now + 20_000L
+        logTelemetry("acoustic_idle", detail = reason)
+    }
+
     private fun requestAcousticEstimate() {
-        val mainFeatures = host.mainAudioFeatures ?: return
+        val mainFeatures = host.mainAudioFeatures ?: run { logAcousticIdle("no F1 audio tap"); return }
         val mainPlayer = host.mainPlayer ?: return
+        if (acousticSuspendedByUser) logAcousticIdle("paused after a manual change")
         if (!autoSync || !acousticSync || acousticSuspendedByUser || !isActive || awaitingAutoSyncLock) return
         if (!mainPlayer.isPlaying || acousticEstimateInFlight) return
         val notBeforeMs = lastAlignmentChangeAtMs.toDouble()
@@ -514,6 +526,7 @@ internal class CustomRadioController(
             }.onFailure { Log.w(tag, "Acoustic estimate failed", it) }.getOrNull()
             handler.post {
                 acousticEstimateInFlight = false
+                if (estimate == null) logAcousticIdle(RadioAcousticCorrelator.lastSkip)
                 if (estimate != null) onAcousticEstimate(estimate, notBeforeMs)
             }
         }
@@ -539,8 +552,12 @@ internal class CustomRadioController(
         val strong = estimate.score >= ACOUSTIC_STRONG_SCORE && estimate.peakRatio >= ACOUSTIC_STRONG_PEAK_RATIO
         val agrees = previous != null && abs(previous.lagMs - estimate.lagMs) <= ACOUSTIC_AGREEMENT_MS
         if (!strong && !agrees) {
-            pendingAcousticEstimate = estimate
-            pendingAcousticEstimateAtMs = now
+            // A passing noise estimate must not keep restarting the confirmation of a real one: only a
+            // better estimate, or a pending one that went stale, takes its place
+            if (previous == null || estimate.score > previous.score || now - pendingAcousticEstimateAtMs > ACOUSTIC_PENDING_MAX_MS) {
+                pendingAcousticEstimate = estimate
+                pendingAcousticEstimateAtMs = now
+            }
             return
         }
         // Agrees, but measured on (largely) the same audio: wait for an independent confirmation
