@@ -76,6 +76,13 @@ internal class CustomRadioController(
         // Lags this close to the correlator's 10 s search limit are mostly edge artefacts
         private const val ACOUSTIC_MAX_TRUSTED_LAG_MS = 8_500L
         // Two estimates must agree this closely before the correction is changed...
+        // Combined evidence needed before moving the radio (see onAcousticEstimate)
+        private const val ACOUSTIC_INTEGRATED_MIN_COUNT = 8
+        private const val ACOUSTIC_INTEGRATED_MIN_SCORE = 0.10
+        private const val ACOUSTIC_INTEGRATED_MIN_RATIO = 1.6
+        private const val ACOUSTIC_FAR_MIN_RATIO = 2.2
+        private const val ACOUSTIC_FAR_LAG_MS = 5_000L
+        private const val ACOUSTIC_MIN_APPLY_INTERVAL_MS = 60_000L
         private const val ACOUSTIC_AGREEMENT_MS = 250L
         private const val ACOUSTIC_PENDING_MAX_MS = 90_000L
         // ...and come from different audio: estimates run every 5 s over a 30 s window, so
@@ -216,10 +223,10 @@ internal class CustomRadioController(
             logTelemetry("plan_empty", detail = "No custom radio backend available")
             return
         }
-        autoSync = settings.customRadioAutoSync
+        autoSync = true // the radio always follows the picture; the dialog can turn it off for this session
         acousticSync = settings.customRadioAcousticSync
         acousticSuspendedByUser = false
-        pendingAcousticEstimate = null
+        pendingAcousticEstimate = null; accumulator.reset()
         autoSyncCorrectionMs = settings.customRadioAutoSyncCorrectionMs ?: 0L
         needsCorrectionSeed = settings.customRadioAutoSyncCorrectionMs == null
         manualDelayMs = settings.customRadioDelayMs
@@ -499,7 +506,7 @@ internal class CustomRadioController(
 
     private fun stopAcousticSync() {
         handler.removeCallbacks(acousticSyncRunnable)
-        pendingAcousticEstimate = null
+        pendingAcousticEstimate = null; accumulator.reset()
     }
 
     private var nextAcousticLogAtMs = 0L
@@ -532,38 +539,35 @@ internal class CustomRadioController(
         }
     }
 
+    private val accumulator = RadioAcousticCorrelator.Accumulator()
+    private var lastAcousticApplyAtMs = 0L
+
     private fun onAcousticEstimate(estimate: RadioAcousticCorrelator.Estimate, notBeforeMs: Double) {
         // The alignment changed while this was computing: it describes audio that no longer applies
         if (lastAlignmentChangeAtMs.toDouble() != notBeforeMs || !isActive || acousticSuspendedByUser) return
-        val confident = estimate.score >= ACOUSTIC_MIN_SCORE && estimate.peakRatio >= ACOUSTIC_MIN_PEAK_RATIO &&
-            abs(estimate.lagMs) <= ACOUSTIC_MAX_TRUSTED_LAG_MS
+        val now = SystemClock.elapsedRealtime()
+        accumulator.add(estimate)
+        val total = accumulator.result() ?: return
         logTelemetry(
             "acoustic_estimate",
-            detail = "lagMs=${estimate.lagMs} score=${String.format(Locale.ROOT, "%.3f", estimate.score)} " +
-                "peakRatio=${String.format(Locale.ROOT, "%.2f", estimate.peakRatio)} confident=$confident"
+            detail = "now lag=${estimate.lagMs} score=${String.format(Locale.ROOT, "%.3f", estimate.score)} " +
+                "ratio=${String.format(Locale.ROOT, "%.2f", estimate.peakRatio)} | combined n=${accumulator.count} " +
+                "lag=${total.lagMs} score=${String.format(Locale.ROOT, "%.3f", total.score)} " +
+                "ratio=${String.format(Locale.ROOT, "%.2f", total.peakRatio)}"
         )
+        val lagMs = total.lagMs
+        val minRatio = if (abs(lagMs) > ACOUSTIC_FAR_LAG_MS) ACOUSTIC_FAR_MIN_RATIO else ACOUSTIC_INTEGRATED_MIN_RATIO
+        val confident = accumulator.count >= ACOUSTIC_INTEGRATED_MIN_COUNT &&
+            total.score >= ACOUSTIC_INTEGRATED_MIN_SCORE && total.peakRatio >= minRatio &&
+            abs(lagMs) <= ACOUSTIC_MAX_TRUSTED_LAG_MS
         if (!confident) return
-        if (abs(estimate.lagMs) < ACOUSTIC_DEADBAND_MS) {
-            pendingAcousticEstimate = null
+        if (abs(lagMs) < ACOUSTIC_DEADBAND_MS) {
+            accumulator.reset()
             return
         }
-        val previous = pendingAcousticEstimate
-        val now = SystemClock.elapsedRealtime()
-        val strong = estimate.score >= ACOUSTIC_STRONG_SCORE && estimate.peakRatio >= ACOUSTIC_STRONG_PEAK_RATIO
-        val agrees = previous != null && abs(previous.lagMs - estimate.lagMs) <= ACOUSTIC_AGREEMENT_MS
-        if (!strong && !agrees) {
-            // A passing noise estimate must not keep restarting the confirmation of a real one: only a
-            // better estimate, or a pending one that went stale, takes its place
-            if (previous == null || estimate.score > previous.score || now - pendingAcousticEstimateAtMs > ACOUSTIC_PENDING_MAX_MS) {
-                pendingAcousticEstimate = estimate
-                pendingAcousticEstimateAtMs = now
-            }
-            return
-        }
-        // Agrees, but measured on (largely) the same audio: wait for an independent confirmation
-        if (!strong && now - pendingAcousticEstimateAtMs < ACOUSTIC_INDEPENDENT_MS) return
-        pendingAcousticEstimate = null
-        val lagMs = if (agrees && previous != null) (previous.lagMs + estimate.lagMs) / 2 else estimate.lagMs
+        if (now - lastAcousticApplyAtMs < ACOUSTIC_MIN_APPLY_INTERVAL_MS) return
+        lastAcousticApplyAtMs = now
+        accumulator.reset()
         // Radio behind the F1 audio by lagMs: take that much off the radio's delay
         autoSyncCorrectionMs = (autoSyncCorrectionMs - lagMs)
             .coerceIn(-CUSTOM_RADIO_MAX_AUTO_SYNC_CORRECTION_MS, CUSTOM_RADIO_MAX_AUTO_SYNC_CORRECTION_MS)
@@ -616,8 +620,43 @@ internal class CustomRadioController(
     }
 
     /** How far the video is behind live: the wall clock of the frame on screen vs now. */
-    private fun videoLagMs(): Long? =
-        host.mainPlayer?.currentLiveOffset?.takeIf { it != C.TIME_UNSET }
+    private fun videoLagMs(): Long? {
+        val player = host.mainPlayer ?: return null
+        val offset = player.currentLiveOffset
+        // Streams with a wall clock (HLS program date time, DASH availability start): exact
+        if (offset != C.TIME_UNSET) {
+            rememberLiveEdgeLatency(player, offset)
+            return offset
+        }
+        // No wall clock (some feeds and stream types): how far behind the live edge of the stream the
+        // viewer is, plus the edge's own latency, remembered from the last stream that had a clock.
+        // It follows pauses and seeks; the constant part is what the correction (and acoustic
+        // matching) absorbs. Before this, such streams just kept the fixed delay.
+        if (!player.isCurrentMediaItemLive) return null
+        val behindEdgeMs = behindLiveEdgeMs(player) ?: return null
+        return behindEdgeMs + settingsRepository.getLiveEdgeLatencyMs()
+    }
+
+    private fun behindLiveEdgeMs(player: androidx.media3.exoplayer.ExoPlayer): Long? {
+        val duration = player.contentDuration
+        val position = player.contentPosition
+        if (duration == C.TIME_UNSET || position == C.TIME_UNSET || duration <= 0L) return null
+        return (duration - position).coerceAtLeast(0L)
+    }
+
+    /** With a clock available, learn how far the stream's live edge itself lags (a slow average). */
+    private fun rememberLiveEdgeLatency(player: androidx.media3.exoplayer.ExoPlayer, liveOffsetMs: Long) {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastEdgeLatencySavedAtMs < 60_000L) return
+        val behindEdge = behindLiveEdgeMs(player) ?: return
+        val edgeLatency = liveOffsetMs - behindEdge
+        if (edgeLatency !in 0L..60_000L) return
+        lastEdgeLatencySavedAtMs = now
+        val previous = settingsRepository.getLiveEdgeLatencyMs()
+        settingsRepository.updateLiveEdgeLatencyMs((previous * 3 + edgeLatency) / 4)
+    }
+
+    private var lastEdgeLatencySavedAtMs = 0L
 
     /**
      * The radio delay (as measured by [CustomRadioEngine.currentDelayMs], i.e. since the audio was
@@ -695,7 +734,7 @@ internal class CustomRadioController(
         engine.setAudioDelay(reachableTargetMs)
         lastAutoSyncSeekAtElapsedMs = nowMs
         lastAlignmentChangeAtMs = nowMs
-        pendingAcousticEstimate = null
+        pendingAcousticEstimate = null; accumulator.reset()
         offsetMs = reachableTargetMs
         host.refreshRadioOverlay()
         logTelemetry(

@@ -249,10 +249,15 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
             return requestedChannelId
         }
         return runCatching {
-            f1TvClient.getChannels(contentId)
-                .filterIsInstance<F1TvBasicChannel>()
-                .firstOrNull { it.type == F1TvBasicChannelType.Wif }
-                ?.channelId
+            val basicChannels = f1TvClient.getChannels(contentId).filterIsInstance<F1TvBasicChannel>()
+            // Playing a feed of its own, e.g. F1 LIVE (its own commentary): do not swap in the
+            // International channel, which mixed International commentary into that picture
+            val own = basicChannels.firstOrNull { it.contentId == contentId }
+            if (own != null && own.type != F1TvBasicChannelType.Wif) {
+                Log.i(TAG, "Playing ${own.type} feed with its own audio (channelId=${own.channelId})")
+                return@runCatching own.channelId
+            }
+            basicChannels.firstOrNull { it.type == F1TvBasicChannelType.Wif }?.channelId
         }.onFailure {
             Log.w(TAG, "Failed to resolve preferred International channel: ${it.message}")
         }.getOrNull()

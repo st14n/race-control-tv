@@ -52,6 +52,13 @@ class SettingsRepository(
         applySettings()
     }
 
+    /** How far a stream's live edge lags behind real time (learned from streams with a clock). */
+    fun getLiveEdgeLatencyMs(): Long = preferences.getLong(KEY_LIVE_EDGE_LATENCY_MS, DEFAULT_LIVE_EDGE_LATENCY_MS)
+
+    fun updateLiveEdgeLatencyMs(valueMs: Long) {
+        preferences.edit { putLong(KEY_LIVE_EDGE_LATENCY_MS, valueMs) }
+    }
+
     fun updateCustomRadioAutoSync(enabled: Boolean) {
         preferences.edit {
             putBoolean(Settings.KEY_CUSTOM_RADIO_AUTO_SYNC, enabled)
@@ -118,3 +125,6 @@ class SettingsRepository(
         }
     }
 }
+
+private const val KEY_LIVE_EDGE_LATENCY_MS = "live_edge_latency_ms"
+private const val DEFAULT_LIVE_EDGE_LATENCY_MS = 10_000L

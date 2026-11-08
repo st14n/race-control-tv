@@ -203,7 +203,56 @@ internal class AcousticFeatureStream : TeeAudioProcessor.AudioBufferSink {
 internal object RadioAcousticCorrelator {
 
     /** [lagMs] > 0: the radio is behind the F1 audio by that much. */
-    data class Estimate(val lagMs: Long, val score: Double, val peakRatio: Double)
+    class Estimate(
+        val lagMs: Long,
+        val score: Double,
+        val peakRatio: Double,
+        /** The whole correlation curve over the lags (null for an integrated result). */
+        val correlation: DoubleArray? = null
+    )
+
+    /**
+     * Adds successive correlation curves. The shared circuit sound gives the same peak every time,
+     * chance matches land on different lags and average out, so the combined curve is far more
+     * reliable than any single estimate. Recent curves weigh more (decay), so a drift still shows.
+     */
+    class Accumulator {
+        private var sum: DoubleArray? = null
+        private var weight = 0.0
+        var count = 0
+            private set
+
+        fun reset() {
+            sum = null
+            weight = 0.0
+            count = 0
+        }
+
+        fun add(estimate: Estimate) {
+            val curve = estimate.correlation ?: return
+            var s = sum
+            if (s == null || s.size != curve.size) {
+                s = DoubleArray(curve.size)
+                sum = s
+                weight = 0.0
+                count = 0
+            }
+            for (i in s.indices) s[i] = s[i] * DECAY + curve[i]
+            weight = weight * DECAY + 1
+            count++
+        }
+
+        fun result(): Estimate? {
+            val s = sum ?: return null
+            if (count == 0) return null
+            val mean = DoubleArray(s.size) { s[it] / weight }
+            return analyze(mean, AcousticFeatureStream.HOP_MS, (s.size - 1) / 2, null)
+        }
+
+        private companion object {
+            const val DECAY = 0.93
+        }
+    }
 
     private const val WINDOW_MS = 30_000L
     private const val MAX_LAG_MS = 10_000L
@@ -259,6 +308,12 @@ internal object RadioAcousticCorrelator {
             }
         }
 
+        return analyze(correlation, hop, maxLag, correlation)
+    }
+
+    /** Detrend with a moving average, then z-normalise; gaps stay NaN. */
+    /** Peak position (with sub-hop interpolation), its height and how much it stands out. */
+    fun analyze(correlation: DoubleArray, hop: Long, maxLag: Int, keep: DoubleArray?): Estimate {
         var best = 0
         for (i in correlation.indices) if (correlation[i] > correlation[best]) best = i
         val exclusion = (SECOND_PEAK_EXCLUSION_MS / hop).toInt()
@@ -266,7 +321,6 @@ internal object RadioAcousticCorrelator {
         for (i in correlation.indices) {
             if (abs(i - best) > exclusion && correlation[i] > second) second = correlation[i]
         }
-        // Parabolic interpolation around the peak for sub-hop precision
         var offset = 0.0
         if (best in 1 until correlation.size - 1) {
             val y0 = correlation[best - 1]
@@ -277,10 +331,9 @@ internal object RadioAcousticCorrelator {
         }
         val lagMs = ((best - maxLag + offset) * hop).toLong()
         val ratio = if (second > 0) correlation[best] / second else Double.POSITIVE_INFINITY
-        return Estimate(lagMs, correlation[best], ratio)
+        return Estimate(lagMs, correlation[best], ratio, keep)
     }
 
-    /** Detrend with a moving average, then z-normalise; gaps stay NaN. */
     private fun normalize(values: DoubleArray): DoubleArray {
         val out = DoubleArray(values.size) { Double.NaN }
         val half = DETREND_FRAMES / 2
