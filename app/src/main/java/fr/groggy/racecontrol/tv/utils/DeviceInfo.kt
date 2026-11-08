@@ -23,11 +23,44 @@ object DeviceInfo {
     private const val SPOOFED_APP_VERSION = "30482001"
     private const val SPOOFED_PLAYER_VERSION = "3.112.0"
 
+    // The identity 1.0.2 sent (4K replays play on more TVs with it than with the Streamer one)
+    private const val LEGACY_PRODUCT = "sabrina_prod_stable"
+    private const val LEGACY_APP_VERSION = "30410001"
+
+    enum class Profile { AUTO, CURRENT, LEGACY }
+
+    /**
+     * Which identity is sent to F1: the Google TV Streamer one used since 1.0.3, or the one 1.0.2
+     * used. Set once at start-up from the settings (see [applyProfile]); AUTO keeps the current one
+     * on the Streamer and the Shield and uses the 1.0.2 one on other TVs.
+     */
+    @Volatile private var legacy = false
+
+    fun applyProfile(profile: Profile) {
+        legacy = when (profile) {
+            Profile.CURRENT -> false
+            Profile.LEGACY -> true
+            Profile.AUTO -> !(Build.MANUFACTURER.equals("NVIDIA", ignoreCase = true) ||
+                Build.PRODUCT.contains("kirkwood", ignoreCase = true) ||
+                Build.DEVICE.contains("kirkwood", ignoreCase = true) ||
+                Build.MODEL.contains("Streamer", ignoreCase = true))
+        }
+        Log.i(TAG, "F1 device profile: ${if (legacy) "legacy (1.0.2)" else "current"} " +
+            "(${Build.MANUFACTURER} ${Build.MODEL} / ${Build.PRODUCT})")
+    }
+
     /**
      * WebView-style User-Agent that matches this device's real model and Android version.
      * Keeps the Chrome/WebKit tokens that F1TV expects.
      */
-    val userAgent: String = buildString {
+    val userAgent: String
+        get() = if (legacy) legacyUserAgent else currentUserAgent
+
+    private val legacyUserAgent: String
+        get() = "Mozilla/5.0 (Linux; Android ${Build.VERSION.RELEASE}; Google $LEGACY_PRODUCT Build/${Build.ID}; wv) " +
+            "AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/128.0.6613.114 Mobile Safari/537.36"
+
+    private val currentUserAgent: String = buildString {
         append("Mozilla/5.0 (Linux; Android ")
         append(SPOOFED_ANDROID_RELEASE)
         append("; ")
@@ -49,7 +82,15 @@ object DeviceInfo {
      * for Google TV Streamer. appVersion / playerVersion stay aligned with the last
      * known-working Android TV release from the same thread.
      */
-    val f1DeviceInfo: String = buildString {
+    val f1DeviceInfo: String
+        get() = if (legacy) legacyF1DeviceInfo else currentF1DeviceInfo
+
+    private val legacyF1DeviceInfo: String
+        get() = "device=android_tv;screen=bigscreen;os=android;model=$LEGACY_PRODUCT;" +
+            "osVersion=${Build.VERSION.SDK_INT};appVersion=$LEGACY_APP_VERSION;" +
+            "playerVersion=$SPOOFED_PLAYER_VERSION;p=true;u=false;"
+
+    private val currentF1DeviceInfo: String = buildString {
         append("device=android_tv")
         append(";screen=bigscreen")
         append(";os=android")

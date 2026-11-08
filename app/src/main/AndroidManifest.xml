@@ -36,7 +36,6 @@
         </activity>
         <activity
             android:name=".ui.channel.playback.ChannelPlaybackActivity"
-            android:launchMode="singleTop"
             android:configChanges="keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize" />
         <activity android:name=".ui.season.browse.SeasonBrowseActivity" />
         <activity android:name=".ui.session.browse.SessionBrowseActivity" />

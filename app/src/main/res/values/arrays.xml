@@ -184,4 +184,15 @@
         <item>nl</item>
         <item>en</item>
     </string-array>
+
+    <string-array name="device_profile_entries">
+        <item>Automatic</item>
+        <item>Current (Google TV Streamer)</item>
+        <item>Legacy (1.0.2)</item>
+    </string-array>
+    <string-array name="device_profile_values">
+        <item>auto</item>
+        <item>current</item>
+        <item>legacy</item>
+    </string-array>
 </resources>

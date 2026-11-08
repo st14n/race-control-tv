@@ -73,7 +73,7 @@
             android:dependency="custom_radio_auto_sync"
             android:title="@string/settings_custom_radio_acoustic_sync_title"
             android:summary="@string/settings_custom_radio_acoustic_sync_summary"
-            android:defaultValue="true" />
+            android:defaultValue="false" />
 
         <ListPreference
             android:key="custom_radio_delay_ms"
@@ -109,6 +109,14 @@
     </PreferenceCategory>
 
     <PreferenceCategory android:title="@string/settings_category_other_title">
+
+        <ListPreference
+            android:key="device_profile"
+            android:title="@string/settings_device_profile_title"
+            android:summary="@string/settings_device_profile_summary"
+            android:entries="@array/device_profile_entries"
+            android:entryValues="@array/device_profile_values"
+            android:defaultValue="auto" />
 
         <ListPreference
             android:key="app_language"

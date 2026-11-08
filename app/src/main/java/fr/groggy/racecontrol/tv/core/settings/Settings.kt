@@ -59,7 +59,7 @@ data class Settings(
             customRadioDelayMs = 20_000L,
             customRadioAutoSync = true,
             customRadioAutoSyncCorrectionMs = null,
-            customRadioAcousticSync = true,
+            customRadioAcousticSync = false,
             customRadioUrl = "",
             autoSelectCustomRadio = true,
             restrictCustomRadioToLiveSessions = false,

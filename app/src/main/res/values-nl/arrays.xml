@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="device_profile_entries">
+        <item>Automatisch</item>
+        <item>Huidig (Google TV Streamer)</item>
+        <item>Oud (1.0.2)</item>
+    </string-array>
+    <string-array name="language_entries">
+        <item>Automatisch (taal van het systeem)</item>
+        <item>Nederlands</item>
+        <item>English</item>
+    </string-array>
+</resources>
