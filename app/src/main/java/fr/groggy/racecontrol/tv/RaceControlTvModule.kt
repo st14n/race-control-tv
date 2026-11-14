@@ -77,6 +77,12 @@ class RaceControlTvModule {
 }
 
 class PlaybackManifestHttpLoggingInterceptor : Interceptor {
+    private val secretHeaders = setOf("ascendontoken", "entitlementtoken", "authorization", "cookie", "set-cookie")
+
+    private fun redacted(headers: okhttp3.Headers): String = headers.joinToString("\n") { (name, value) ->
+        "$name: " + if (name.lowercase(java.util.Locale.ROOT) in secretHeaders) "<redacted>" else value
+    }
+
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
         val url = request.url.toString()
@@ -92,7 +98,8 @@ class PlaybackManifestHttpLoggingInterceptor : Interceptor {
 
         val cleanUrl = request.url.newBuilder().query(null).build().toString()
         Log.i("PlaybackManifestHttp", "--> SENDING REQUEST: ${request.method} $cleanUrl")
-        Log.d("PlaybackManifestHttp", "Request Headers:\n${request.headers}")
+        // Headers and bodies carry the account's tokens: only in debug builds, and redacted even then
+        if (BuildConfig.DEBUG) Log.d("PlaybackManifestHttp", "Request Headers:\n${redacted(request.headers)}")
 
         val startTime = System.nanoTime()
         val response = try {
@@ -104,7 +111,7 @@ class PlaybackManifestHttpLoggingInterceptor : Interceptor {
         val durationMs = (System.nanoTime() - startTime) / 1_000_000.0
 
         Log.i("PlaybackManifestHttp", "<-- RECEIVED RESPONSE: ${response.code} (${String.format(java.util.Locale.US, "%.1f", durationMs)}ms) for ${request.method} $cleanUrl")
-        Log.d("PlaybackManifestHttp", "Response Headers:\n${response.headers}")
+        if (BuildConfig.DEBUG) Log.d("PlaybackManifestHttp", "Response Headers:\n${redacted(response.headers)}")
 
         val responseBody = response.body
         if (responseBody != null) {
@@ -118,7 +125,7 @@ class PlaybackManifestHttpLoggingInterceptor : Interceptor {
                 subtype.contains("dash+xml")
             } ?: false
 
-            if (isText || url.contains(".m3u8", ignoreCase = true) || url.contains(".mpd", ignoreCase = true) || url.contains("license", ignoreCase = true) || url.contains("drm", ignoreCase = true)) {
+            if (BuildConfig.DEBUG) if (isText || url.contains(".m3u8", ignoreCase = true) || url.contains(".mpd", ignoreCase = true) || url.contains("license", ignoreCase = true) || url.contains("drm", ignoreCase = true)) {
                 val source = responseBody.source()
                 source.request(Long.MAX_VALUE)
                 val buffer = source.buffer

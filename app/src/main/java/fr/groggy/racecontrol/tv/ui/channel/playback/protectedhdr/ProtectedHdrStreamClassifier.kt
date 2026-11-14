@@ -14,7 +14,10 @@ object ProtectedHdrStreamClassifier {
         }
         val looksUhdHdr = streamIdentity.contains("UHD", ignoreCase = true) ||
             streamIdentity.contains("HDR", ignoreCase = true)
-        val looksWidevine = streamIdentity.contains("WV", ignoreCase = true) ||
+        // Not the URL: its signed base64 segment contains "wv" by chance often enough to send the
+        // unencrypted HDR_UHD_CMAF stream down the Widevine-only path
+        val streamTypes = viewing.streamType.orEmpty() + " " + viewing.requestedOverrideStreamType.orEmpty()
+        val looksWidevine = streamTypes.contains("WV", ignoreCase = true) ||
             !viewing.laURL.isNullOrBlank()
         return looksUhdHdr && looksWidevine
     }

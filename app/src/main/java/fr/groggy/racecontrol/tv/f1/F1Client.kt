@@ -458,11 +458,15 @@ class F1Client @Inject constructor(
             return false
         }
 
-        // Do not accept the non-WV HDR_UHD_CMAF variants for the internal player.
-        // In the logs these returned drmType=null/laURL=null and the CDN playlist
-        // immediately 403'd. The Exo-compatible path is the Widevine variant.
         val override = candidate.overrideStreamType.orEmpty().uppercase()
         val returned = streamType.orEmpty().uppercase()
+        // HDR_UHD_CMAF is what F1's own TV app plays in 4K (2026-11-14, its ClearVR log: player_tm,
+        // streamType=HDR_UHD_CMAF, no licence). It is plain HLS/CMAF without encryption: 4K HLG HEVC
+        // plus a parallel SDR ladder, decoded on the ordinary (non-secure) decoder. The Widevine
+        // variants below decode to a green picture on MediaTek (Google TV Streamer).
+        if (returned == "HDR_UHD_CMAF" && drmType == null && laURL.isNullOrBlank()) {
+            return true
+        }
         val isCmafHls = "CMAF" in override || "CMAF" in returned
         if (isCmafHls) {
             return ("WV" in override || "WV" in returned) &&
@@ -491,18 +495,18 @@ class F1Client @Inject constructor(
             "HDR_UHD_DASH",
             "HDR_UHD_DASH_SINGLE"
         )
+        // First: the unencrypted CMAF stream F1's own TV app plays in 4K (see isAcceptedHdrCandidate)
+        val clearCmaf = listOf("HDR_UHD_CMAF")
         val hlsWidevine = listOf(
-            // WV first/only for the internal player. Plain HDR_UHD_CMAF returned
-            // drmType=null/laURL=null and 403s on the CDN playlist.
             "HDR_UHD_CMAFWV",
             "HDR_UHD_CMAFWV_SINGLE"
         )
         return when (streamType) {
-            Settings.StreamType.DASH -> dashWidevine + hlsWidevine
-            Settings.StreamType.DASH_HLS -> dashWidevine + hlsWidevine
+            Settings.StreamType.DASH -> clearCmaf + dashWidevine + hlsWidevine
+            Settings.StreamType.DASH_HLS -> clearCmaf + dashWidevine + hlsWidevine
             // Media3's DASH Widevine path is the next HDR presentation hypothesis after
             // HLS CMAF-WV still rendered green on Google TV Streamer.
-            Settings.StreamType.HLS -> dashWidevine + hlsWidevine
+            Settings.StreamType.HLS -> clearCmaf + dashWidevine + hlsWidevine
         }
     }
 }

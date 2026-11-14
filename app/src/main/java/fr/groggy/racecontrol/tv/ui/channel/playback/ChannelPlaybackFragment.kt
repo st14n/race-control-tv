@@ -810,6 +810,40 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
 
     // ── Player.Listener ──────────────────────────────────────────────────────
 
+    private var appliedHdrLadderRestriction = false
+
+    override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+        restrictToOneUhdLadderIfNeeded(tracks)
+    }
+
+    /**
+     * F1's unencrypted HDR_UHD_CMAF playlist has two HEVC ladders under one video group: HLG
+     * (`hvc1.2.*` Main10, up to 3840x2160) and SDR (`hvc1.1.*` Main, up to 2880x1620). Media3 does not
+     * read VIDEO-RANGE, so ABR would cross between them mid-playback. Keep the HLG ladder on an HDR
+     * display; elsewhere keep the SDR one (still above 1080p).
+     */
+    private fun restrictToOneUhdLadderIfNeeded(tracks: androidx.media3.common.Tracks) {
+        if (appliedHdrLadderRestriction) return
+        val viewing = currentViewing ?: findViewing(this) ?: return
+        if (!viewing.streamType.orEmpty().contains("UHD", ignoreCase = true)) return
+        val hdrDisplay = fr.groggy.racecontrol.tv.utils.DeviceInfo.shouldRequestHdrManifest(requireContext())
+        for (group in tracks.groups) {
+            if (group.type != C.TRACK_TYPE_VIDEO) continue
+            val codecs = (0 until group.length).map { group.getTrackFormat(it).codecs.orEmpty() }
+            val hlg = codecs.indices.filter { codecs[it].startsWith("hvc1.2.") || codecs[it].startsWith("hev1.2.") }
+            val sdr = codecs.indices.filter { codecs[it].startsWith("hvc1.1.") || codecs[it].startsWith("hev1.1.") }
+            if (hlg.isEmpty() || sdr.isEmpty()) continue
+            val keep = if (hdrDisplay) hlg else sdr
+            Log.i(TAG, "UHD ladder: keeping ${if (hdrDisplay) "HLG" else "SDR"} tracks $keep of ${group.length} codecs=$codecs")
+            trackSelector.setParameters(
+                trackSelector.buildUponParameters()
+                    .setOverrideForType(androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, keep))
+                    .build()
+            )
+            appliedHdrLadderRestriction = true
+        }
+    }
+
     override fun onPlayerError(error: PlaybackException) {
         val activePlayer = _player
         if (activePlayer == null) {
