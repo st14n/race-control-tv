@@ -251,6 +251,10 @@ internal class InAppHlsCustomRadioEngine(
 		child?.setAudioDelay(pendingDelayMs)
 	}
 
+	override fun setPlaybackSpeed(speed: Float) {
+		child?.setPlaybackSpeed(speed)
+	}
+
 	override fun currentDelayMs(): Long? = child?.currentDelayMs()
 
 	override fun maxDelayMs(): Long? = child?.maxDelayMs()

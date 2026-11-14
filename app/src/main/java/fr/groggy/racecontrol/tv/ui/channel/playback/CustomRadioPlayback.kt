@@ -49,6 +49,8 @@ internal interface CustomRadioEngine {
      * sent on connect. Null while still being measured (or not measurable for this engine).
      */
     fun ingestBacklogMs(): Long? = null
+    /** Play slightly faster or slower (pitch kept) to close a small sync error without an audible jump. */
+    fun setPlaybackSpeed(speed: Float) {}
     fun release()
 }
 
@@ -253,6 +255,15 @@ internal class ExoCustomRadioEngine(
         }
         player.seekTo(targetPositionMs)
         Log.i("ExoCustomRadio", "delay -> ${targetDelayMs}ms position=${targetPositionMs}ms duration=${durationMs}ms liveOffset=${liveOffsetMs}ms")
+    }
+
+    private var appliedSpeed = 1f
+
+    override fun setPlaybackSpeed(speed: Float) {
+        if (released || speed == appliedSpeed) return
+        appliedSpeed = speed
+        // A speed other than 1 also takes this player out of ExoPlayer's own live speed control
+        player.setPlaybackSpeed(speed)
     }
 
     override fun currentDelayMs(): Long? {

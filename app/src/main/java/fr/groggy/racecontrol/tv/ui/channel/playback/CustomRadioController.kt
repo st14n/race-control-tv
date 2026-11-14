@@ -58,6 +58,12 @@ internal class CustomRadioController(
         private const val CUSTOM_RADIO_AUTO_SYNC_INTERVAL_MS = 1_000L
         // Drift smaller than this isn't worth an audible seek
         private const val CUSTOM_RADIO_AUTO_SYNC_TOLERANCE_MS = 400L
+        // Errors up to this are closed by playing the radio a little faster or slower (no audible jump,
+        // and the acoustic measurement keeps its audio); only bigger ones are a seek
+        private const val CUSTOM_RADIO_SLEW_MAX_ERROR_MS = 1_500L
+        private const val CUSTOM_RADIO_SLEW_DEADBAND_MS = 100L
+        private const val CUSTOM_RADIO_SLEW_GAIN_PER_SECOND = 0.1f
+        private const val CUSTOM_RADIO_SLEW_MAX_SPEED_CHANGE = 0.03f
         // Give a radio seek time to land before measuring again
         private const val CUSTOM_RADIO_AUTO_SYNC_SETTLE_MS = 2_000L
         private const val CUSTOM_RADIO_BUFFER_MARGIN_MS = 2_000L
@@ -724,13 +730,34 @@ internal class CustomRadioController(
         }
 
         val actualMs = engine.currentDelayMs()
-        val inSync = actualMs != null && abs(actualMs - reachableTargetMs) < CUSTOM_RADIO_AUTO_SYNC_TOLERANCE_MS
+        // > 0: the radio plays audio that is older than it should be (too late)
+        val errorMs = actualMs?.let { it - reachableTargetMs }
+        val inSync = errorMs != null && abs(errorMs) < CUSTOM_RADIO_AUTO_SYNC_TOLERANCE_MS
         if (inSync && awaitingAutoSyncLock) {
             switchAudioToRadio("auto_sync_locked")
             return
         }
-        if (!force && inSync) return
+        if (!force && !awaitingAutoSyncLock && errorMs != null && abs(errorMs) < CUSTOM_RADIO_SLEW_MAX_ERROR_MS) {
+            // Follow the picture smoothly: the video's lag creeps (ExoPlayer nudges its own speed to
+            // hold the live offset), and a seek for every 0.4 s of it is audible and throws away what
+            // the acoustic sync has measured so far
+            val speed = if (abs(errorMs) < CUSTOM_RADIO_SLEW_DEADBAND_MS) {
+                1f
+            } else {
+                1f + (errorMs / 1000f * CUSTOM_RADIO_SLEW_GAIN_PER_SECOND)
+                    .coerceIn(-CUSTOM_RADIO_SLEW_MAX_SPEED_CHANGE, CUSTOM_RADIO_SLEW_MAX_SPEED_CHANGE)
+            }
+            engine.setPlaybackSpeed(speed)
+            logSyncStatus(nowMs, targetMs, actualMs, speed)
+            if (!inSync) {
+                // Still converging: the acoustic sync should only use audio from after this
+                lastAlignmentChangeAtMs = nowMs
+                accumulator.reset()
+            }
+            return
+        }
 
+        engine.setPlaybackSpeed(1f)
         engine.setAudioDelay(reachableTargetMs)
         lastAutoSyncSeekAtElapsedMs = nowMs
         lastAlignmentChangeAtMs = nowMs
@@ -742,6 +769,23 @@ internal class CustomRadioController(
             detail = "videoLagMs=${mainPlayer.currentLiveOffset} backlogMs=${engine.ingestBacklogMs()} " +
                 "correctionMs=$autoSyncCorrectionMs " +
                 "targetMs=$targetMs appliedMs=$reachableTargetMs actualMs=$actualMs maxMs=${engine.maxDelayMs()}"
+        )
+    }
+
+    private var nextSyncStatusLogAtMs = 0L
+
+    /** Every 10 s while following: what the sync is based on, for tuning from the log afterwards. */
+    private fun logSyncStatus(nowMs: Long, targetMs: Long, actualMs: Long?, speed: Float) {
+        if (nowMs < nextSyncStatusLogAtMs) return
+        nextSyncStatusLogAtMs = nowMs + 10_000L
+        val player = host.mainPlayer
+        logTelemetry(
+            "sync_status",
+            detail = "videoLagMs=${videoLagMs()} liveOffsetMs=${player?.currentLiveOffset} " +
+                "backlogMs=${radioPlayer?.ingestBacklogMs()} correctionMs=$autoSyncCorrectionMs " +
+                "targetMs=$targetMs actualMs=$actualMs speed=$speed radioHeard=${isActive && !awaitingAutoSyncLock} " +
+                "acoustic=$acousticSync suspended=$acousticSuspendedByUser ambientTrack=$ambientAudioPreferred " +
+                "curves=${accumulator.count}"
         )
     }
 
@@ -832,5 +876,6 @@ internal class CustomRadioController(
         } else {
             Log.e(tag, message, throwable)
         }
+        RadioSyncLog.append(fragment.context, message, throwable)
     }
 }
