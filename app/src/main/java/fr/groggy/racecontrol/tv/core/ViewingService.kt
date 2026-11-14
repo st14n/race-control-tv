@@ -29,14 +29,15 @@ class ViewingService @Inject constructor(
         channelId: String?,
         contentId: String,
         streamType: Settings.StreamType,
-        preferHdrManifest: Boolean = true
+        preferHdrManifest: Boolean = true,
+        clearUhdOnly: Boolean = false
     ): F1TvViewing = withContext(Dispatchers.IO) {
         Log.d(TAG, "getViewing $channelId - $contentId preferHdrManifest=$preferHdrManifest")
         retryAttempts.set(0)
 
         while (retryAttempts.getAndIncrement() < MAX_RETRIES) {
             try {
-                return@withContext getViewingOrThrow(channelId, contentId, streamType, preferHdrManifest)
+                return@withContext getViewingOrThrow(channelId, contentId, streamType, preferHdrManifest, clearUhdOnly)
             } catch (e: TokenExpiredException) {
                 throw e
             } catch (e: Exception) {
@@ -52,14 +53,15 @@ class ViewingService @Inject constructor(
         channelId: String?,
         contentId: String,
         streamType: Settings.StreamType,
-        preferHdrManifest: Boolean
+        preferHdrManifest: Boolean,
+        clearUhdOnly: Boolean
     ): F1TvViewing {
         val token = tokenService.getToken()
         if (!token.isValid()) {
             throw TokenExpiredException()
         }
 
-        return f1Tv.getViewing(channelId, contentId, streamType, token.value, preferHdrManifest)
+        return f1Tv.getViewing(channelId, contentId, streamType, token.value, preferHdrManifest, clearUhdOnly)
     }
 
     /**

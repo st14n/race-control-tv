@@ -67,12 +67,14 @@ class F1Client @Inject constructor(
         contentId: String,
         requestedStreamType: Settings.StreamType,
         token: JWT,
-        preferHdrManifest: Boolean = true
+        preferHdrManifest: Boolean = true,
+        /** Of the UHD variants, only the unencrypted one (live: the Widevine ones give a green picture). */
+        clearUhdOnly: Boolean = false
     ): F1TvViewing {
         var lastError: Exception? = null
         var fallbackViewing: F1TvViewing? = null
         val entitlementToken = loadEntitlementToken(token)
-        for (candidate in requestedCandidates(requestedStreamType, preferHdrManifest)) {
+        for (candidate in requestedCandidates(requestedStreamType, preferHdrManifest, clearUhdOnly)) {
             for (playApiVersion in requestedPlayApiVersions()) {
                 if (playApiVersion != candidate.playApiVersion) {
                     continue
@@ -176,17 +178,14 @@ class F1Client @Inject constructor(
                         candidate = candidate,
                         streamType = response.resultObj.streamType,
                         drmType = drmType,
-                        laURL = response.resultObj.laURL
+                        laURL = response.resultObj.laURL,
+                        clearUhdOnly = clearUhdOnly
                     )
                     if (preferHdrManifest && !acceptedHdrCandidate) {
-                        // Only keep true standard Widevine responses (non-blank laURL) as
-                        // the last-resort fallback. Rejected HDR override probes must not
-                        // become the final viewing, and a plain-HLS (no-DRM) viewing must
-                        // never be returned — the app always lands on the Widevine path.
-                        if (candidate.overrideStreamType == null &&
-                            fallbackViewing == null &&
-                            !response.resultObj.laURL.isNullOrBlank()
-                        ) {
+                        // The first standard (no override) answer is the fallback when no UHD variant is
+                        // accepted. Standard streams are unencrypted DASH nowadays (no licence URL), so
+                        // that must not be a condition; rejected UHD probes never become the viewing.
+                        if (candidate.overrideStreamType == null && fallbackViewing == null) {
                             fallbackViewing = viewing
                         }
                         // The server ignored the HDR override and sent a standard Widevine stream; that is
@@ -359,7 +358,8 @@ class F1Client @Inject constructor(
 
     private fun requestedCandidates(
         streamType: Settings.StreamType,
-        preferHdrManifest: Boolean
+        preferHdrManifest: Boolean,
+        clearUhdOnly: Boolean = false
     ): List<PlayRequestCandidate> {
         val standardCandidates = when (streamType) {
             Settings.StreamType.DASH -> listOf(
@@ -391,7 +391,8 @@ class F1Client @Inject constructor(
             return standardCandidates
         }
 
-        val hdrCandidates = hdrOverrideStreamTypes(streamType).flatMap { overrideStreamType ->
+        val overrides = if (clearUhdOnly) listOf("HDR_UHD_CMAF") else hdrOverrideStreamTypes(streamType)
+        val hdrCandidates = overrides.flatMap { overrideStreamType ->
             listOf(
                 PlayRequestCandidate(
                     PLAY_API_V3,
@@ -445,7 +446,8 @@ class F1Client @Inject constructor(
         candidate: PlayRequestCandidate,
         streamType: String?,
         drmType: String?,
-        laURL: String?
+        laURL: String?,
+        clearUhdOnly: Boolean = false
     ): Boolean {
         val overrideLooksHdr = looksLikeUhdOrHdr(candidate.overrideStreamType)
         if (!overrideLooksHdr && !looksLikeUhdOrHdr(streamType)) {
@@ -467,6 +469,7 @@ class F1Client @Inject constructor(
         if (returned == "HDR_UHD_CMAF" && drmType == null && laURL.isNullOrBlank()) {
             return true
         }
+        if (clearUhdOnly) return false
         val isCmafHls = "CMAF" in override || "CMAF" in returned
         if (isCmafHls) {
             return ("WV" in override || "WV" in returned) &&

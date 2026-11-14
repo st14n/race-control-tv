@@ -35,7 +35,13 @@ class HdrToneMappingRenderersFactory(
     private val enableSoftwareVideoDecoder: Boolean = false,
     private val enableTiledmediaLikeCodecPath: Boolean = false,
     /** Receives the decoded audio (e.g. for radio acoustic sync); null leaves the audio sink stock. */
-    private val audioBufferSink: TeeAudioProcessor.AudioBufferSink? = null
+    private val audioBufferSink: TeeAudioProcessor.AudioBufferSink? = null,
+    /**
+     * Always decode the audio in the app instead of passing AC-3 through to the TV. Passed-through
+     * audio never reaches [audioBufferSink], so the radio's acoustic sync would have nothing to
+     * compare with (F1's 4K stream offers AC-3 5.1, which a TV with AC-3 support gets passed through).
+     */
+    private val decodeAudioToPcm: Boolean = false
 ) : DefaultRenderersFactory(context) {
 
     override fun buildAudioSink(
@@ -45,11 +51,16 @@ class HdrToneMappingRenderersFactory(
     ): AudioSink? {
         val sink = audioBufferSink
             ?: return super.buildAudioSink(context, enableFloatOutput, enableAudioOutputPlaybackParameters)
-        return DefaultAudioSink.Builder(context)
+        val builder = DefaultAudioSink.Builder(context)
             .setEnableFloatOutput(enableFloatOutput)
             .setEnableAudioOutputPlaybackParameters(enableAudioOutputPlaybackParameters)
             .setAudioProcessors(arrayOf(TeeAudioProcessor(sink)))
-            .build()
+        if (decodeAudioToPcm) {
+            Log.i(TAG, "Audio is decoded in the app (no AC-3 passthrough) so the radio sync can hear it")
+            @Suppress("DEPRECATION")
+            builder.setAudioCapabilities(androidx.media3.exoplayer.audio.AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES)
+        }
+        return builder.build()
     }
 
     companion object {

@@ -20,8 +20,19 @@ import kotlin.math.sqrt
  * the energy in a few bands above most of the speech energy, every 20 ms, stamped with the
  * wall-clock time it was processed. Comparing the F1 audio's fingerprint with the radio's shows
  * how far apart the shared circuit sound is, independent of any stream clock.
+ *
+ * With [side] the fingerprint is taken from left minus right instead of the mono mix: commentary
+ * sits in the middle of the stereo image and cancels out, the circuit sound is wide and stays.
+ * Measured on a real race replay (two commentary tracks over the same circuit sound, one MP3-coded
+ * like the radio): the mono mix found the offset in 20% of the windows, the side signal in all.
+ * [withSide] makes this (mono mix) stream feed a side twin, [sideStream], from the same tap.
  */
-internal class AcousticFeatureStream : TeeAudioProcessor.AudioBufferSink {
+internal class AcousticFeatureStream(
+    private val side: Boolean = false,
+    withSide: Boolean = false
+) : TeeAudioProcessor.AudioBufferSink {
+
+    val sideStream: AcousticFeatureStream? = if (withSide) AcousticFeatureStream(side = true) else null
 
     companion object {
         const val HOP_MS = 20L
@@ -67,9 +78,11 @@ internal class AcousticFeatureStream : TeeAudioProcessor.AudioBufferSink {
         samplesSinceAnchor = 0L
         // A flush means a seek/format change: older audio no longer lines up with what follows
         clear()
+        sideStream?.flush(sampleRateHz, channelCount, encoding)
     }
 
     override fun handleBuffer(buffer: ByteBuffer) {
+        sideStream?.handleBuffer(buffer)
         if (sampleRate <= 0 || channels <= 0) return
         val bytesPerSample = when (encoding) {
             C.ENCODING_PCM_16BIT -> 2
@@ -89,10 +102,14 @@ internal class AcousticFeatureStream : TeeAudioProcessor.AudioBufferSink {
 
         for (i in 0 until frameCount) {
             var mono = 0.0
+            var left = 0.0
+            var right = 0.0
             for (c in 0 until channels) {
-                mono += if (bytesPerSample == 2) data.short / 32768.0 else data.float.toDouble()
+                val v = if (bytesPerSample == 2) data.short / 32768.0 else data.float.toDouble()
+                mono += v
+                if (c == 0) left = v else if (c == 1) right = v
             }
-            push(mono / channels)
+            push(if (side) (if (channels >= 2) (left - right) / 2 else 0.0) else mono / channels)
         }
     }
 
@@ -255,7 +272,7 @@ internal object RadioAcousticCorrelator {
     }
 
     private const val WINDOW_MS = 30_000L
-    private const val MAX_LAG_MS = 10_000L
+    const val MAX_LAG_MS = 10_000L
     // Leave the newest audio out: it may not have been heard yet
     private const val END_MARGIN_MS = 2_000L
     // Removes slow level changes so short events (cars passing, gear changes) dominate
@@ -388,10 +405,125 @@ internal fun ExoPlayer.selectAmbientAudioTrack(select: Boolean): Boolean {
 }
 
 private fun Format.isAmbientAudio(): Boolean {
-    if (language.equals("cfx", ignoreCase = true)) return true
+    if (language.equals("cfx", ignoreCase = true) || language.equals("fx", ignoreCase = true)) return true
     val names = labels.map { it.value } + listOfNotNull(label)
     return names.any { name ->
         name.equals("FX", ignoreCase = true) || name.contains("effects", ignoreCase = true) ||
             name.contains("ambient", ignoreCase = true)
+    }
+}
+
+/**
+ * Decides when the acoustic measurements are good enough to move the radio.
+ *
+ * Two measurements run side by side: on the side signal (left minus right, commentary cancelled) and
+ * on the mono mix. Each collects its correlation curves over time; a decision needs a clear peak in
+ * the combined curve that has also stayed put over several evaluations. The side signal is
+ * preferred; the mono mix is the fallback for a station whose circuit sound is mono.
+ *
+ * Thresholds chosen on a real race replay (2026-11-14 bench: two commentary tracks over the same
+ * circuit sound, one MP3-coded like the radio; and pairs of unrelated stretches as the "nothing in
+ * common" case). Stable combined peaks of unrelated audio reached 0.11 (side) and 0.08 (mono mix);
+ * real offsets gave 0.23-0.87 (side) and 0.13-0.55 (mono mix). A wrong correction is worse than none,
+ * so the bars sit clear of the unrelated-audio figures.
+ */
+internal class RadioAcousticDecider {
+
+    class Decision(val lagMs: Long, val source: String, val curves: Int, val score: Double, val ratio: Double)
+
+    private val side = RadioAcousticCorrelator.Accumulator()
+    private val mono = RadioAcousticCorrelator.Accumulator()
+    private var sideLastLag = Long.MIN_VALUE
+    private var monoLastLag = Long.MIN_VALUE
+    private var sideStable = 0
+    private var monoStable = 0
+
+    /** What the last [add] saw, for the log. */
+    var lastSummary = ""
+        private set
+
+    val count: Int get() = maxOf(side.count, mono.count)
+
+    fun reset() {
+        side.reset()
+        mono.reset()
+        sideLastLag = Long.MIN_VALUE
+        monoLastLag = Long.MIN_VALUE
+        sideStable = 0
+        monoStable = 0
+    }
+
+    /** Adds the newest estimates (either may be null) and returns a decision once one is convincing. */
+    fun add(sideEstimate: RadioAcousticCorrelator.Estimate?, monoEstimate: RadioAcousticCorrelator.Estimate?): Decision? {
+        sideEstimate?.let { side.add(it) }
+        monoEstimate?.let { mono.add(it) }
+        val sideTotal = side.result()
+        val monoTotal = mono.result()
+        lastSummary = describe("side", sideEstimate, sideTotal, side.count) + " | " +
+            describe("mono", monoEstimate, monoTotal, mono.count)
+        if (sideEstimate != null && sideTotal != null) {
+            sideStable = if (sideLastLag != Long.MIN_VALUE && abs(sideTotal.lagMs - sideLastLag) <= STABLE_WITHIN_MS) sideStable + 1 else 1
+            sideLastLag = sideTotal.lagMs
+        }
+        if (monoEstimate != null && monoTotal != null) {
+            monoStable = if (monoLastLag != Long.MIN_VALUE && abs(monoTotal.lagMs - monoLastLag) <= STABLE_WITHIN_MS) monoStable + 1 else 1
+            monoLastLag = monoTotal.lagMs
+        }
+        val sideSure = sideTotal != null && confident(sideTotal, side.count, SIDE_MIN_SCORE) && sideStable >= STABLE_EVALUATIONS
+        val monoSure = monoTotal != null && confident(monoTotal, mono.count, MONO_MIN_SCORE) && monoStable >= STABLE_EVALUATIONS
+        if (sideSure && monoSure && abs(sideTotal!!.lagMs - monoTotal!!.lagMs) > AGREEMENT_MS) {
+            // Both are sure of something different: trust neither, start over
+            lastSummary += " | CONFLICT"
+            reset()
+            return null
+        }
+        if (sideSure) return Decision(sideTotal!!.lagMs, "side", side.count, sideTotal.score, sideTotal.peakRatio)
+        if (monoSure) {
+            // The side measurement has a clear opinion elsewhere, just not enough curves yet: wait for it
+            if (sideTotal != null && sideTotal.score >= SIDE_MIN_SCORE && sideTotal.peakRatio >= MIN_RATIO &&
+                abs(sideTotal.lagMs - monoTotal!!.lagMs) > AGREEMENT_MS
+            ) {
+                lastSummary += " | mono waits for side"
+                return null
+            }
+            return Decision(monoTotal!!.lagMs, "mono", mono.count, monoTotal.score, monoTotal.peakRatio)
+        }
+        return null
+    }
+
+    private fun confident(total: RadioAcousticCorrelator.Estimate, count: Int, minScore: Double): Boolean {
+        val minRatio = if (abs(total.lagMs) > FAR_LAG_MS) FAR_MIN_RATIO else MIN_RATIO
+        return count >= MIN_COUNT && total.score >= minScore && total.peakRatio >= minRatio &&
+            abs(total.lagMs) <= RadioAcousticCorrelator.MAX_LAG_MS - EDGE_MARGIN_MS
+    }
+
+    private fun describe(
+        name: String,
+        now: RadioAcousticCorrelator.Estimate?,
+        total: RadioAcousticCorrelator.Estimate?,
+        count: Int
+    ): String {
+        if (total == null) return "$name -"
+        val current = if (now == null) "now -" else
+            String.format(java.util.Locale.ROOT, "now lag=%d score=%.3f ratio=%.2f", now.lagMs, now.score, now.peakRatio)
+        return String.format(
+            java.util.Locale.ROOT, "%s %s, combined n=%d lag=%d score=%.3f ratio=%.2f",
+            name, current, count, total.lagMs, total.score, total.peakRatio
+        )
+    }
+
+    companion object {
+        const val MIN_COUNT = 8
+        private const val SIDE_MIN_SCORE = 0.18
+        private const val MONO_MIN_SCORE = 0.14
+        private const val MIN_RATIO = 1.8
+        private const val FAR_MIN_RATIO = 2.4
+        private const val FAR_LAG_MS = 5_000L
+        // Lags this close to the search limit are mostly edge artefacts
+        private const val EDGE_MARGIN_MS = 1_500L
+        // The combined peak must have stayed put this many evaluations in a row (5 s apart)
+        private const val STABLE_EVALUATIONS = 3
+        private const val STABLE_WITHIN_MS = 100L
+        private const val AGREEMENT_MS = 300L
     }
 }

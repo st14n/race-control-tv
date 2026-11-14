@@ -69,10 +69,11 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
 
     private val preferHdrManifestForDevice: Boolean by lazy(LazyThreadSafetyMode.NONE) {
         if (FORCE_SDR_AVC_MANIFEST_DIAGNOSTIC) return@lazy false
-        // UHD/4K does not work for live sessions in this app (green/black picture), so live always
-        // uses the standard manifest; replays may use UHD unless the user switched it off.
-        val isLive = ChannelPlaybackFragment.findIsLiveSession(this)
-        val preferHdrManifest = !isLive &&
+        // UHD/4K is the unencrypted HDR_UHD_CMAF stream (what the official TV app plays for replays).
+        // Live sessions only try that one: the official app played live through the secure decoder
+        // (2026-11-07), so live may only exist Widevine-protected, and those variants give a green
+        // picture here. If no unencrypted stream is handed out for a live session, standard 1080p plays.
+        val preferHdrManifest =
             !settingsRepository.getCurrent().disableUhdManifests &&
             DeviceInfo.shouldRequestHdrManifest(this) &&
             allowsUhdPlaybackForSeason()
@@ -213,7 +214,10 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
                 "preferHdrManifest=$preferHdrManifest"
         )
         try {
-            var viewing = viewingService.getViewing(channelId, contentId, streamType, preferHdrManifest)
+            var viewing = viewingService.getViewing(
+                channelId, contentId, streamType, preferHdrManifest,
+                clearUhdOnly = ChannelPlaybackFragment.findIsLiveSession(this)
+            )
             Log.i(
                 TAG,
                 "Main viewing: url=${viewing.url} platform=${viewing.platform} " +

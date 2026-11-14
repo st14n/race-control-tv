@@ -284,7 +284,12 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
 
 
     /** Fingerprint of the decoded F1 audio, for radio acoustic sync. */
-    private val mainAudioFeatures = AcousticFeatureStream()
+    private val mainAudioFeatures = AcousticFeatureStream(withSide = true)
+
+    /** A radio stream is configured and allowed for this session: its sync needs the F1 audio decoded. */
+    private fun radioMayPlay(settings: Settings): Boolean =
+        (settings.customRadioUrl.isNotBlank() || CustomRadioSources.defaultCandidate != null) &&
+            customRadio.isSelectable(settings)
 
     private val renderersFactory: RenderersFactory by lazy {
         val settings = settingsRepository.getCurrent()
@@ -325,7 +330,8 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             // captures BOTH the failing HDR attempt and the working SDR
             // fallback and their encryption layouts can be compared directly.
             enableCryptoDiagnostics = false,
-            audioBufferSink = mainAudioFeatures
+            audioBufferSink = mainAudioFeatures,
+            decodeAudioToPcm = radioMayPlay(settings)
         )
     }
 
@@ -826,7 +832,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         if (appliedHdrLadderRestriction) return
         val viewing = currentViewing ?: findViewing(this) ?: return
         if (!viewing.streamType.orEmpty().contains("UHD", ignoreCase = true)) return
-        val hdrDisplay = fr.groggy.racecontrol.tv.utils.DeviceInfo.shouldRequestHdrManifest(requireContext())
+        val hdrDisplay = fr.groggy.racecontrol.tv.utils.DeviceInfo.supportsHlgDisplay(requireContext())
         for (group in tracks.groups) {
             if (group.type != C.TRACK_TYPE_VIDEO) continue
             val codecs = (0 until group.length).map { group.getTrackFormat(it).codecs.orEmpty() }

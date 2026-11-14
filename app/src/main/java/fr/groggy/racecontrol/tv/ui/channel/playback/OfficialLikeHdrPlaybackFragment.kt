@@ -101,7 +101,7 @@ class OfficialLikeHdrPlaybackFragment : VideoSupportFragment(), Player.Listener 
     }
 
     /** Fingerprint of the decoded F1 audio, for radio acoustic sync. */
-    private val mainAudioFeatures = AcousticFeatureStream()
+    private val mainAudioFeatures = AcousticFeatureStream(withSide = true)
 
     private val renderersFactory by lazy {
         // Do NOT enable MediaCodec codec config overrides (enableOfficialLikeDirectHdrCodecConfig).

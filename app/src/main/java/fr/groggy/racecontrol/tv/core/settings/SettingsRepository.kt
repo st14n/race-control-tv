@@ -59,6 +59,18 @@ class SettingsRepository(
         preferences.edit { putLong(KEY_LIVE_EDGE_LATENCY_MS, valueMs) }
     }
 
+    /** The radio correction the viewer last set by hand; the acoustic sync stays near it. Null: never set. */
+    fun getCustomRadioCorrectionAnchorMs(): Long? =
+        if (preferences.contains(KEY_CUSTOM_RADIO_CORRECTION_ANCHOR_MS)) {
+            preferences.getLong(KEY_CUSTOM_RADIO_CORRECTION_ANCHOR_MS, 0L)
+        } else {
+            null
+        }
+
+    fun updateCustomRadioCorrectionAnchorMs(valueMs: Long) {
+        preferences.edit { putLong(KEY_CUSTOM_RADIO_CORRECTION_ANCHOR_MS, valueMs) }
+    }
+
     fun updateCustomRadioAutoSync(enabled: Boolean) {
         preferences.edit {
             putBoolean(Settings.KEY_CUSTOM_RADIO_AUTO_SYNC, enabled)
@@ -127,4 +139,5 @@ class SettingsRepository(
 }
 
 private const val KEY_LIVE_EDGE_LATENCY_MS = "live_edge_latency_ms"
+private const val KEY_CUSTOM_RADIO_CORRECTION_ANCHOR_MS = "custom_radio_correction_anchor_ms"
 private const val DEFAULT_LIVE_EDGE_LATENCY_MS = 10_000L

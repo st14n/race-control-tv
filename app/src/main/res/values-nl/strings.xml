@@ -97,7 +97,7 @@
     <string name="custom_radio_live_only_message">Aangepaste radio is beperkt tot live-sessies.</string>
     <string name="settings_app_locale_title">App-taal</string>
     <string name="settings_disable_uhd_manifests_title">UHD (4K)-manifesten uitschakelen</string>
-    <string name="settings_disable_uhd_manifests_summary">UHD/4K werkt alleen bij herhalingen: live sessies spelen altijd in 1080p omdat UHD daar een groen of zwart beeld geeft. Zet dit aan om ook herhalingen in 1080p SDR af te spelen.</string>
+    <string name="settings_disable_uhd_manifests_summary">UHD/4K speelt de onversleutelde 4K-stream. Herhalingen hebben die; een live sessie speelt alleen in 4K als die stream daarvoor wordt aangeboden, anders in 1080p. Zet dit aan om altijd in 1080p SDR af te spelen.</string>
     <string name="settings_disable_hdr_on_4k_streams_title">Schakel HDR uit op 4K-streams (SDR Tone Mapping)</string>
     <string name="settings_disable_hdr_on_4k_streams_summary">Als u een groen scherm ervaart op 4K-streams, schakel dit dan in om HDR-video naar SDR te converteren met behoud van 4K-resolutie.</string>
 

@@ -69,31 +69,15 @@ internal class CustomRadioController(
         private const val CUSTOM_RADIO_BUFFER_MARGIN_MS = 2_000L
         private const val CUSTOM_RADIO_EARLY_END_THRESHOLD_MS = 12_000L
         private const val ACOUSTIC_SYNC_INTERVAL_MS = 5_000L
-        // Correlation strength / peak-vs-runner-up needed before trusting an acoustic estimate.
-        // Real matches on live sessions score 0.27-0.52 with a peak ratio of 2-7; chance matches on
-        // commentary-only stretches reached 0.13 / 1.34 and, at the 10 s search edge, moved the radio
-        // 10 s off (2026-10-24 quali). Thresholds of 0.25 / 2.0 on top of that never let it correct at
-        // all (2026-11-01 race). So: a moderate bar, no edge lags, two independent agreeing estimates,
-        // and a clearly strong estimate is applied on its own. Logged so these can be tuned further.
-        private const val ACOUSTIC_MIN_SCORE = 0.15
-        private const val ACOUSTIC_MIN_PEAK_RATIO = 1.4
-        private const val ACOUSTIC_STRONG_SCORE = 0.30
-        private const val ACOUSTIC_STRONG_PEAK_RATIO = 2.5
-        // Lags this close to the correlator's 10 s search limit are mostly edge artefacts
-        private const val ACOUSTIC_MAX_TRUSTED_LAG_MS = 8_500L
-        // Two estimates must agree this closely before the correction is changed...
-        // Combined evidence needed before moving the radio (see onAcousticEstimate)
-        private const val ACOUSTIC_INTEGRATED_MIN_COUNT = 8
-        private const val ACOUSTIC_INTEGRATED_MIN_SCORE = 0.10
-        private const val ACOUSTIC_INTEGRATED_MIN_RATIO = 1.6
-        private const val ACOUSTIC_FAR_MIN_RATIO = 2.2
-        private const val ACOUSTIC_FAR_LAG_MS = 5_000L
         private const val ACOUSTIC_MIN_APPLY_INTERVAL_MS = 60_000L
-        private const val ACOUSTIC_AGREEMENT_MS = 250L
-        private const val ACOUSTIC_PENDING_MAX_MS = 90_000L
-        // ...and come from different audio: estimates run every 5 s over a 30 s window, so
-        // neighbours share most of their input. Require a full window between them.
-        private const val ACOUSTIC_INDEPENDENT_MS = 30_000L
+        // The correction is minus the station's own latency (studio, encoder, server): seconds. Without a
+        // value the viewer set by hand the acoustic sync keeps it inside this range (and a stored value
+        // outside it is discarded); with one it stays within CORRECTION_ANCHOR_RANGE_MS of that.
+        private const val CORRECTION_PLAUSIBLE_MIN_MS = -20_000L
+        private const val CORRECTION_PLAUSIBLE_MAX_MS = 5_000L
+        private const val CORRECTION_ANCHOR_RANGE_MS = 8_000L
+        // Where the correction starts when nobody has tuned anything yet (typical station latency)
+        private const val CORRECTION_DEFAULT_MS = -8_000L
         // Smaller offsets are within what the measurement itself can resolve
         private const val ACOUSTIC_DEADBAND_MS = 150L
         private const val CUSTOM_RADIO_RETRY_DELAY_MS = 500L
@@ -124,15 +108,13 @@ internal class CustomRadioController(
     private var hasWarnedBufferExceeded = false
     /** Auto-sync started but the radio isn't at its target delay yet; F1 audio plays until it is. */
     private var awaitingAutoSyncLock = false
-    private val radioAudioFeatures = AcousticFeatureStream()
+    private val radioAudioFeatures = AcousticFeatureStream(withSide = true)
     private var acousticSync = true
     /** The user nudged the sync by hand this session; acoustic sync then leaves the correction alone. */
     private var acousticSuspendedByUser = false
     private var ambientAudioPreferred = false
     /** Last time the radio alignment changed; acoustic estimates only use audio after it. */
     private var lastAlignmentChangeAtMs = 0L
-    private var pendingAcousticEstimate: RadioAcousticCorrelator.Estimate? = null
-    private var pendingAcousticEstimateAtMs = 0L
     private var acousticEstimateInFlight = false
     private val acousticExecutor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "radio-acoustic-sync").apply { isDaemon = true }
@@ -232,9 +214,17 @@ internal class CustomRadioController(
         autoSync = true // the radio always follows the picture; the dialog can turn it off for this session
         acousticSync = settings.customRadioAcousticSync
         acousticSuspendedByUser = false
-        pendingAcousticEstimate = null; accumulator.reset()
-        autoSyncCorrectionMs = settings.customRadioAutoSyncCorrectionMs ?: 0L
-        needsCorrectionSeed = settings.customRadioAutoSyncCorrectionMs == null
+        decider.reset()
+        var storedCorrection = settings.customRadioAutoSyncCorrectionMs
+        if (storedCorrection != null && settingsRepository.getCustomRadioCorrectionAnchorMs() == null &&
+            storedCorrection !in CORRECTION_PLAUSIBLE_MIN_MS..CORRECTION_PLAUSIBLE_MAX_MS
+        ) {
+            // E.g. left behind by an early acoustic sync that jumped the wrong way
+            logTelemetry("correction_discarded", detail = "stored correctionMs=$storedCorrection is not a plausible radio latency")
+            storedCorrection = null
+        }
+        autoSyncCorrectionMs = storedCorrection ?: 0L
+        needsCorrectionSeed = storedCorrection == null
         manualDelayMs = settings.customRadioDelayMs
         hasWarnedBufferExceeded = false
         offsetMs = (if (autoSync) autoSyncTargetMs() else null) ?: settings.customRadioDelayMs
@@ -462,7 +452,8 @@ internal class CustomRadioController(
             .coerceIn(-CUSTOM_RADIO_MAX_AUTO_SYNC_CORRECTION_MS, CUSTOM_RADIO_MAX_AUTO_SYNC_CORRECTION_MS)
         // Remembered so the radio's own latency only has to be calibrated once per station
         settingsRepository.updateCustomRadioAutoSyncCorrection(autoSyncCorrectionMs)
-        logTelemetry("auto_sync_correction", detail = "correctionMs=$autoSyncCorrectionMs")
+        settingsRepository.updateCustomRadioCorrectionAnchorMs(autoSyncCorrectionMs)
+        logTelemetry("auto_sync_correction", detail = "correctionMs=$autoSyncCorrectionMs (set by hand)")
         tickAutoSync(force = true)
         host.refreshRadioOverlay()
     }
@@ -512,7 +503,7 @@ internal class CustomRadioController(
 
     private fun stopAcousticSync() {
         handler.removeCallbacks(acousticSyncRunnable)
-        pendingAcousticEstimate = null; accumulator.reset()
+        decider.reset()
     }
 
     private var nextAcousticLogAtMs = 0L
@@ -534,51 +525,73 @@ internal class CustomRadioController(
         val notBeforeMs = lastAlignmentChangeAtMs.toDouble()
         acousticEstimateInFlight = true
         acousticExecutor.execute {
-            val estimate = runCatching {
+            // Left minus right (commentary cancelled) and the mono mix, each against its radio twin
+            val mainSide = mainFeatures.sideStream
+            val radioSide = radioAudioFeatures.sideStream
+            val sideEstimate = if (mainSide != null && radioSide != null) runCatching {
+                RadioAcousticCorrelator.estimate(mainSide, radioSide, notBeforeMs)
+            }.onFailure { Log.w(tag, "Acoustic side estimate failed", it) }.getOrNull() else null
+            val monoEstimate = runCatching {
                 RadioAcousticCorrelator.estimate(mainFeatures, radioAudioFeatures, notBeforeMs)
             }.onFailure { Log.w(tag, "Acoustic estimate failed", it) }.getOrNull()
             handler.post {
                 acousticEstimateInFlight = false
-                if (estimate == null) logAcousticIdle(RadioAcousticCorrelator.lastSkip)
-                if (estimate != null) onAcousticEstimate(estimate, notBeforeMs)
+                if (sideEstimate == null && monoEstimate == null) {
+                    logAcousticIdle(RadioAcousticCorrelator.lastSkip)
+                } else {
+                    onAcousticEstimate(sideEstimate, monoEstimate, notBeforeMs)
+                }
             }
         }
     }
 
-    private val accumulator = RadioAcousticCorrelator.Accumulator()
+    private val decider = RadioAcousticDecider()
     private var lastAcousticApplyAtMs = 0L
 
-    private fun onAcousticEstimate(estimate: RadioAcousticCorrelator.Estimate, notBeforeMs: Double) {
+    private fun onAcousticEstimate(
+        sideEstimate: RadioAcousticCorrelator.Estimate?,
+        monoEstimate: RadioAcousticCorrelator.Estimate?,
+        notBeforeMs: Double
+    ) {
         // The alignment changed while this was computing: it describes audio that no longer applies
         if (lastAlignmentChangeAtMs.toDouble() != notBeforeMs || !isActive || acousticSuspendedByUser) return
         val now = SystemClock.elapsedRealtime()
-        accumulator.add(estimate)
-        val total = accumulator.result() ?: return
-        logTelemetry(
-            "acoustic_estimate",
-            detail = "now lag=${estimate.lagMs} score=${String.format(Locale.ROOT, "%.3f", estimate.score)} " +
-                "ratio=${String.format(Locale.ROOT, "%.2f", estimate.peakRatio)} | combined n=${accumulator.count} " +
-                "lag=${total.lagMs} score=${String.format(Locale.ROOT, "%.3f", total.score)} " +
-                "ratio=${String.format(Locale.ROOT, "%.2f", total.peakRatio)}"
-        )
-        val lagMs = total.lagMs
-        val minRatio = if (abs(lagMs) > ACOUSTIC_FAR_LAG_MS) ACOUSTIC_FAR_MIN_RATIO else ACOUSTIC_INTEGRATED_MIN_RATIO
-        val confident = accumulator.count >= ACOUSTIC_INTEGRATED_MIN_COUNT &&
-            total.score >= ACOUSTIC_INTEGRATED_MIN_SCORE && total.peakRatio >= minRatio &&
-            abs(lagMs) <= ACOUSTIC_MAX_TRUSTED_LAG_MS
-        if (!confident) return
+        val decision = decider.add(sideEstimate, monoEstimate)
+        logTelemetry("acoustic_estimate", detail = decider.lastSummary)
+        if (decision == null) return
+        val lagMs = decision.lagMs
         if (abs(lagMs) < ACOUSTIC_DEADBAND_MS) {
-            accumulator.reset()
+            decider.reset()
+            logTelemetry("acoustic_in_sync", detail = "source=${decision.source} lagMs=$lagMs")
             return
         }
         if (now - lastAcousticApplyAtMs < ACOUSTIC_MIN_APPLY_INTERVAL_MS) return
-        lastAcousticApplyAtMs = now
-        accumulator.reset()
         // Radio behind the F1 audio by lagMs: take that much off the radio's delay
-        autoSyncCorrectionMs = (autoSyncCorrectionMs - lagMs)
-            .coerceIn(-CUSTOM_RADIO_MAX_AUTO_SYNC_CORRECTION_MS, CUSTOM_RADIO_MAX_AUTO_SYNC_CORRECTION_MS)
+        val corrected = autoSyncCorrectionMs - lagMs
+        val anchor = settingsRepository.getCustomRadioCorrectionAnchorMs()
+        val plausible = if (anchor != null) {
+            abs(corrected - anchor) <= CORRECTION_ANCHOR_RANGE_MS
+        } else {
+            corrected in CORRECTION_PLAUSIBLE_MIN_MS..CORRECTION_PLAUSIBLE_MAX_MS
+        }
+        if (!plausible) {
+            logTelemetry(
+                "acoustic_correction_refused",
+                detail = "lagMs=$lagMs would make correctionMs=$corrected " +
+                    if (anchor != null) "(too far from the hand-set $anchor)" else "(not a plausible radio latency)"
+            )
+            decider.reset()
+            return
+        }
+        lastAcousticApplyAtMs = now
+        decider.reset()
+        autoSyncCorrectionMs = corrected
         settingsRepository.updateCustomRadioAutoSyncCorrection(autoSyncCorrectionMs)
-        logTelemetry("acoustic_correction", detail = "lagMs=$lagMs correctionMs=$autoSyncCorrectionMs")
+        logTelemetry(
+            "acoustic_correction",
+            detail = "lagMs=$lagMs correctionMs=$autoSyncCorrectionMs source=${decision.source} curves=${decision.curves} " +
+                "score=${String.format(Locale.ROOT, "%.3f", decision.score)} ratio=${String.format(Locale.ROOT, "%.2f", decision.ratio)}"
+        )
         if (abs(lagMs) >= 500L && fragment.isAdded) {
             Toast.makeText(
                 fragment.requireContext(),
@@ -678,8 +691,13 @@ internal class CustomRadioController(
             // First auto-sync with this correction model: start from the manual delay the user already
             // tuned, so switching to auto-sync sounds the same and only drift is corrected from here on
             needsCorrectionSeed = false
-            autoSyncCorrectionMs = (manualDelayMs - (videoLagMs - backlogMs))
-                .coerceIn(-CUSTOM_RADIO_MAX_AUTO_SYNC_CORRECTION_MS, CUSTOM_RADIO_MAX_AUTO_SYNC_CORRECTION_MS)
+            // ...unless that delay was never touched (still the default): then a typical station latency
+            autoSyncCorrectionMs = if (manualDelayMs == CUSTOM_RADIO_DEFAULT_OFFSET_MS) {
+                CORRECTION_DEFAULT_MS
+            } else {
+                (manualDelayMs - (videoLagMs - backlogMs))
+                    .coerceIn(-CUSTOM_RADIO_MAX_AUTO_SYNC_CORRECTION_MS, CUSTOM_RADIO_MAX_AUTO_SYNC_CORRECTION_MS)
+            }
             settingsRepository.updateCustomRadioAutoSyncCorrection(autoSyncCorrectionMs)
             logTelemetry(
                 "auto_sync_correction_seeded",
@@ -752,7 +770,7 @@ internal class CustomRadioController(
             if (!inSync) {
                 // Still converging: the acoustic sync should only use audio from after this
                 lastAlignmentChangeAtMs = nowMs
-                accumulator.reset()
+                decider.reset()
             }
             return
         }
@@ -761,7 +779,7 @@ internal class CustomRadioController(
         engine.setAudioDelay(reachableTargetMs)
         lastAutoSyncSeekAtElapsedMs = nowMs
         lastAlignmentChangeAtMs = nowMs
-        pendingAcousticEstimate = null; accumulator.reset()
+        decider.reset()
         offsetMs = reachableTargetMs
         host.refreshRadioOverlay()
         logTelemetry(
@@ -785,7 +803,7 @@ internal class CustomRadioController(
                 "backlogMs=${radioPlayer?.ingestBacklogMs()} correctionMs=$autoSyncCorrectionMs " +
                 "targetMs=$targetMs actualMs=$actualMs speed=$speed radioHeard=${isActive && !awaitingAutoSyncLock} " +
                 "acoustic=$acousticSync suspended=$acousticSuspendedByUser ambientTrack=$ambientAudioPreferred " +
-                "curves=${accumulator.count}"
+                "curves=${decider.count}"
         )
     }
 
