@@ -66,11 +66,13 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
     }
 
     private var syncJob: Job? = null
+    private var createdInYear = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         val currentYear = Year.now().value
+        createdInYear = currentYear
         teaserImage = findViewById(R.id.teaserImage)
         teaserContainer = findViewById(R.id.teaserContainer)
         fragmentContainer = findViewById(R.id.fragment_container)
@@ -95,6 +97,11 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
     override fun onStart() {
         Log.d(TAG, "onStart")
         super.onStart()
+        if (Year.now().value != createdInYear) {
+            // Left open over New Year: the screen is built around the year it was opened in
+            recreate()
+            return
+        }
 
         syncJob = lifecycleScope.launch {
             schedule(Duration.ofMinutes(1)) {
@@ -136,10 +143,12 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
         updateManager.onLandingResumed(this)
     }
 
-    override fun onPause() {
+    override fun onStop() {
+        // Paired with onStart (it was onPause: anything that paused the screen without stopping it,
+        // like a dialog, ended the refresh until the app was reopened)
         syncJob?.cancel()
         syncJob = null
-        super.onPause()
+        super.onStop()
     }
 
     private fun applySettingsButtonInsets(settingsButton: View) {

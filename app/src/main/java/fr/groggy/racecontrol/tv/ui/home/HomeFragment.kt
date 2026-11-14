@@ -34,6 +34,8 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
     private val homeEntriesAdapter = ArrayObjectAdapter(ListRowPresenter())
     private val currentYear = Year.now().value
     private var archivesRow: ListRow? = null
+    /** The row with the latest weekend's sessions: there is only ever one. */
+    private var latestEventRow: ListRow? = null
     private var hasLoadedDataOnce = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -78,24 +80,21 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
         val events = season.events.filter { it.sessions.isNotEmpty() }
         if (events.isNotEmpty()) {
             val event = events.first()
-            val existingListRows = homeEntriesAdapter.unmodifiableList<ListRow>()
             val headerName =
                 getString(R.string.season_last_event, event.name, currentYear.toString())
-            val existingListRow = existingListRows.find { it.headerItem.name == headerName }
-            val sessionsListRow = getLastSessionsRow(event.sessions, headerName, existingListRow)
-            val existingIndex = existingListRows.indexOfFirst { it.headerItem.name == headerName }
-
-            if (existingListRow == null) {
-                if (existingIndex >= 0) {
-                    homeEntriesAdapter.replace(existingIndex, sessionsListRow)
-                } else {
-                    homeEntriesAdapter.add(0, sessionsListRow)
-                }
+            val current = latestEventRow
+            if (current != null && current.headerItem.name == headerName) {
+                // Same weekend: update its sessions in place (diffed, focus stays where it is)
+                getLastSessionsRow(event.sessions, headerName, current)
             } else {
-                /* Compare the old list to the new to see if it needs updating */
-                if (!hasMatchingSessions(existingListRow, sessionsListRow)) {
-                    homeEntriesAdapter.replace(existingIndex, sessionsListRow)
-                }
+                // A new weekend (or the first data): it replaces the previous weekend's row. Before, it
+                // was added above it, so the screen kept showing the old weekend (the new one was one
+                // row up) and every weekend the app stayed open added another row.
+                val row = getLastSessionsRow(event.sessions, headerName, null)
+                val index = current?.let { homeEntriesAdapter.indexOf(it) } ?: -1
+                if (index >= 0) homeEntriesAdapter.replace(index, row) else homeEntriesAdapter.add(0, row)
+                latestEventRow = row
+                if (current != null) selectLatestEvent()
             }
             ensureArchiveRowPresent()
             if (!hasLoadedDataOnce) {
@@ -107,20 +106,16 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
         }
     }
 
+    private fun selectLatestEvent() {
+        view?.post { setSelectedPosition(0, true) }
+    }
+
     private fun maybeSelectLatestEventByDefault() {
         view?.post {
             setSelectedPosition(0, false)
             view?.requestFocus()
         }
     }
-
-    private fun hasMatchingSessions(
-        existingListRow: ListRow,
-        sessionsListRow: ListRow
-    ) = (existingListRow.adapter.size() == sessionsListRow.adapter.size() // Do we have the same number of items
-            && (0 until existingListRow.adapter.size()).all { index -> // If so, do the sessions in each match in order?
-        existingListRow.adapter[index] as Session == sessionsListRow.adapter[index] as Session
-    })
 
     private fun onEmptySeason() {
         /* Session wasn't started yet, just add the archive */

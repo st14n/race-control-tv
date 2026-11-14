@@ -51,6 +51,7 @@ internal class InAppHlsCustomRadioEngine(
 		configureJavaCppLogger()
 		hlsDir.mkdirs()
 		deleteHlsFiles()
+		deleteStaleSessions()
 		startFfmpeg()
 		probeStartedAtMs = System.currentTimeMillis()
 		handler.postDelayed(::waitForPlaylist, PLAYLIST_POLL_MS)
@@ -76,6 +77,8 @@ internal class InAppHlsCustomRadioEngine(
 				setOption("reconnect", "1")
 				setOption("reconnect_streamed", "1")
 				setOption("reconnect_delay_max", "2")
+				// A read that hangs (server gone) must end, so the worker can see it was released
+				setOption("rw_timeout", "15000000")
 				setOption("user_agent", userAgent)
 				setOption("headers", "Icy-MetaData: 0\r\n")
 				start()
@@ -116,7 +119,15 @@ internal class InAppHlsCustomRadioEngine(
 				handler.post { reportError("ffmpeg_hls_failed", e) }
 			}
 		} finally {
+			// Only this thread ever touches the grabber and recorder. Stopping the recorder from
+			// release() on the main thread while this thread was still writing a frame crashed the
+			// app natively (SIGSEGV in av_write_trailer/av_write_frame, TV crash reports 2026-11-14):
+			// the "app closes when going back to the menu" bug.
 			stopRecorder()
+			if (released.get()) {
+				deleteHlsFiles()
+				hlsDir.delete()
+			}
 		}
 	}
 
@@ -191,6 +202,7 @@ internal class InAppHlsCustomRadioEngine(
 		Log.i(TAG, "attached ExoPlayer to local HLS playlist delay=${pendingDelayMs}ms url=$fileUri")
 	}
 
+	/** Worker thread only (see the end of [runFfmpegLoop]). */
 	private fun stopRecorder() {
 		runCatching { recorder?.stop() }
 		runCatching { recorder?.release() }
@@ -266,11 +278,25 @@ internal class InAppHlsCustomRadioEngine(
 		handler.removeCallbacksAndMessages(null)
 		child?.release()
 		child = null
-		stopRecorder()
-		runCatching { worker?.interrupt() }
+		// The worker stops the recorder and removes the files itself once its current frame is done
+		val running = worker
 		worker = null
-		deleteHlsFiles()
-		hlsDir.delete()
+		if (running == null || !running.isAlive) {
+			deleteHlsFiles()
+			hlsDir.delete()
+		} else {
+			runCatching { running.interrupt() }
+		}
+	}
+
+	/** Folders of earlier radio sessions whose worker never got to clean up (app killed, say). */
+	private fun deleteStaleSessions() {
+		val now = System.currentTimeMillis()
+		hlsDir.parentFile?.listFiles()?.forEach { dir ->
+			if (dir != hlsDir && dir.isDirectory && now - dir.lastModified() > STALE_SESSION_MS) {
+				runCatching { dir.deleteRecursively() }
+			}
+		}
 	}
 
 	private fun deleteHlsFiles() {
@@ -288,5 +314,6 @@ internal class InAppHlsCustomRadioEngine(
 		const val PLAYLIST_START_TIMEOUT_MS = 20_000L
 		// The connect burst is over within a few seconds; measure well past it
 		const val BACKLOG_MEASURE_WINDOW_MS = 15_000L
+		const val STALE_SESSION_MS = 10 * 60_000L
 	}
 }
