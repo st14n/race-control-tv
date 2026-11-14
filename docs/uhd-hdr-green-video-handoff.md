@@ -14,6 +14,30 @@ Copying the official app "exactly" is not realistic or safe as-is because it wou
 
 Current direction after rejecting licensed SDKs: keep Media3, keep requesting the real UHD/HDR stream, and fix the protected HDR presentation path instead of avoiding HDR.
 
+## 2026-11-14: Review — the "software key" root cause does not hold; next test is a sample-layout comparison (READ FIRST)
+
+Re-read of everything below, no new device run (adb on the Streamer was off).
+
+- **The 2026-09-11 / 2026-10-23 conclusion is not sound.** `KeyContainer.level` in a Widevine licence is
+  the *minimum* robustness the key requires. `SW_SECURE_CRYPTO` is the lowest requirement: an L1 session
+  loads such a key into OEMCrypto and may decrypt into secure buffers with it (that is how ordinary
+  HD content plays on L1 devices). It does not make a key unusable by a secure decoder. That the official
+  app gets `HW_SECURE_DECODE` / label "SD" for the same KID shows F1 serves it a stricter policy, not that
+  ours is broken. Consistent with this: testers play UHD replays with this app on other TVs (Shield) with
+  the same kind of licence.
+- **What the evidence does support** (2026-08-22 parts 2-4): on the Streamer, F1's `cbcs` HEVC comes out of
+  decryption damaged in the Media3 path at every resolution, with the secure decoder (green), the
+  non-secure MediaTek decoder under L3 and the software decoder under L3 (decode errors at the last LCU),
+  while `cbcs` AVC and `cenc` HEVC are fine, and the official player (same decoder, same stream) is fine.
+  So the difference is in what is handed to `queueSecureInputBuffer` (subsample layout, IV, pattern,
+  flags, how an access unit is split over buffers) or in decoder set-up, on this device.
+- **Decisive, cheap test (prepared, not run):** the patched official app can now log exactly that
+  (`F1TV_CRYPTO_PROBE=1` build of st14n/f1tv-4k-patch, tag `F1CryptoProbe`: per input buffer the clear /
+  protected byte counts, IV, pattern, flags, size and the first clear bytes). Play the same UHD replay in
+  both apps on the Streamer, with `enableCryptoDiagnostics = true` in `ChannelPlaybackFragment` for this
+  app, and diff the two. Whatever differs is the thing to replicate here; if nothing differs, the cause
+  is decoder set-up and the same capture narrows that down (codec name, flags, config buffers).
+
 ## 2026-10-13 10:20: Real Streamer L1 GRANT — HW_SECURE_DECODE ACHIEVED (READ FIRST)
 
 **STATUS: L1 GRANT ACHIEVED.** On the real Google TV Streamer
@@ -2328,7 +2352,8 @@ Select-String -Path C:\race-control-tv-st14n\logcat_l3_clean_test.txt -Pattern '
   MediaTek decoder was selected. If c2.mtk.hevc.decoder.secure appears
   instead, Media3 picked the secure decoder anyway and the L3 force was
   ignored at the decoder level; the test is then not a clean L3 run.
-- enderedFirstFrame + visual: if first frame rendered and the picture is
+- 
+enderedFirstFrame + visual: if first frame rendered and the picture is
   not green, SW_SECURE_CRYPTO + non-secure decode produces correct output on
   this content -- the green was strictly a key/decoder mismatch, fixable in
   app code by forcing L3. If still green, the previous entry's
