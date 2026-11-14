@@ -14,29 +14,34 @@ Copying the official app "exactly" is not realistic or safe as-is because it wou
 
 Current direction after rejecting licensed SDKs: keep Media3, keep requesting the real UHD/HDR stream, and fix the protected HDR presentation path instead of avoiding HDR.
 
-## 2026-11-14: Review — the "software key" root cause does not hold; next test is a sample-layout comparison (READ FIRST)
+## 2026-11-14: SOLVED for replays — 4K is the unencrypted HDR_UHD_CMAF stream (READ FIRST)
 
-Re-read of everything below, no new device run (adb on the Streamer was off).
+Measured on the Streamer the same evening, both apps on the same full-session replay (contentId 1000010431).
 
-- **The 2026-09-11 / 2026-10-23 conclusion is not sound.** `KeyContainer.level` in a Widevine licence is
-  the *minimum* robustness the key requires. `SW_SECURE_CRYPTO` is the lowest requirement: an L1 session
-  loads such a key into OEMCrypto and may decrypt into secure buffers with it (that is how ordinary
-  HD content plays on L1 devices). It does not make a key unusable by a secure decoder. That the official
-  app gets `HW_SECURE_DECODE` / label "SD" for the same KID shows F1 serves it a stricter policy, not that
-  ours is broken. Consistent with this: testers play UHD replays with this app on other TVs (Shield) with
-  the same kind of licence.
-- **What the evidence does support** (2026-08-22 parts 2-4): on the Streamer, F1's `cbcs` HEVC comes out of
-  decryption damaged in the Media3 path at every resolution, with the secure decoder (green), the
-  non-secure MediaTek decoder under L3 and the software decoder under L3 (decode errors at the last LCU),
-  while `cbcs` AVC and `cenc` HEVC are fine, and the official player (same decoder, same stream) is fine.
-  So the difference is in what is handed to `queueSecureInputBuffer` (subsample layout, IV, pattern,
-  flags, how an access unit is split over buffers) or in decoder set-up, on this device.
-- **Decisive, cheap test (prepared, not run):** the patched official app can now log exactly that
-  (`F1TV_CRYPTO_PROBE=1` build of st14n/f1tv-4k-patch, tag `F1CryptoProbe`: per input buffer the clear /
-  protected byte counts, IV, pattern, flags, size and the first clear bytes). Play the same UHD replay in
-  both apps on the Streamer, with `enableCryptoDiagnostics = true` in `ChannelPlaybackFragment` for this
-  app, and diff the two. Whatever differs is the thing to replicate here; if nothing differs, the cause
-  is decoder set-up and the same capture narrows that down (codec name, flags, config buffers).
+- **What the official TV app plays in 4K** (its ClearVR log, debug build of the patched app):
+  `Resolved playback mode is: player_tm`, `streamType=HDR_UHD_CMAF`, `laUrl=null`, `drmConfig: null`, a
+  `tmeJson` whose feed URL is a plain `index.m3u8`. Decoder: `c2.mtk.hevc.decoder.lowlatency` (not
+  secure), no `queueSecureInputBuffer` at all. There is no DRM on that stream.
+- **What the API hands this app** (normal requests, `player_bm`, own device info, header
+  `x-f1-override-video-stream`): `HDR_UHD_CMAF` -> `drmType=null`, no licence URL, HLS master with an HLG
+  ladder (`hvc1.2.4.*`, up to 3840x2160@50) and an SDR ladder (`hvc1.1.6.*`, up to 2880x1620), AAC stereo and
+  AC-3 5.1 audio; no `EXT-X-KEY`, no `encv`/`tenc`/`senc` in init or media segments. `HDR_UHD_DASH` is
+  unencrypted too. `HDR_UHD_DASHWV` (what this app asked first) returns a manifest URL that is 404 on the CDN;
+  `HDR_UHD_CMAFWV` exists and is the Widevine one that decodes green on MediaTek.
+- **Fix (commit 1b96c69 and later):** ask `HDR_UHD_CMAF` first and play it without DRM in the standard
+  player; keep ABR on one ladder (HLG on an HLG display, else SDR); `ProtectedHdrStreamClassifier` no
+  longer looks for "WV" in the URL (the signed base64 segment contains it by chance). Verified by the
+  user on the Streamer: 4K HLG plays, `c2.mtk.hevc.decoder`, AC-3 audio.
+- **The old "software key" root cause (2026-09-11 / 2026-10-23) was wrong.** `KeyContainer.level` is a
+  minimum requirement, not a restriction. The green picture is specific to the Widevine variants on this
+  device (see 2026-08-22 parts 2-4); it no longer matters for replays.
+- **Live is open.** On 2026-11-07 the official app played a live session through
+  `c2.mtk.hevc.decoder.secure`, so live is probably only offered Widevine-protected. This app therefore
+  tries only `HDR_UHD_CMAF` for live (`clearUhdOnly`) and otherwise plays standard 1080p. To check at the
+  next live session: (1) does the API return `HDR_UHD_CMAF` with `drmType=null` for live and does its
+  playlist load; (2) if not, the comparison that is now possible: the patched official app built with
+  `F1TV_CRYPTO_PROBE=1` logs what ClearVR passes to `queueSecureInputBuffer` (tag `F1CryptoProbe`), this
+  app with `enableCryptoDiagnostics = true` logs the same for Media3.
 
 ## 2026-10-13 10:20: Real Streamer L1 GRANT — HW_SECURE_DECODE ACHIEVED (READ FIRST)
 
