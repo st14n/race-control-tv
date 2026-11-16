@@ -4,7 +4,12 @@ import android.os.Bundle
 import androidx.annotation.Keep
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.viewModels
-import androidx.leanback.app.BrowseSupportFragment
+import androidx.leanback.app.RowsSupportFragment
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.TextView
+import androidx.core.view.updateLayoutParams
 import androidx.leanback.widget.*
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.R
@@ -13,9 +18,12 @@ import fr.groggy.racecontrol.tv.ui.season.browse.SeasonBrowseActivity
 
 @Keep
 @AndroidEntryPoint
-class SeasonArchiveFragment : BrowseSupportFragment(), OnItemViewClickedListener {
+class SeasonArchiveFragment : RowsSupportFragment(), OnItemViewClickedListener {
 
-    private val archivesAdapter = ArrayObjectAdapter(ListRowPresenter())
+    private val archivesAdapter = ArrayObjectAdapter(ListRowPresenter(FocusHighlight.ZOOM_FACTOR_SMALL).apply {
+        shadowEnabled = false
+        selectEffectEnabled = false
+    })
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -24,12 +32,24 @@ class SeasonArchiveFragment : BrowseSupportFragment(), OnItemViewClickedListener
         buildRowsAdapter()
     }
 
+    // The redesign: a title above one row of years per decade, no blue side menu
     private fun setupUIElements() {
-        title = getText(R.string.choose_a_season)
-        headersState = HEADERS_ENABLED
-        isHeadersTransitionOnBackEnabled = true
-        brandColor = ContextCompat.getColor(requireContext(), R.color.fastlane_background)
         adapter = archivesAdapter
+    }
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+        val view = super.onCreateView(inflater, container, savedInstanceState)
+        view?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+            val fadingEdge = inflater.context.resources.getDimensionPixelSize(R.dimen.lb_browse_rows_fading_edge)
+            leftMargin = -fadingEdge * 2 - 4
+            rightMargin = -fadingEdge * 2 - 4
+        }
+        return view
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        activity?.findViewById<TextView>(R.id.archive_title)?.setText(R.string.choose_a_season)
     }
 
     private fun setupEventListeners() {

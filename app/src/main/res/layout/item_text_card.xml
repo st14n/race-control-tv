@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- A season tile in the archive: the same size and shape as the session cards -->
 <TextView
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/text_view"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:textColor="@android:color/white"
+    android:layout_width="160dp"
+    android:layout_height="90dp"
     android:background="@drawable/item_background"
-    android:padding="48dp"
-    android:textSize="72sp"/>
+    android:fontFamily="sans-serif-condensed"
+    android:gravity="center"
+    android:textColor="@color/rc_text"
+    android:textSize="30sp"
+    android:textStyle="bold" />
