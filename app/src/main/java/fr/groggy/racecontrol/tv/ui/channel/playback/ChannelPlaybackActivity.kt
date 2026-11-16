@@ -201,10 +201,7 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
             return
         }
         val contentId = ChannelPlaybackFragment.findContentId(this) ?: return finish()
-        val channelId = resolvePreferredChannelId(
-            contentId = contentId,
-            requestedChannelId = ChannelPlaybackFragment.findChannelId(this)
-        )
+        val channelId = resolvePreferredChannelId(ChannelPlaybackFragment.findChannelId(this))
         Log.i(
             TAG,
             "Fetching viewing for contentId=$contentId channelId=$channelId " +
@@ -248,24 +245,15 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         }
     }
 
-    private suspend fun resolvePreferredChannelId(contentId: String, requestedChannelId: String?): String? {
-        if (requestedChannelId != null) {
-            return requestedChannelId
-        }
-        return runCatching {
-            val basicChannels = f1TvClient.getChannels(contentId).filterIsInstance<F1TvBasicChannel>()
-            // Playing a feed of its own, e.g. F1 LIVE (its own commentary): do not swap in the
-            // International channel, which mixed International commentary into that picture
-            val own = basicChannels.firstOrNull { it.contentId == contentId }
-            if (own != null && own.type != F1TvBasicChannelType.Wif) {
-                Log.i(TAG, "Playing ${own.type} feed with its own audio (channelId=${own.channelId})")
-                return@runCatching own.channelId
-            }
-            basicChannels.firstOrNull { it.type == F1TvBasicChannelType.Wif }?.channelId
-        }.onFailure {
-            Log.w(TAG, "Failed to resolve preferred International channel: ${it.message}")
-        }.getOrNull()
-    }
+    /**
+     * The channel to play: the one that was chosen (F1 LIVE has its own id and keeps its own
+     * commentary), or, when none was (the main feed, "bypass channel selection", International),
+     * no id at all. F1 hands out the International feed for a request without a channel id, with all
+     * its commentary languages, in standard and in UHD alike. (A change of 2026-11-08 picked the first
+     * channel of the list for this case, and that was F1 LIVE: International then played the F1 LIVE
+     * feed, which only has English and Spanish.)
+     */
+    private fun resolvePreferredChannelId(requestedChannelId: String?): String? = requestedChannelId
 
     /**
      * Non-fatal: attempts to find the PRES/F1Live channel and populate [F1TvViewing]
@@ -456,10 +444,7 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
 
     private suspend fun runStreamVariantProbe() {
         val contentId = ChannelPlaybackFragment.findContentId(this) ?: return finish()
-        val channelId = resolvePreferredChannelId(
-            contentId = contentId,
-            requestedChannelId = ChannelPlaybackFragment.findChannelId(this)
-        )
+        val channelId = resolvePreferredChannelId(ChannelPlaybackFragment.findChannelId(this))
 
         val overrides = listOf(
             "HDR_UHD_DASHWV",

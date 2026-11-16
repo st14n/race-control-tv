@@ -52,18 +52,22 @@ sealed class F1TvBasicChannelType {
     data class Unknown(val type: String, val name: String) : F1TvBasicChannelType()
 
     companion object {
-        fun from(type: String, name: String): F1TvBasicChannelType =
-            when(type) {
+        fun from(type: String, name: String): F1TvBasicChannelType {
+            // F1 names them "F1 LIVE", "INTERNATIONAL", "PIT LANE"...: compare without case and spaces
+            val key = name.lowercase().filter { it.isLetterOrDigit() }
+            return when (type) {
                 "wif" -> Wif
-                "additional" -> when(name.lowercase()) {
+                "additional" -> when (key) {
+                    "international" -> Wif
                     "f1live" -> F1Live
-                    "pit lane" -> PitLane
+                    "pitlane" -> PitLane
                     "tracker" -> Tracker
                     "data" -> Data
                     else -> Unknown(type, name)
                 }
                 else -> Unknown(type, name)
             }
+        }
     }
 }
 
