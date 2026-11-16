@@ -11,7 +11,11 @@ import androidx.annotation.Keep
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.viewModels
 import androidx.leanback.app.BackgroundManager
-import androidx.leanback.app.BrowseSupportFragment
+import androidx.leanback.app.RowsSupportFragment
+import android.view.LayoutInflater
+import android.view.ViewGroup
+import android.widget.TextView
+import androidx.core.view.updateLayoutParams
 import androidx.leanback.widget.*
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.asLiveData
@@ -35,13 +39,16 @@ import javax.inject.Inject
 
 @Keep
 @AndroidEntryPoint
-class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener {
+class SeasonBrowseFragment : RowsSupportFragment(), OnItemViewClickedListener {
     @Inject internal lateinit var sessionCardPresenter: SessionCardPresenter
     @Inject lateinit var settingsRepository: SettingsRepository
 
     private val eventListRowDiffCallback = EventListRowDiffCallback()
 
-    private val eventsAdapter = ArrayObjectAdapter(ListRowPresenter())
+    private val eventsAdapter = ArrayObjectAdapter(ListRowPresenter(FocusHighlight.ZOOM_FACTOR_SMALL).apply {
+        shadowEnabled = false
+        selectEffectEnabled = false
+    })
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Log.d(TAG, "onCreate")
@@ -71,12 +78,23 @@ class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener 
         }
     }
 
+    // The redesign: no blue side menu with the weekends, just one row per weekend under a title
     private fun setupUIElements() {
-        val isTouchDevice = requireContext().packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
-        headersState = if (isTouchDevice) HEADERS_DISABLED else HEADERS_ENABLED
-        isHeadersTransitionOnBackEnabled = !isTouchDevice
-        brandColor = ContextCompat.getColor(requireContext(), R.color.fastlane_background)
         adapter = eventsAdapter
+    }
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+        val view = super.onCreateView(inflater, container, savedInstanceState)
+        view?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+            val fadingEdge = inflater.context.resources.getDimensionPixelSize(R.dimen.lb_browse_rows_fading_edge)
+            leftMargin = -fadingEdge * 2 - 4
+            rightMargin = -fadingEdge * 2 - 4
+        }
+        return view
+    }
+
+    private fun showTitle(text: String) {
+        activity?.findViewById<TextView>(R.id.season_title)?.text = text
     }
 
     /**
@@ -136,11 +154,15 @@ class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener 
     private fun restoreSelection(selection: BrowseSelectionMemory.Selection?) {
         val target = selection ?: return
         val (row, item) = selectionMemory.locate(eventsAdapter, target) { (it as? Session)?.id?.value } ?: return
-        view?.post { setSelectedPosition(row, false, BrowseSelectionMemory.selectTask(item)) }
+        view?.post {
+            // Posted: the screen can be gone by now (back pressed right after opening)
+            if (!isAdded || isStateSaved || view == null) return@post
+            setSelectedPosition(row, false, BrowseSelectionMemory.selectTask(item))
+        }
     }
 
     private fun onUpdatedSeason(season: Season) {
-        title = season.name
+        showTitle(season.name)
         val keep = selectionMemory.current
         val existingListRows = eventsAdapter.unmodifiableList<ListRow>()
         val newEventRows = season.events

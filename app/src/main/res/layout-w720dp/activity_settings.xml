@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Settings of the redesign on a TV: a full screen, title on the left, the list on the right -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/rc_background">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="56dp"
+        android:layout_marginTop="56dp"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-condensed"
+            android:text="@string/settings_content_description"
+            android:textColor="@color/rc_text"
+            android:textSize="44sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/settings_version"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="@color/rc_text_secondary"
+            android:textSize="16sp" />
+
+        <View
+            android:layout_width="48dp"
+            android:layout_height="4dp"
+            android:layout_marginTop="18dp"
+            android:background="@drawable/progress_accent" />
+    </LinearLayout>
+
+    <androidx.fragment.app.FragmentContainerView
+        android:id="@+id/settings_fragment"
+        android:name="fr.groggy.racecontrol.tv.ui.settings.SettingsFragment"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+</FrameLayout>

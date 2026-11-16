@@ -10,7 +10,7 @@
     <!-- Settings in the redesign's colours: dark panel, red switches, a rounded focus highlight -->
     <style name="RcPreferenceTheme" parent="PreferenceThemeOverlayLeanback">
         <item name="android:windowBackground">@color/rc_surface</item>
-        <item name="defaultBrandColor">@color/rc_background</item>
+        <item name="defaultBrandColor">@color/rc_surface</item>
         <item name="android:colorAccent">@color/rc_accent</item>
         <item name="android:colorControlActivated">@color/rc_accent</item>
         <item name="android:selectableItemBackground">@drawable/preference_item_background</item>

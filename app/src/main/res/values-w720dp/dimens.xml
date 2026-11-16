@@ -1,4 +1,5 @@
 <resources>
     <!-- Settings panel on a TV: a bit wider than Leanback's 360dp -->
-    <dimen name="lb_settings_pane_width">420dp</dimen>
+    <dimen name="lb_settings_pane_width">560dp</dimen>
+    <dimen name="rc_screen_gutter">48dp</dimen>
 </resources>
