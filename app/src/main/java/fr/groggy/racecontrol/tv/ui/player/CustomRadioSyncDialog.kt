@@ -15,10 +15,10 @@ import fr.groggy.racecontrol.tv.R
  * correction) is up to the caller; the neutral button switches between auto-sync and manual.
  */
 class CustomRadioSyncDialog(
-    private val titleProvider: () -> String,
-    private val onAdjust: (deltaMs: Long) -> Unit,
-    private val modeToggleLabelProvider: () -> String,
-    private val onToggleMode: () -> Unit,
+    private val titleProvider: () -> String = { "" },
+    private val onAdjust: (deltaMs: Long) -> Unit = {},
+    private val modeToggleLabelProvider: () -> String = { "" },
+    private val onToggleMode: () -> Unit = {},
     private val onUserInteraction: (() -> Unit)? = null,
     private val onDialogDismissed: (() -> Unit)? = null
 ) : DialogFragment() {
@@ -35,6 +35,12 @@ class CustomRadioSyncDialog(
             dialog?.setTitle(titleProvider())
             handler.postDelayed(this, TITLE_REFRESH_MS)
         }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Recreated by the system (its tracks and callbacks are gone): close instead of crashing
+        if (savedInstanceState != null) dismissAllowingStateLoss()
     }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {

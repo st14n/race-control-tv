@@ -13,9 +13,15 @@ import fr.groggy.racecontrol.tv.R
 import kotlin.math.roundToInt
 
 class ResolutionSelectionDialog(
-    private val tracks: Tracks,
+    private val tracks: Tracks = Tracks.EMPTY,
     private val onDialogDismissed: (() -> Unit)? = null
 ) : DialogFragment() {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Recreated by the system (its tracks and callbacks are gone): close instead of crashing
+        if (savedInstanceState != null) dismissAllowingStateLoss()
+    }
 
     private var onResolutionSelectedListener: ((Int, Int) -> Unit)? = null
 

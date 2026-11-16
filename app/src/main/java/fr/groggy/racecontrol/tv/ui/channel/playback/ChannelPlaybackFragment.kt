@@ -184,6 +184,9 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     private var lastVideoHostWidth: Int = 0
     private var lastVideoHostHeight: Int = 0
     private var hasStartedPlayer = false
+    /** Where a replay was when its surface went away (-1: nothing to resume). */
+    private var resumeAfterSurfaceLossMs = -1L
+    private var intentStartPositionUsed = false
     private var boundPlaybackSurfaceView: SurfaceView? = null
     private var boundPlaybackSurfaceHolder: SurfaceHolder? = null
     private var boundDirectSurfaceView: SurfaceView? = null
@@ -227,6 +230,11 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             if (!hasStartedPlayer) {
                 Log.i(TAG, "Surface created, now safe to start player and evaluate EGL capabilities.")
                 hasStartedPlayer = true
+                startPlayer()
+            } else if (_player == null && isResumed) {
+                // The surface went away while playing (the player had to be released with it): start
+                // again, where the picture was
+                Log.i(TAG, "Surface recreated while playing: restarting the player at ${resumeAfterSurfaceLossMs}ms")
                 startPlayer()
             }
         }
@@ -405,8 +413,13 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             Log.i(TAG, "releasePlayerSafely skipped; player already null source=$source")
             return
         }
+        if (source == "surfaceDestroyed" && !playerToRelease.isCurrentMediaItemLive && playerToRelease.currentPosition > 0) {
+            resumeAfterSurfaceLossMs = playerToRelease.currentPosition
+        }
         _player = null
         boundHlgGraphSurfaceView = null
+        // A new player must be bound to the surface again
+        boundDirectSurfaceView = null
         playerToRelease.removeListener(this)
         runCatching {
             playerToRelease.clearVideoSurface()
@@ -591,8 +604,14 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                 mainSource
             }
 
-            // Only set by a feed switch in a replay (see positionToKeepOnFeedSwitchMs); a live stream never has one
-            val startPositionMs = ChannelPlaybackFragment.findStartPositionMs(requireActivity())
+            // A feed switch in a replay (see positionToKeepOnFeedSwitchMs), once; or a restart after the
+            // surface was lost. A live stream has neither.
+            val startPositionMs = when {
+                resumeAfterSurfaceLossMs > 0L -> resumeAfterSurfaceLossMs.also { resumeAfterSurfaceLossMs = -1L }
+                !intentStartPositionUsed -> ChannelPlaybackFragment.findStartPositionMs(requireActivity())
+                else -> 0L
+            }
+            intentStartPositionUsed = true
             if (startPositionMs > 0L) {
                 Log.i(TAG, "Starting at ${startPositionMs / 1000}s (kept from the feed that was playing)")
                 player.setMediaSource(mediaSource, startPositionMs)

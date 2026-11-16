@@ -823,7 +823,7 @@ internal class CustomRadioController(
 
     fun showSyncDialog() {
         fragment.view?.post {
-            if (!fragment.isAdded) return@post
+            if (!fragment.isAdded || fragment.childFragmentManager.isStateSaved) return@post
             if (fragment.childFragmentManager.findFragmentByTag(CUSTOM_RADIO_SYNC_DIALOG_TAG) != null) {
                 return@post
             }

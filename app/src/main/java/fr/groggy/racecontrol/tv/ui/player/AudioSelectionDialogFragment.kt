@@ -67,7 +67,7 @@ private fun audioSelectionSortPriority(format: Format): Int {
 }
 
 class AudioSelectionDialogFragment(
-    private val audioGroups: List<Tracks.Group>,
+    private val audioGroups: List<Tracks.Group> = emptyList(),
     private val includeCustomRadioOption: Boolean = true,
     /** When the other main feed's commentary is merged in: the names of the two feeds. */
     private val feedLabel: String? = null,
@@ -108,6 +108,12 @@ class AudioSelectionDialogFragment(
                     { it.baseLabel.lowercase(Locale.getDefault()) }
                 )
             )
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Recreated by the system (its tracks and callbacks are gone): close instead of crashing
+        if (savedInstanceState != null) dismissAllowingStateLoss()
     }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {

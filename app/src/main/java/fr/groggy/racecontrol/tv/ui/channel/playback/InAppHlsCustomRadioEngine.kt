@@ -46,12 +46,12 @@ internal class InAppHlsCustomRadioEngine(
 	private var firstFrameAtElapsedMs = 0L
 	private var maxIngestLeadMs = 0L
 	@Volatile private var ingestBacklogMs: Long? = null
+	private var firstRecordedUs = Long.MIN_VALUE
+	/** Audio recorded so far (worker thread writes, main thread reads). */
+	@Volatile private var recordedMs = 0L
 
 	init {
 		configureJavaCppLogger()
-		hlsDir.mkdirs()
-		deleteHlsFiles()
-		deleteStaleSessions()
 		startFfmpeg()
 		probeStartedAtMs = System.currentTimeMillis()
 		handler.postDelayed(::waitForPlaylist, PLAYLIST_POLL_MS)
@@ -72,6 +72,10 @@ internal class InAppHlsCustomRadioEngine(
 	}
 
 	private fun runFfmpegLoop() {
+		// Disk work here, on the worker thread, not on the main thread
+		hlsDir.mkdirs()
+		deleteHlsFiles()
+		deleteStaleSessions()
 		try {
 			val localGrabber = FFmpegFrameGrabber(upstreamSource.url).apply {
 				setOption("reconnect", "1")
@@ -109,6 +113,8 @@ internal class InAppHlsCustomRadioEngine(
 				val frame = localGrabber.grabSamples() ?: break
 				measureIngestBacklog(frame.timestamp)
 				localRecorder.record(frame)
+				if (firstRecordedUs == Long.MIN_VALUE) firstRecordedUs = frame.timestamp
+				recordedMs = (frame.timestamp - firstRecordedUs) / 1_000L
 			}
 
 			if (!released.get()) {
@@ -212,19 +218,13 @@ internal class InAppHlsCustomRadioEngine(
 		grabber = null
 	}
 
-	private fun hlsPlaylistDurationMs(): Long {
-		if (!playlistFile.isFile) return 0L
-		return runCatching {
-			playlistFile.readLines().sumOf { line ->
-				if (!line.startsWith("#EXTINF:")) {
-					0L
-				} else {
-					val seconds = line.substringAfter(':').substringBefore(',').toDoubleOrNull() ?: 0.0
-					(seconds * 1_000L).toLong()
-				}
-			}
-		}.getOrDefault(0L)
-	}
+	/**
+	 * How much audio the local playlist holds: what was recorded, minus the segment still being written,
+	 * at most the 180 one-second segments kept. Counted by the worker instead of re-reading the
+	 * playlist file on the main thread every 250 ms.
+	 */
+	private fun hlsPlaylistDurationMs(): Long =
+		(recordedMs - HLS_SEGMENT_MS).coerceIn(0L, HLS_LIST_MS)
 
 	private fun reportError(code: String, throwable: Throwable?) {
 		if (released.get() || completionReported) return
@@ -315,5 +315,7 @@ internal class InAppHlsCustomRadioEngine(
 		// The connect burst is over within a few seconds; measure well past it
 		const val BACKLOG_MEASURE_WINDOW_MS = 15_000L
 		const val STALE_SESSION_MS = 10 * 60_000L
+		const val HLS_SEGMENT_MS = 1_000L
+		const val HLS_LIST_MS = 180_000L
 	}
 }

@@ -319,6 +319,7 @@ class ExoPlayerPlaybackTransportControlGlue(
         val sessionId = ChannelPlaybackFragment.findSessionId(activity) ?: return
         val contentId = ChannelPlaybackFragment.findContentId(activity) ?: return
         activity.window.decorView.post {
+            if (activity.supportFragmentManager.isStateSaved || activity.isFinishing) return@post
             ChannelSelectionDialog.newInstance(sessionId, contentId)
                 .onDialogDismissed(::onMenuDismissed)
                 .show(activity.supportFragmentManager)
@@ -327,6 +328,7 @@ class ExoPlayerPlaybackTransportControlGlue(
 
     private fun openResolutionSelectionDialog() {
         activity.window.decorView.post {
+            if (activity.supportFragmentManager.isStateSaved || activity.isFinishing) return@post
             ResolutionSelectionDialog(
                 tracks = exoPlayer.currentTracks,
                 onDialogDismissed = ::onMenuDismissed
@@ -353,6 +355,7 @@ class ExoPlayerPlaybackTransportControlGlue(
         val audioGroups = exoPlayer.currentTracks.groups
             .filter { it.type == C.TRACK_TYPE_AUDIO }
         activity.window.decorView.post {
+            if (activity.supportFragmentManager.isStateSaved || activity.isFinishing) return@post
             val labels = feedLabels?.invoke()
             val dialog = AudioSelectionDialogFragment(
                 audioGroups = audioGroups,

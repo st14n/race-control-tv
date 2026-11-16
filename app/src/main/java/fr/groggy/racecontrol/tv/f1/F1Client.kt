@@ -19,7 +19,8 @@ import javax.inject.Singleton
 @Singleton
 class F1Client @Inject constructor(
     private val httpClient: OkHttpClient,
-    moshi: Moshi
+    moshi: Moshi,
+    private val uhdDiscovery: UhdStreamDiscovery
 ) {
 
     private data class PlayRequestCandidate(
@@ -174,13 +175,26 @@ class F1Client @Inject constructor(
                         drmDeviceInfo = candidate.deviceInfo
                     )
 
-                    val acceptedHdrCandidate = isAcceptedHdrCandidate(
-                        candidate = candidate,
-                        streamType = response.resultObj.streamType,
-                        drmType = drmType,
-                        laURL = response.resultObj.laURL,
-                        clearUhdOnly = clearUhdOnly
-                    )
+                    val clearUhdCandidate = uhdDiscovery.isCandidate(candidate.overrideStreamType) &&
+                        drmType == null && response.resultObj.laURL.isNullOrBlank() &&
+                        looksLikeUhdOrHdr(response.resultObj.streamType)
+                    val acceptedHdrCandidate = if (clearUhdCandidate) {
+                        // Only a manifest that really is unencrypted 4K/HDR counts (a renamed or retired
+                        // type can come back as something else, or as a URL that does not exist)
+                        uhdDiscovery.isClearUhdManifest(httpClient, manifestUrl, candidate.userAgent).also { ok ->
+                            Log.i(TAG, "Unencrypted UHD candidate ${candidate.overrideStreamType} -> " +
+                                "${response.resultObj.streamType} manifestOk=$ok")
+                            if (ok) uhdDiscovery.remember(candidate.overrideStreamType!!)
+                        }
+                    } else {
+                        isAcceptedHdrCandidate(
+                            candidate = candidate,
+                            streamType = response.resultObj.streamType,
+                            drmType = drmType,
+                            laURL = response.resultObj.laURL,
+                            clearUhdOnly = clearUhdOnly
+                        )
+                    }
                     if (preferHdrManifest && !acceptedHdrCandidate) {
                         // The first standard (no override) answer is the fallback when no UHD variant is
                         // accepted. Standard streams are unencrypted DASH nowadays (no licence URL), so
@@ -223,6 +237,7 @@ class F1Client @Inject constructor(
             }
         }
 
+        if (preferHdrManifest) uhdDiscovery.nothingFound()
         return fallbackViewing ?: throw lastError ?: IllegalStateException("Unable to fetch viewing")
     }
 
@@ -391,8 +406,18 @@ class F1Client @Inject constructor(
             return standardCandidates
         }
 
-        val overrides = if (clearUhdOnly) listOf("HDR_UHD_CMAF") else hdrOverrideStreamTypes(streamType)
-        val hdrCandidates = overrides.flatMap { overrideStreamType ->
+        val clearCandidates = uhdDiscovery.candidates().map { overrideStreamType ->
+            PlayRequestCandidate(
+                PLAY_API_V3,
+                TV_PLATFORM,
+                DeviceInfo.f1DeviceInfo,
+                BITMOVIN_PLAYER,
+                "android_tv_clear_$overrideStreamType",
+                overrideStreamType
+            )
+        }
+        val overrides = if (clearUhdOnly) emptyList() else hdrOverrideStreamTypes(streamType)
+        val widevineCandidates = overrides.flatMap { overrideStreamType ->
             listOf(
                 PlayRequestCandidate(
                     PLAY_API_V3,
@@ -431,7 +456,7 @@ class F1Client @Inject constructor(
             "HDR manifest preference requested; probing TV DASH Widevine HDR"
         )
 
-        return hdrCandidates + standardCandidates
+        return clearCandidates + widevineCandidates + standardCandidates
     }
 
     private fun requestedPlatforms(streamType: Settings.StreamType): List<String> {
@@ -498,18 +523,17 @@ class F1Client @Inject constructor(
             "HDR_UHD_DASH",
             "HDR_UHD_DASH_SINGLE"
         )
-        // First: the unencrypted CMAF stream F1's own TV app plays in 4K (see isAcceptedHdrCandidate)
-        val clearCmaf = listOf("HDR_UHD_CMAF")
+        // The unencrypted ones come first, from UhdStreamDiscovery (requestedCandidates)
         val hlsWidevine = listOf(
             "HDR_UHD_CMAFWV",
             "HDR_UHD_CMAFWV_SINGLE"
         )
         return when (streamType) {
-            Settings.StreamType.DASH -> clearCmaf + dashWidevine + hlsWidevine
-            Settings.StreamType.DASH_HLS -> clearCmaf + dashWidevine + hlsWidevine
+            Settings.StreamType.DASH -> dashWidevine + hlsWidevine
+            Settings.StreamType.DASH_HLS -> dashWidevine + hlsWidevine
             // Media3's DASH Widevine path is the next HDR presentation hypothesis after
             // HLS CMAF-WV still rendered green on Google TV Streamer.
-            Settings.StreamType.HLS -> clearCmaf + dashWidevine + hlsWidevine
+            Settings.StreamType.HLS -> dashWidevine + hlsWidevine
         }
     }
 }
