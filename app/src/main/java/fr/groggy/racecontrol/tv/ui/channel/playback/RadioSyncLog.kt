@@ -18,8 +18,19 @@ internal object RadioSyncLog {
     private val time = SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.ROOT)
     private var file: File? = null
 
-    @Synchronized
+    private val writer = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+        Thread(r, "radio-sync-log").apply { isDaemon = true }
+    }
+
+    /** Queued: the file is written on a background thread, never on the main thread. */
     fun append(context: Context?, message: String, throwable: Throwable? = null) {
+        val appContext = context?.applicationContext
+        val stamped = time.format(Date())
+        writer.execute { write(appContext, stamped, message, throwable) }
+    }
+
+    @Synchronized
+    private fun write(context: Context?, stamped: String, message: String, throwable: Throwable?) {
         try {
             val target = file ?: run {
                 val appContext = context?.applicationContext ?: return
@@ -32,7 +43,7 @@ internal object RadioSyncLog {
                 target.renameTo(previous)
             }
             FileWriter(target, true).use { out ->
-                out.write(time.format(Date()))
+                out.write(stamped)
                 out.write(" ")
                 out.write(message)
                 if (throwable != null) {

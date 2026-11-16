@@ -17,8 +17,18 @@ class CoroutineCallback(private val continuation: Continuation<Response>) : Call
 suspend fun Request.execute(httpClient: OkHttpClient): Response {
     val call = httpClient.newCall(this)
     return withContext(Dispatchers.IO) {
-        suspendCoroutine { continuation: Continuation<Response> ->
-            call.enqueue(CoroutineCallback(continuation))
+        kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
+            // Leaving the screen cancels the request instead of letting it run on
+            continuation.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    if (continuation.isActive) continuation.resumeWithException(e)
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    if (continuation.isActive) continuation.resume(response) else response.close()
+                }
+            })
         }
     }
 }

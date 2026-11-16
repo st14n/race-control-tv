@@ -23,26 +23,28 @@ class ViewingService @Inject constructor(
         private const val MAX_RETRIES = 5
     }
 
-    private val retryAttempts = AtomicInteger(0)
 
     suspend fun getViewing(
         channelId: String?,
         contentId: String,
         streamType: Settings.StreamType,
         preferHdrManifest: Boolean = true,
-        clearUhdOnly: Boolean = false
+        clearUhdOnly: Boolean = false,
+        /** Attempts in all: 1 for optional extras (a second feed's audio), so they never hold up the video. */
+        attempts: Int = MAX_RETRIES
     ): F1TvViewing = withContext(Dispatchers.IO) {
         Log.d(TAG, "getViewing $channelId - $contentId preferHdrManifest=$preferHdrManifest")
-        retryAttempts.set(0)
-
-        while (retryAttempts.getAndIncrement() < MAX_RETRIES) {
+        var attempt = 0
+        while (attempt++ < attempts) {
             try {
                 return@withContext getViewingOrThrow(channelId, contentId, streamType, preferHdrManifest, clearUhdOnly)
             } catch (e: TokenExpiredException) {
                 throw e
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.d(TAG, "Unable to fetch viewing", e)
-                delay(RETRY_DELAY_IN_MILLS)
+                if (attempt < attempts) delay(RETRY_DELAY_IN_MILLS)
             }
         }
 

@@ -14,6 +14,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.commit
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.withStarted
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.core.ViewingService
@@ -150,6 +151,9 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
     }
 
         lifecycleScope.launch {
+            // Only while started: fetching can take long, and committing the player after the viewer
+            // left (Home) threw IllegalStateException
+            withStarted {}
             if (STREAM_VARIANT_PROBE) {
                 runStreamVariantProbe()
             } else {
@@ -262,9 +266,19 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
      */
     private fun resolvePreferredChannelId(requestedChannelId: String?): String? = requestedChannelId
 
+    private var cachedChannels: Pair<String, List<fr.groggy.racecontrol.tv.f1tv.F1TvChannel>>? = null
+
+    /** The channel list of [contentId], fetched once per screen (it was fetched up to three times per start). */
+    private suspend fun channelsOf(contentId: String): List<fr.groggy.racecontrol.tv.f1tv.F1TvChannel> {
+        cachedChannels?.takeIf { it.first == contentId }?.let { return it.second }
+        val list = f1TvClient.getChannels(contentId)
+        if (list.isNotEmpty()) cachedChannels = contentId to list
+        return list
+    }
+
     /** The name of the feed that plays (F1 Live, International, a driver...), for the player's info line. */
     private suspend fun feedLabelOf(contentId: String, channelId: String?): String? = runCatching {
-        val all = f1TvClient.getChannels(contentId)
+        val all = channelsOf(contentId)
         val match = all.firstOrNull { it.channelId == channelId }
             ?: if (channelId == null) {
                 all.firstOrNull { it is F1TvBasicChannel && it.type == F1TvBasicChannelType.Wif }
@@ -301,7 +315,7 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         currentChannelId: String?,
         streamType: Settings.StreamType
     ): F1TvViewing = try {
-        val basic = f1TvClient.getChannels(contentId).filterIsInstance<F1TvBasicChannel>()
+        val basic = channelsOf(contentId).filterIsInstance<F1TvBasicChannel>()
         val f1Live = basic.firstOrNull { it.type == F1TvBasicChannelType.F1Live }
         val international = basic.firstOrNull { it.type == F1TvBasicChannelType.Wif }
         if (f1Live?.channelId == null || international == null) {
@@ -315,7 +329,7 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
                 // Same standard stream for the audio of the other feed: it is only listened to
                 val otherChannel = if (watchingF1Live) international.channelId else f1Live.channelId
                 Log.i(TAG, "Adding the other main feed's commentary (channelId=$otherChannel) to the audio menu")
-                val other = viewingService.getViewing(otherChannel, contentId, streamType, preferHdrManifest = false)
+                val other = viewingService.getViewing(otherChannel, contentId, streamType, preferHdrManifest = false, attempts = 1)
                 viewing.copy(
                     externalAudioUri = other.url,
                     externalAudioStreamType = other.streamType,
@@ -347,7 +361,7 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         streamType: Settings.StreamType,
         preferHdrManifest: Boolean
     ): F1TvViewing = try {
-        val channels = f1TvClient.getChannels(contentId)
+        val channels = channelsOf(contentId)
         val presChannel = channels
             .filterIsInstance<F1TvBasicChannel>()
             .firstOrNull { it.type == F1TvBasicChannelType.F1Live }
@@ -364,7 +378,8 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
             presChannel.channelId,
             presChannel.contentId,
             streamType,
-            preferHdrManifest
+            preferHdrManifest,
+            attempts = 1
         )
         viewing.copy(
             externalAudioUri = presViewing.url,
@@ -443,7 +458,19 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         return ProtectedHdrStreamClassifier.looksLikeHdrUhdWidevine(viewing)
     }
 
+    override fun onStop() {
+        super.onStop()
+        // Left while still loading (no player yet): nothing to come back to
+        if (supportFragmentManager.findFragmentByTag(ChannelPlaybackFragment.TAG) == null && !isChangingConfigurations) {
+            finish()
+        }
+    }
+
     private fun onViewingCreated(viewing: F1TvViewing) {
+        if (supportFragmentManager.isStateSaved || isFinishing || isDestroyed) {
+            Log.w(TAG, "Not starting the player: the screen was left")
+            return
+        }
         currentViewing = viewing
         currentPlaybackAttempt = PlaybackAttempt.Standard
         hasTriedToneMappedHdr = false
@@ -766,6 +793,10 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
      * Called by [ChannelPlaybackFragment] when ExoPlayer reports an unrecoverable error.
      */
     fun playerError() {
+        if (supportFragmentManager.isStateSaved || isFinishing || isDestroyed) {
+            Log.w(TAG, "Player error after the screen was left: no fallback")
+            return
+        }
         if (STREAM_VARIANT_PROBE) {
             // During the variant probe, a failing variant must not trigger the
             // normal fallback/finish chain -- otherwise the first bad variant

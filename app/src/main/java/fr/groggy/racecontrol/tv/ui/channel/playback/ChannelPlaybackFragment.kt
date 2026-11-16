@@ -78,7 +78,8 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         // the granted security_level) is dumped to logcat. This fragment is the one the
         // emulator actually plays (SDR fallback / tone-mapped HDR), so the HDR-only
         // logging path never fires here without this. Off by default.
-        private const val LOG_KEY_RESPONSE_STANDARD_PATH = true
+        // Dumps every licence exchange to the log: diagnostics only
+        private val LOG_KEY_RESPONSE_STANDARD_PATH = fr.groggy.racecontrol.tv.BuildConfig.DEBUG
         private const val ARG_FORCE_DIRECT_MEDIA3_HDR_SURFACE =
             "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_FORCE_DIRECT_MEDIA3_HDR_SURFACE"
         private const val ARG_FORCE_PROTECTED_HLG_GRAPH =
@@ -353,7 +354,8 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             // captures BOTH the failing HDR attempt and the working SDR
             // fallback and their encryption layouts can be compared directly.
             enableCryptoDiagnostics = false,
-            audioBufferSink = mainAudioFeatures,
+            // The fingerprints (two FFTs every 20 ms) are only for the radio's acoustic sync
+            audioBufferSink = if (radioMayPlay(settings)) mainAudioFeatures else null,
             decodeAudioToPcm = radioMayPlay(settings)
         )
     }

@@ -49,17 +49,22 @@ class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener 
         setupUIElements()
         setupEventListeners()
 
+    }
+
+    private fun collectSeason() {
         val viewModel: SeasonBrowseViewModel by viewModels({ requireActivity() })
         val archive = findArchive(requireActivity())
-        lifecycleScope.launch {
-            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.getSeason(archive).asLiveData().observe(viewLifecycleOwner, ::onUpdatedSeason)
+        // One collector, alive while the view is started (a LiveData observer added on every start piled up)
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.getSeason(archive).collect(::onUpdatedSeason)
             }
         }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        collectSeason()
 
         if (settingsRepository.getCurrent().displayThumbnailsEnabled) {
             initializeBackground()
@@ -84,29 +89,25 @@ class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener 
 
         val metrics = requireContext().resources.displayMetrics
 
+        // One target and one pending job: scrolling cancels the previous picture instead of decoding
+        // a full-screen bitmap for every card passed
+        val backgroundTarget = object : CustomTarget<Drawable>(metrics.widthPixels, metrics.heightPixels) {
+            override fun onResourceReady(resource: Drawable, transition: Transition<in Drawable>?) {
+                backgroundManager.drawable = resource
+            }
+
+            override fun onLoadCleared(placeholder: Drawable?) {}
+        }
         onCardSelected = { item ->
             if (item is Session) {
-                viewLifecycleOwner.lifecycleScope.launch {
+                backgroundJob?.cancel()
+                backgroundJob = viewLifecycleOwner.lifecycleScope.launch {
                     delay(BACKGROUND_UPDATE_DELAY) // A small delay so that the loading of the image and transition is more smooth
-
-                    Glide.with(requireActivity())
+                    if (!isAdded) return@launch
+                    Glide.with(this@SeasonBrowseFragment)
                         .load(item.largePictureUrl)
                         .error(R.drawable.banner)
-                        .into<CustomTarget<Drawable>>(object :
-                            CustomTarget<Drawable>(metrics.widthPixels, metrics.heightPixels) {
-
-                            override fun onResourceReady(
-                                resource: Drawable,
-                                transition: Transition<in Drawable>?
-                            ) {
-                                backgroundManager.drawable = resource
-                            }
-
-                            override fun onLoadCleared(placeholder: Drawable?) {
-
-                            }
-                        })
-
+                        .into(backgroundTarget)
                 }
             }
         }
@@ -120,6 +121,8 @@ class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener 
             onCardSelected?.invoke(item)
         }
     }
+
+    private var backgroundJob: kotlinx.coroutines.Job? = null
 
     /** Extra work when a card is selected (the background picture), set when thumbnails are on. */
     private var onCardSelected: ((Any?) -> Unit)? = null

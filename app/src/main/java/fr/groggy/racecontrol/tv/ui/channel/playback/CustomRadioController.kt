@@ -160,6 +160,12 @@ internal class CustomRadioController(
     }
 
     fun release() {
+        // Nothing may restart after this: a retry posted in the last half second would otherwise call
+        // startPlayer() on a detached fragment, fail, and post the next retry, forever
+        isActive = false
+        isMuted = false
+        attemptId++
+        handler.removeCallbacksAndMessages(null)
         releasePlayer()
         dismissSyncDialog()
         acousticExecutor.shutdownNow()
@@ -262,6 +268,7 @@ internal class CustomRadioController(
     }
 
     private fun startPlayer() {
+        if (!fragment.isAdded) return
         val planEntry = plan.getOrNull(planIndex)
         if (planEntry == null) {
             logTelemetry("plan_exhausted", detail = "No custom radio plan entry at index $planIndex")

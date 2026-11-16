@@ -51,10 +51,12 @@ class SeasonBrowseActivity : FragmentActivity(R.layout.activity_season_browse) {
                 viewModel.archiveLoaded(archive)
             }
         }
+        startRefresh()
     }
 
-    override fun onStart() {
-        super.onStart()
+    // Started once (in onCreate): repeatOnLifecycle already pauses it while stopped. Launching it in
+    // every onStart added another refresh loop each time the screen came back.
+    private fun startRefresh() {
         lifecycleScope.launch {
             lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 val archive = SeasonBrowseFragment.findArchive(this@SeasonBrowseActivity)
@@ -73,7 +75,14 @@ class SeasonBrowseActivity : FragmentActivity(R.layout.activity_season_browse) {
     private suspend fun loadSeasonContent() {
         Log.d("Fetching new data", "Lifecycle state is ${lifecycle.currentState}")
         val archive = SeasonBrowseFragment.findArchive(this@SeasonBrowseActivity)
-        seasonService.loadSeason(archive)
+        try {
+            seasonService.loadSeason(archive)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Offline or F1 unreachable: keep what is shown, the next refresh tries again
+            Log.w("SeasonBrowseActivity", "Loading the season failed: ${e.message}")
+        }
 
         if (supportFragmentManager.findFragmentByTag(TAG) !is SeasonBrowseFragment) {
             supportFragmentManager.commit {

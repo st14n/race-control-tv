@@ -264,6 +264,15 @@ class UpdateManager @Inject constructor(
      * Shows [built] and makes sure D-pad users see where focus is: the buttons get a clear
      * focused state (white text on the accent colour) and [focusedButton] starts focused.
      */
+    private fun unwrapActivity(context: android.content.Context): androidx.lifecycle.LifecycleOwner? {
+        var c: android.content.Context? = context
+        while (c is android.content.ContextWrapper) {
+            if (c is androidx.lifecycle.LifecycleOwner) return c
+            c = c.baseContext
+        }
+        return null
+    }
+
     private fun show(built: AlertDialog, focusedButton: Int) {
         dialog = built
         built.setOnShowListener {
@@ -285,6 +294,13 @@ class UpdateManager @Inject constructor(
             built.getButton(focusedButton)?.requestFocus()
         }
         built.setOnDismissListener { if (dialog === built) dialog = null }
+        // The activity going away without a dismiss must not keep it (and block later prompts)
+        (built.ownerActivity as? androidx.lifecycle.LifecycleOwner ?: unwrapActivity(built.context))?.lifecycle?.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {
+            override fun onDestroy(owner: androidx.lifecycle.LifecycleOwner) {
+                if (dialog === built) dialog = null
+                runCatching { built.dismiss() }
+            }
+        })
         built.show()
     }
 }

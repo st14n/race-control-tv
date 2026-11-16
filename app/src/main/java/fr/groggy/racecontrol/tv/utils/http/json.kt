@@ -14,8 +14,11 @@ fun <T> T.toJsonRequestBody(adapter: JsonAdapter<T>): RequestBody =
     adapter.toJson(this).toRequestBody(JSON)
 
 suspend fun <T> Response.parseJsonBody(adapter: JsonAdapter<T>): T =
-    if (isSuccessful) body?.source()?.parseJson(adapter)!!
-    else throw HttpException(code)
+    // Closed in every case, so a failed request does not keep its connection
+    use {
+        if (isSuccessful) body?.source()?.parseJson(adapter) ?: throw HttpException(code)
+        else throw HttpException(code)
+    }
 
 suspend fun <T> BufferedSource.parseJson(adapter: JsonAdapter<T>): T? =
     withContext(Dispatchers.IO) {
