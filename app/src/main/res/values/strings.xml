@@ -134,4 +134,6 @@
     <string name="settings_language_summary">%s. Restart the app to apply.</string>
     <string name="settings_device_profile_title">Device profile for F1</string>
     <string name="settings_device_profile_summary">%s. Restart the app to apply. If 4K replays fail on your TV, try Legacy (1.0.2).</string>
+    <string name="custom_radio_quick_earlier">Radio 0.5 s earlier</string>
+    <string name="custom_radio_quick_later">Radio 0.5 s later</string>
 </resources>

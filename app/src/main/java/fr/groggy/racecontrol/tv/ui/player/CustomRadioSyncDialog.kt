@@ -44,7 +44,7 @@ class CustomRadioSyncDialog(
     }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        val dialog = AlertDialog.Builder(requireContext())
+        val dialog = AlertDialog.Builder(requireContext(), SIDE_PANEL_THEME)
             .setTitle(titleProvider())
             .setNegativeButton(R.string.custom_radio_sync_decrease, null)
             .setPositiveButton(R.string.custom_radio_sync_increase, null)
@@ -89,6 +89,11 @@ class CustomRadioSyncDialog(
         }
 
         return dialog
+    }
+
+    override fun onStart() {
+        super.onStart()
+        dialog?.showAsSidePanel()
     }
 
     override fun onDismiss(dialog: DialogInterface) {

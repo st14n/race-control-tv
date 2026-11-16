@@ -49,7 +49,9 @@ class ExoPlayerPlaybackTransportControlGlue(
     /** The viewer picked this audio track by hand (so it can be put back after the radio stops). */
     private val onAudioOverrideChosen: ((TrackSelectionOverride) -> Unit)? = null,
     /** Name of the feed that plays (F1 Live, International, a driver...). */
-    private val feedName: (() -> String?)? = null
+    private val feedName: (() -> String?)? = null,
+    /** Delay/correction of the custom radio while it plays (shown under the quick radio buttons), else null. */
+    private val radioSyncStatus: (() -> String?)? = null
 ) : PlaybackTransportControlGlue<LeanbackPlayerAdapter>(
     activity,
     LeanbackPlayerAdapter(activity, exoPlayer, 1_000)
@@ -94,6 +96,39 @@ class ExoPlayerPlaybackTransportControlGlue(
         ContextCompat.getDrawable(context, R.drawable.ic_video_settings)
     )
     private val closedCaptionAction = PlaybackControlsRow.ClosedCaptioningAction(activity)
+    // Shown only while the custom radio plays: nudge it without opening a menu
+    private val radioEarlierAction = Action(
+        Action.NO_ID,
+        activity.getString(R.string.custom_radio_quick_earlier),
+        null,
+        ContextCompat.getDrawable(context, R.drawable.ic_radio_earlier)
+    )
+    private val radioLaterAction = Action(
+        Action.NO_ID,
+        activity.getString(R.string.custom_radio_quick_later),
+        null,
+        ContextCompat.getDrawable(context, R.drawable.ic_radio_later)
+    )
+    private var radioQuickActionsShown = false
+
+    // Auto-sync keeps moving the radio delay: keep the overlay current while the radio plays
+    private val radioStatusTicker = object : Runnable {
+        override fun run() {
+            if (isCustomRadioActive?.invoke() == true || radioQuickActionsShown) updateSubtitle()
+            activity.window.decorView.postDelayed(this, 1_000L)
+        }
+    }
+
+    override fun onAttachedToHost(host: androidx.leanback.media.PlaybackGlueHost) {
+        super.onAttachedToHost(host)
+        activity.window.decorView.removeCallbacks(radioStatusTicker)
+        activity.window.decorView.postDelayed(radioStatusTicker, 1_000L)
+    }
+
+    override fun onDetachedFromHost() {
+        activity.window.decorView.removeCallbacks(radioStatusTicker)
+        super.onDetachedFromHost()
+    }
 
     private val closedCaptionsTextView: TextView by lazy {
         activity.findViewById(R.id.closed_captions)
@@ -306,6 +341,9 @@ class ExoPlayerPlaybackTransportControlGlue(
                     playerAdapter.seekOffset(DEFAULT_SEEK_OFFSET)
                 }
             }
+            // Same step as the remapped rewind/fast-forward (a click arrives twice, see the constant)
+            radioEarlierAction -> onCustomRadioOffsetAdjust?.invoke(-CUSTOM_RADIO_OVERLAY_OFFSET_STEP_MS)
+            radioLaterAction -> onCustomRadioOffsetAdjust?.invoke(CUSTOM_RADIO_OVERLAY_OFFSET_STEP_MS)
             selectAudioAction -> openMenuOnce { openAudioSelectionDialog() }
             customRadioSyncAction -> openMenuOnce { onCustomRadioSyncRequested?.invoke() }
             closedCaptionAction -> toggleClosedCaptions()
@@ -443,6 +481,10 @@ class ExoPlayerPlaybackTransportControlGlue(
         val videoQuality = currentVideoQualityLabel() ?: currentResolutionActionLabel()
         val audioLanguage = currentAudioLabel()
         val overlayText = listOfNotNull(feedName?.invoke(), videoQuality, audioLanguage).joinToString(separator = " / ")
+        if (subtitle?.toString() == overlayText && overlaySubtitleView?.text?.toString() == overlayText) {
+            refreshControlBarActionLabels(audioLanguage = audioLanguage)
+            return
+        }
         subtitle = overlayText
         overlaySubtitleView?.post {
             overlaySubtitleView?.text = overlayText
@@ -524,12 +566,38 @@ class ExoPlayerPlaybackTransportControlGlue(
         videoQuality: String? = currentResolutionActionLabel(),
         audioLanguage: String? = currentAudioLabel()
     ) {
+        // Only rebind what changed (this runs every second while the radio plays)
+        val audioChanged = selectAudioAction.label2 != audioLanguage
+        val qualityChanged = resolutionSelectionAction.label2 != videoQuality
         selectAudioAction.label2 = audioLanguage
         resolutionSelectionAction.label2 = videoQuality
 
         val primaryActionsAdapter = controlsRow?.primaryActionsAdapter as? ArrayObjectAdapter ?: return
-        refreshPrimaryAction(primaryActionsAdapter, selectAudioAction)
-        refreshPrimaryAction(primaryActionsAdapter, resolutionSelectionAction)
+        if (audioChanged) refreshPrimaryAction(primaryActionsAdapter, selectAudioAction)
+        if (qualityChanged) refreshPrimaryAction(primaryActionsAdapter, resolutionSelectionAction)
+        refreshRadioQuickActions(primaryActionsAdapter)
+    }
+
+    private fun refreshRadioQuickActions(adapter: ArrayObjectAdapter) {
+        val status = if (isCustomRadioActive?.invoke() == true) radioSyncStatus?.invoke() else null
+        val show = status != null
+        if (show != radioQuickActionsShown) {
+            radioQuickActionsShown = show
+            if (show) {
+                val at = adapter.indexOf(customRadioSyncAction).takeIf { it >= 0 } ?: adapter.size()
+                adapter.add(at, radioEarlierAction)
+                adapter.add(at + 1, radioLaterAction)
+            } else {
+                adapter.remove(radioEarlierAction)
+                adapter.remove(radioLaterAction)
+            }
+        }
+        if (show && (radioEarlierAction.label2 != status)) {
+            radioEarlierAction.label2 = status
+            radioLaterAction.label2 = status
+            refreshPrimaryAction(adapter, radioEarlierAction)
+            refreshPrimaryAction(adapter, radioLaterAction)
+        }
     }
 
     private fun refreshPrimaryAction(adapter: ArrayObjectAdapter, action: Action) {

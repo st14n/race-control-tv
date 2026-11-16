@@ -131,5 +131,7 @@
     <string name="settings_language_summary">%s. Herstart de app om toe te passen.</string>
     <string name="settings_device_profile_title">Apparaatprofiel voor F1</string>
     <string name="settings_device_profile_summary">%s. Herstart de app om toe te passen. Falen 4K-herhalingen op je tv, probeer dan Oud (1.0.2).</string>
+    <string name="custom_radio_quick_earlier">Radio 0,5 s eerder</string>
+    <string name="custom_radio_quick_later">Radio 0,5 s later</string>
 </resources>
 

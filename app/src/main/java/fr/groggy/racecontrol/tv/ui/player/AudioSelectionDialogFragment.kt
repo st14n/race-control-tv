@@ -124,7 +124,7 @@ class AudioSelectionDialogFragment(
             addAll(audioItems.map { it.displayLabel })
         }.toTypedArray()
 
-        return AlertDialog.Builder(requireContext())
+        return AlertDialog.Builder(requireContext(), SIDE_PANEL_THEME)
             .setTitle(R.string.audio_selection_dialog_title)
             .setItems(items) { _, i -> onItemSelected(i) }
             .setNeutralButton(R.string.audio_selection_close, null)
@@ -161,6 +161,11 @@ class AudioSelectionDialogFragment(
             }
         }
         dismiss()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        dialog?.showAsSidePanel()
     }
 
     override fun onDismiss(dialog: DialogInterface) {

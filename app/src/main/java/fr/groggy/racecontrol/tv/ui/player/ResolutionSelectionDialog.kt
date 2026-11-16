@@ -54,7 +54,7 @@ class ResolutionSelectionDialog(
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val items = listOf(getText(R.string.video_selection_quality_auto)) + formats.map { formatLabel(it) }
 
-        return AlertDialog.Builder(requireContext())
+        return AlertDialog.Builder(requireContext(), SIDE_PANEL_THEME)
             .setTitle(R.string.video_selection_dialog_title)
             .setItems(items.toTypedArray()) { _, i -> selectVideo(i) }
             .create().apply {
@@ -93,6 +93,11 @@ class ResolutionSelectionDialog(
         val format = formats[index - 1]
         onResolutionSelectedListener?.invoke(format.width, format.height)
         dismiss()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        dialog?.showAsSidePanel()
     }
 
     override fun onDismiss(dialog: DialogInterface) {

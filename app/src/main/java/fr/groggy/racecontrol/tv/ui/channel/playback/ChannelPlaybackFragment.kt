@@ -490,6 +490,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                     if (customRadio.isActive) customRadio.overlayLabel() else null
                 },
                 onCustomRadioOffsetAdjust = customRadio::adjust,
+                radioSyncStatus = { if (customRadio.isActive) customRadio.syncStatus() else null },
                 onControlsInteraction = ::resetOverlayAutoCloseTimer,
                 onPlayerMenuDismissed = ::hidePlayerMenusAndControls,
                 feedLabels = {

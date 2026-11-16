@@ -850,6 +850,9 @@ internal class CustomRadioController(
             ?.dismissAllowingStateLoss()
     }
 
+    /** What the quick radio buttons in the player show: the delay and, with auto-sync, the correction. */
+    fun syncStatus(): String = syncDialogTitle()
+
     private fun syncDialogTitle(): String {
         if (!autoSync) {
             return fragment.getString(R.string.custom_radio_sync_title, formatOffset(offsetMs) + " s")

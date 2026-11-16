@@ -30,7 +30,7 @@ class ChannelSelectionDialog : DialogFragment() {
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         listAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1)
-        return AlertDialog.Builder(requireContext())
+        return AlertDialog.Builder(requireContext(), SIDE_PANEL_THEME)
             .setTitle(R.string.channel_selection_switch_channel)
             .setAdapter(listAdapter) { _, i ->
                 val channel = channels.getOrNull(i) ?: return@setAdapter
@@ -64,6 +64,7 @@ class ChannelSelectionDialog : DialogFragment() {
 
     override fun onStart() {
         super.onStart()
+        dialog?.showAsSidePanel()
         val sessionId = arguments?.getString(EXTRA_SESSION_ID) ?: return
         val contentId = arguments?.getString(EXTRA_CONTENT_ID) ?: return
         lifecycleScope.launch {
