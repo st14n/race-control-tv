@@ -23,6 +23,7 @@ This repository is an updated fork focused on current Android TV devices, local 
   - The radio is synced with the picture automatically, by comparing the circuit sound.
   - Two buttons in the player move it 0.5 s earlier or later.
 - **Player menus:** they open as a panel at the side (at the bottom on a phone), so the picture stays visible.
+- **First start:** the app asks for the language, the feed a session opens on (International or F1 Live), and, when a radio is available, whether a live session plays the feed's commentary or your radio. All three are settings you can change later.
 - **Other:** subtitles when the stream has them. Sign-in works on the TV itself, without a browser on another device. The app is in Dutch and English.
 
 ## Playback Notes
