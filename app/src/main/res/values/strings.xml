@@ -61,8 +61,8 @@
     <string name="custom_radio_sync_increase">0.5s backwards</string>
     <string name="audio_selection_close">Close</string>
     <string name="custom_radio_sync_close">Close</string>
-    <string name="custom_radio_waiting_message">Radio is connecting and will start in sync with the picture (about %1$s s).</string>
-    <string name="custom_radio_waiting_message_replay">Replay: the radio plays live and cannot follow this picture. It starts in about %1$s s.</string>
+    <string name="custom_radio_waiting_message">Radio is connecting and is being matched to the picture; until it is, you hear the F1 audio.</string>
+    <string name="custom_radio_waiting_message_replay">Replay: the radio plays what it broadcasts now, not the commentary of this session. It starts in about %1$s s.</string>
     <string name="custom_radio_overlay_label_auto">%1$s / auto-sync, %2$s seconds delayed</string>
     <string name="custom_radio_auto_sync_title">Radio auto-sync [correction %1$s, %2$s delayed]</string>
     <string name="custom_radio_auto_sync_unavailable_title">Radio auto-sync [correction %1$s, no live timing: the radio plays unsynced]</string>
