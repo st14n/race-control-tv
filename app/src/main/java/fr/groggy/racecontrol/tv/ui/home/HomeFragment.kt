@@ -15,6 +15,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.launch
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.R
+import fr.groggy.racecontrol.tv.ui.BrowseSelectionMemory
 import fr.groggy.racecontrol.tv.f1tv.Archive
 import fr.groggy.racecontrol.tv.ui.season.archive.SeasonArchiveActivity
 import fr.groggy.racecontrol.tv.ui.season.browse.Season
@@ -77,6 +78,8 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
     }
 
     private fun onUpdatedSeason(season: Season) {
+        // What was selected before this update: an update must not move the selection
+        val keep = selectionMemory.current
         val events = season.events.filter { it.sessions.isNotEmpty() }
         if (events.isNotEmpty()) {
             val event = events.first()
@@ -99,7 +102,10 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
             ensureArchiveRowPresent()
             if (!hasLoadedDataOnce) {
                 hasLoadedDataOnce = true
-                maybeSelectLatestEventByDefault()
+                // The card selected last time, if that weekend is still the one shown; else the latest weekend
+                if (!restoreSelection(keep, focus = true)) maybeSelectLatestEventByDefault()
+            } else if (current?.headerItem?.name == headerName) {
+                restoreSelection(keep)
             }
         } else {
             onEmptySeason()
@@ -169,6 +175,29 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
 
     private fun setupEventListeners() {
         onItemViewClickedListener = this
+        onItemViewSelectedListener = OnItemViewSelectedListener { _, item, _, row ->
+            val header = (row as? ListRow)?.headerItem?.name ?: return@OnItemViewSelectedListener
+            itemKey(item)?.let { selectionMemory.remember(header, it) }
+        }
+    }
+
+    private val selectionMemory by lazy { BrowseSelectionMemory(requireContext(), "home") }
+
+    private fun itemKey(item: Any?): String? = when (item) {
+        is Session -> "session:" + item.id.value
+        is HomeItem -> "home:" + item.type + ":" + item.text
+        else -> null
+    }
+
+    /** Back to the card selected before (after a refresh or reopening); false if it is gone. */
+    private fun restoreSelection(selection: BrowseSelectionMemory.Selection?, focus: Boolean = false): Boolean {
+        val target = selection ?: return false
+        val (row, item) = selectionMemory.locate(homeEntriesAdapter, target, ::itemKey) ?: return false
+        view?.post {
+            setSelectedPosition(row, false, BrowseSelectionMemory.selectTask(item))
+            if (focus) view?.requestFocus()
+        }
+        return true
     }
 
     override fun onItemClicked(

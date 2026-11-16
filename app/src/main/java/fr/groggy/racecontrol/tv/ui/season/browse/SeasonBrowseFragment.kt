@@ -22,6 +22,7 @@ import com.bumptech.glide.request.target.CustomTarget
 import com.bumptech.glide.request.transition.Transition
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.R
+import fr.groggy.racecontrol.tv.ui.BrowseSelectionMemory
 import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
 import fr.groggy.racecontrol.tv.f1tv.Archive
 import fr.groggy.racecontrol.tv.ui.event.EventListRowDiffCallback
@@ -83,7 +84,7 @@ class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener 
 
         val metrics = requireContext().resources.displayMetrics
 
-        onItemViewSelectedListener = OnItemViewSelectedListener { _, item, _, _ ->
+        onCardSelected = { item ->
             if (item is Session) {
                 viewLifecycleOwner.lifecycleScope.launch {
                     delay(BACKGROUND_UPDATE_DELAY) // A small delay so that the loading of the image and transition is more smooth
@@ -113,10 +114,31 @@ class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener 
 
     private fun setupEventListeners() {
         onItemViewClickedListener = this
+        onItemViewSelectedListener = OnItemViewSelectedListener { _, item, _, row ->
+            val header = (row as? ListRow)?.headerItem?.name
+            if (item is Session && header != null) selectionMemory.remember(header, item.id.value)
+            onCardSelected?.invoke(item)
+        }
+    }
+
+    /** Extra work when a card is selected (the background picture), set when thumbnails are on. */
+    private var onCardSelected: ((Any?) -> Unit)? = null
+
+    private val selectionMemory by lazy {
+        BrowseSelectionMemory(requireContext(), "season:" + findArchive(requireActivity()).year)
+    }
+    private var restoredOnce = false
+
+    /** Back to the session selected before (after a refresh or reopening the season). */
+    private fun restoreSelection(selection: BrowseSelectionMemory.Selection?) {
+        val target = selection ?: return
+        val (row, item) = selectionMemory.locate(eventsAdapter, target) { (it as? Session)?.id?.value } ?: return
+        view?.post { setSelectedPosition(row, false, BrowseSelectionMemory.selectTask(item)) }
     }
 
     private fun onUpdatedSeason(season: Season) {
         title = season.name
+        val keep = selectionMemory.current
         val existingListRows = eventsAdapter.unmodifiableList<ListRow>()
         val newEventRows = season.events
             .filter { it.sessions.isNotEmpty() }
@@ -134,6 +156,10 @@ class SeasonBrowseFragment : BrowseSupportFragment(), OnItemViewClickedListener 
 
         if (needsUpdate) {
             eventsAdapter.setItems(newEventRows, eventListRowDiffCallback)
+        }
+        if (!restoredOnce || needsUpdate) {
+            restoredOnce = true
+            restoreSelection(keep)
         }
     }
 

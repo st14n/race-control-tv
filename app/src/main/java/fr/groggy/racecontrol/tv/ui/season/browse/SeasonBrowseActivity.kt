@@ -60,11 +60,11 @@ class SeasonBrowseActivity : FragmentActivity(R.layout.activity_season_browse) {
                 val archive = SeasonBrowseFragment.findArchive(this@SeasonBrowseActivity)
                 // Only refresh the season data if it is the current year, as older content should not be changing
                 if (archive.year == Year.now().value) {
-                    loadSeasonContent()
-                } else {
                     schedule(Duration.ofMinutes(1)) {
                         loadSeasonContent()
                     }
+                } else {
+                    loadSeasonContent()
                 }
             }
         }
