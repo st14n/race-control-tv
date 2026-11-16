@@ -128,7 +128,10 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
         // is 1080p, the MediaTek secure hardware composer cannot scale the 4K secure DRM buffer
         // down to 1080p, and instead outputs a green screen. 
         // We MUST force the display mode to 4K (or the maximum available) to match the official app.
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+        // Only on MediaTek: there it prevents the green picture. Elsewhere (an NVIDIA Shield) the
+        // forced mode switch made the TV lose the signal when leaving a replay, and the system's own
+        // "match content" setting already handles the resolution.
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && isMediaTekDevice()) {
             val displayManager = getSystemService(android.content.Context.DISPLAY_SERVICE) as android.hardware.display.DisplayManager
             val display = displayManager.getDisplay(android.view.Display.DEFAULT_DISPLAY)
             if (display != null) {
@@ -160,6 +163,12 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
                 attachViewingIfNeeded(Settings.StreamType.DASH, preferHdrManifest = preferHdrManifestForDevice)
             }
         }
+    }
+
+    private fun isMediaTekDevice(): Boolean {
+        val soc = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) android.os.Build.SOC_MANUFACTURER else ""
+        val hardware = android.os.Build.HARDWARE.orEmpty().lowercase()
+        return soc.contains("mediatek", ignoreCase = true) || hardware.startsWith("mt")
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {

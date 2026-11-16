@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The line with focus in a player menu: clearly visible (the default grey was hard to see) -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:insetLeft="6dp" android:insetRight="6dp" android:insetTop="1dp" android:insetBottom="1dp">
+    <shape>
+        <corners android:radius="10dp" />
+        <solid android:color="@color/rc_accent" />
+        <stroke android:width="2dp" android:color="#FFFFFF" />
+    </shape>
+</inset>

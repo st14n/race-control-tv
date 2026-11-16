@@ -25,6 +25,31 @@ internal fun Dialog.showAsSidePanel(widthFraction: Float = 0.34f, maxWidthDp: In
     }
     window.setBackgroundDrawable(ColorDrawable(0xF20D0E11.toInt()))
     window.setDimAmount(0f)
+    (this as? android.app.AlertDialog)?.highlightFocus()
+}
+
+/** The line and button with focus in red with a white edge: the default grey was hard to see on a TV. */
+private fun android.app.AlertDialog.highlightFocus() {
+    listView?.apply {
+        selector = androidx.core.content.ContextCompat.getDrawable(context, fr.groggy.racecontrol.tv.R.drawable.menu_item_selected)
+        setDrawSelectorOnTop(false)
+    }
+    val density = context.resources.displayMetrics.density
+    fun pill(color: Int, stroke: Boolean) = android.graphics.drawable.GradientDrawable().apply {
+        cornerRadius = 22f * density
+        setColor(color)
+        if (stroke) setStroke((2 * density).toInt(), android.graphics.Color.WHITE)
+    }
+    for (which in intArrayOf(android.app.AlertDialog.BUTTON_POSITIVE, android.app.AlertDialog.BUTTON_NEGATIVE, android.app.AlertDialog.BUTTON_NEUTRAL)) {
+        getButton(which)?.apply {
+            background = android.graphics.drawable.StateListDrawable().apply {
+                addState(intArrayOf(android.R.attr.state_focused), pill(0xFFE10600.toInt(), true))
+                addState(intArrayOf(android.R.attr.state_pressed), pill(0xFFE10600.toInt(), false))
+                addState(intArrayOf(), ColorDrawable(android.graphics.Color.TRANSPARENT))
+            }
+            setTextColor(android.graphics.Color.WHITE)
+        }
+    }
 }
 
 /** Dark dialog theme for the side panels, the same on every device. */
