@@ -14,6 +14,7 @@ import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType
+import fr.groggy.racecontrol.tv.ui.channel.playback.ChannelPlaybackFragment
 import fr.groggy.racecontrol.tv.ui.session.browse.*
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -69,9 +70,15 @@ class ChannelSelectionDialog : DialogFragment() {
             viewModel.session(sessionId, contentId).collect { session ->
                 if (session is MultiChannelsSession) {
                     channels = session.channels
+                    // The feed that plays now: the requested channel id (none = International)
+                    val playingId = ChannelPlaybackFragment.findChannelId(requireActivity())
+                    val nowPlaying = getString(R.string.channel_selection_now_playing)
                     listAdapter?.run {
                         clear()
-                        addAll(session.channels.map { channelDisplayName(it) })
+                        addAll(session.channels.map { channel ->
+                            val name = channelDisplayName(channel)
+                            if (channel.id?.value == playingId) "\u25B6 $name  ($nowPlaying)" else name
+                        })
                     }
                     (dialog as? AlertDialog)?.listView?.let { list ->
                         if (list.count > 0) {

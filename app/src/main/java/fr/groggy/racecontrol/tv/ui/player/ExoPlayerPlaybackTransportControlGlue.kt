@@ -47,7 +47,9 @@ class ExoPlayerPlaybackTransportControlGlue(
     /** Names of this feed and of the merged other feed (International / F1 Live), or null without a merged feed. */
     private val feedLabels: (() -> Pair<String, String>?)? = null,
     /** The viewer picked this audio track by hand (so it can be put back after the radio stops). */
-    private val onAudioOverrideChosen: ((TrackSelectionOverride) -> Unit)? = null
+    private val onAudioOverrideChosen: ((TrackSelectionOverride) -> Unit)? = null,
+    /** Name of the feed that plays (F1 Live, International, a driver...). */
+    private val feedName: (() -> String?)? = null
 ) : PlaybackTransportControlGlue<LeanbackPlayerAdapter>(
     activity,
     LeanbackPlayerAdapter(activity, exoPlayer, 1_000)
@@ -412,6 +414,8 @@ class ExoPlayerPlaybackTransportControlGlue(
             for (i in 0 until group.length) {
                 if (group.isTrackSelected(i)) {
                     currentAudioFormat = group.getTrackFormat(i)
+                    // A merged second source has its group ids prefixed with its position: "1:..."
+                    currentAudioFromCompanion = group.mediaTrackGroup.id.startsWith("1:")
                     break
                 }
             }
@@ -435,7 +439,7 @@ class ExoPlayerPlaybackTransportControlGlue(
     private fun updateSubtitle() {
         val videoQuality = currentVideoQualityLabel() ?: currentResolutionActionLabel()
         val audioLanguage = currentAudioLabel()
-        val overlayText = listOfNotNull(videoQuality, audioLanguage).joinToString(separator = " / ")
+        val overlayText = listOfNotNull(feedName?.invoke(), videoQuality, audioLanguage).joinToString(separator = " / ")
         subtitle = overlayText
         overlaySubtitleView?.post {
             overlaySubtitleView?.text = overlayText
@@ -494,7 +498,24 @@ class ExoPlayerPlaybackTransportControlGlue(
     }
 
     private fun currentAudioLabel(): String? = currentAudioLabelOverride?.invoke()
-        ?: currentAudioFormat?.let(::displayAudioTrackLabel)
+        ?: currentAudioFormat?.let { format ->
+            val base = displayAudioTrackLabel(format)
+            // English and Spanish exist in both International and F1 Live: say which one this is
+            val language = format.language?.lowercase().orEmpty()
+            if (language.startsWith("en") || language.startsWith("es")) {
+                val labels = feedLabels?.invoke()
+                val feed = if (labels != null) {
+                    if (currentAudioFromCompanion) labels.second else labels.first
+                } else {
+                    feedName?.invoke()
+                }
+                if (feed != null) "$base ($feed)" else base
+            } else {
+                base
+            }
+        }
+
+    private var currentAudioFromCompanion = false
 
     private fun refreshControlBarActionLabels(
         videoQuality: String? = currentResolutionActionLabel(),

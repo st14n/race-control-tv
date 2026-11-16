@@ -40,6 +40,7 @@
     <string name="settings_display_thumbnails_enabled_summary">Thumbnails may contain spoilers. Turning this OFF will disable thumbnail images</string>
     <string name="settings_combine_commentary_title">All commentary options</string>
     <string name="settings_combine_commentary_summary">Watching International or F1 LIVE, offer the commentary of both in the audio menu (plus the radio). Switch off if a stream stutters.</string>
+    <string name="channel_selection_now_playing">now playing</string>
     <string name="feed_label_international">International</string>
     <string name="feed_label_f1_live">F1 Live</string>
     <string name="settings_disable_uhd_manifests_title">Disable UHD (4K) manifests</string>

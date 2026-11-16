@@ -96,6 +96,7 @@
     <string name="settings_restrict_custom_radio_to_live_sessions_summary">Voorkomt dat aangepaste radio automatisch of handmatig wordt geselecteerd bij VOD- en replay-sessies.</string>
     <string name="custom_radio_live_only_message">Aangepaste radio is beperkt tot live-sessies.</string>
     <string name="settings_app_locale_title">App-taal</string>
+    <string name="channel_selection_now_playing">nu aan het kijken</string>
     <string name="settings_combine_commentary_title">Alle commentaaropties</string>
     <string name="settings_combine_commentary_summary">Kijk je International of F1 LIVE, dan staat het commentaar van beide in het audiomenu (plus de radio). Zet uit als een stream hapert.</string>
     <string name="settings_disable_uhd_manifests_title">UHD (4K)-manifesten uitschakelen</string>

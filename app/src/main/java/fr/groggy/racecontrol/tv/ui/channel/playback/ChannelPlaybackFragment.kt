@@ -483,7 +483,8 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                     val b = v?.companionFeedLabel
                     if (v != null && v.externalAudioIsCompanion && a != null && b != null) a to b else null
                 },
-                onAudioOverrideChosen = { userAudioOverride = it }
+                onAudioOverrideChosen = { userAudioOverride = it },
+                feedName = { (currentViewing ?: findViewing(this))?.feedLabel }
             )
             playbackGlue = glue
             glue.host = VideoSupportFragmentGlueHost(this)

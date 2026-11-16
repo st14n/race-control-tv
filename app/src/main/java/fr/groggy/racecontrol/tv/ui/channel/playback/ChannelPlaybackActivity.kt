@@ -22,6 +22,7 @@ import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
 import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannel
 import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType
 import fr.groggy.racecontrol.tv.f1tv.F1TvClient
+import fr.groggy.racecontrol.tv.f1tv.F1TvOnboardChannel
 import fr.groggy.racecontrol.tv.f1tv.F1TvViewing
 import fr.groggy.racecontrol.tv.ui.channel.playback.protectedhdr.ProtectedHdrRendererRouter
 import fr.groggy.racecontrol.tv.ui.channel.playback.protectedhdr.ProtectedHdrStreamClassifier
@@ -223,6 +224,8 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
                     "type=${viewing.streamType} requestedOverride=${viewing.requestedOverrideStreamType}"
             )
 
+            viewing = viewing.copy(feedLabel = feedLabelOf(contentId, channelId))
+
             // Fetch PRES / F1Live channel for external audio if the user wants it
             // and they are not already watching the PRES channel itself
             val settings = settingsRepository.getCurrent()
@@ -258,6 +261,29 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
      * feed, which only has English and Spanish.)
      */
     private fun resolvePreferredChannelId(requestedChannelId: String?): String? = requestedChannelId
+
+    /** The name of the feed that plays (F1 Live, International, a driver...), for the player's info line. */
+    private suspend fun feedLabelOf(contentId: String, channelId: String?): String? = runCatching {
+        val all = f1TvClient.getChannels(contentId)
+        val match = all.firstOrNull { it.channelId == channelId }
+            ?: if (channelId == null) {
+                all.firstOrNull { it is F1TvBasicChannel && it.type == F1TvBasicChannelType.Wif }
+            } else {
+                null
+            }
+        when (match) {
+            is F1TvBasicChannel -> when (val type = match.type) {
+                F1TvBasicChannelType.F1Live -> getString(R.string.feed_label_f1_live)
+                F1TvBasicChannelType.Wif -> getString(R.string.feed_label_international)
+                F1TvBasicChannelType.Tracker -> "Tracker"
+                F1TvBasicChannelType.Data -> "Data"
+                F1TvBasicChannelType.PitLane -> "Pit Lane"
+                is F1TvBasicChannelType.Unknown -> type.name
+            }
+            is F1TvOnboardChannel -> match.name
+            null -> if (channelId == null) getString(R.string.feed_label_international) else null
+        }
+    }.getOrNull()
 
     /** Set after a player error with the companion audio merged: the retry plays the stream alone. */
     private var companionDisabled = false
