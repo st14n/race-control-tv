@@ -233,7 +233,7 @@ internal class CustomRadioController(
         isActive = true
         host.refreshRadioOverlay()
         // F1 audio keeps playing until the radio has buffered up to its delay (see onStarted)
-        showWaitingMessage(offsetMs)
+        showWaitingMessage(offsetMs, followsPicture = autoSync && videoLagMs() != null)
         startPlayer()
     }
 
@@ -522,6 +522,8 @@ internal class CustomRadioController(
         if (acousticSuspendedByUser) logAcousticIdle("paused after a manual change")
         if (!autoSync || !acousticSync || acousticSuspendedByUser || !isActive || awaitingAutoSyncLock) return
         if (!mainPlayer.isPlaying || acousticEstimateInFlight) return
+        // Without a live picture to follow (a replay) there is nothing to fine-tune
+        if (videoLagMs() == null) return
         val notBeforeMs = lastAlignmentChangeAtMs.toDouble()
         acousticEstimateInFlight = true
         acousticExecutor.execute {
@@ -644,6 +646,9 @@ internal class CustomRadioController(
         val offset = player.currentLiveOffset
         // Streams with a wall clock (HLS program date time, DASH availability start): exact
         if (offset != C.TIME_UNSET) {
+            // A replay of a finished session reports the time since the session started (days): there
+            // is no live picture to follow, and no radio buffer reaches back that far
+            if (offset > CUSTOM_RADIO_MAX_OFFSET_MS) return null
             rememberLiveEdgeLatency(player, offset)
             return offset
         }
@@ -653,7 +658,7 @@ internal class CustomRadioController(
         // matching) absorbs. Before this, such streams just kept the fixed delay.
         if (!player.isCurrentMediaItemLive) return null
         val behindEdgeMs = behindLiveEdgeMs(player) ?: return null
-        return behindEdgeMs + settingsRepository.getLiveEdgeLatencyMs()
+        return (behindEdgeMs + settingsRepository.getLiveEdgeLatencyMs()).takeIf { it <= CUSTOM_RADIO_MAX_OFFSET_MS }
     }
 
     private fun behindLiveEdgeMs(player: androidx.media3.exoplayer.ExoPlayer): Long? {
@@ -854,11 +859,14 @@ internal class CustomRadioController(
         }
     }
 
-    private fun showWaitingMessage(delayMs: Long) {
+    private fun showWaitingMessage(delayMs: Long, followsPicture: Boolean) {
         if (delayMs <= 0L) return
         Toast.makeText(
             fragment.requireContext(),
-            fragment.getString(R.string.custom_radio_waiting_message, formatOffset(delayMs)),
+            fragment.getString(
+                if (followsPicture) R.string.custom_radio_waiting_message else R.string.custom_radio_waiting_message_replay,
+                formatOffset(delayMs)
+            ),
             Toast.LENGTH_LONG
         ).show()
     }

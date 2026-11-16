@@ -13,9 +13,12 @@ import java.util.Locale
 
 private data class AudioSelectionItem(
     val format: Format,
+    /** What the menu shows: the name, with an arrow in front of the track that plays now. */
     val displayLabel: String,
     val group: Tracks.Group,
-    val trackIndex: Int
+    val trackIndex: Int,
+    val baseLabel: String = displayLabel,
+    val selected: Boolean = false
 )
 
 internal fun displayAudioTrackLabel(format: Format, displayLocale: Locale = Locale.getDefault()): String {
@@ -84,14 +87,27 @@ class AudioSelectionDialogFragment(
                 val fromCompanion = companionFeedLabel != null && group.mediaTrackGroup.id.startsWith("1:")
                 val feed = if (companionFeedLabel == null) null else if (fromCompanion) companionFeedLabel else feedLabel
                 val label = displayAudioTrackLabel(format).let { if (feed != null) "$it ($feed)" else it }
-                AudioSelectionItem(format = format, displayLabel = label, group = group, trackIndex = index)
+                AudioSelectionItem(
+                    format = format,
+                    displayLabel = label,
+                    group = group,
+                    trackIndex = index,
+                    baseLabel = label,
+                    selected = group.isTrackSelected(index)
+                )
             }
-        }.sortedWith(
-            compareBy<AudioSelectionItem>(
-                { audioSelectionSortPriority(it.format) },
-                { it.displayLabel.lowercase(Locale.getDefault()) }
+        }
+            // The same track often shows up twice (stereo and surround of one language, or a rendition
+            // next to the muxed audio): one line each, the one that plays now if it is among them
+            .groupBy { it.baseLabel }
+            .map { (_, same) -> same.firstOrNull { it.selected } ?: same.first() }
+            .map { if (it.selected) it.copy(displayLabel = "▶ ${it.baseLabel}") else it }
+            .sortedWith(
+                compareBy<AudioSelectionItem>(
+                    { audioSelectionSortPriority(it.format) },
+                    { it.baseLabel.lowercase(Locale.getDefault()) }
+                )
             )
-        )
     }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {

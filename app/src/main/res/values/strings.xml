@@ -61,10 +61,11 @@
     <string name="custom_radio_sync_increase">0.5s backwards</string>
     <string name="audio_selection_close">Close</string>
     <string name="custom_radio_sync_close">Close</string>
-    <string name="custom_radio_waiting_message">Waiting %1$s seconds for synchronization.</string>
+    <string name="custom_radio_waiting_message">Radio is connecting and will start in sync with the picture (about %1$s s).</string>
+    <string name="custom_radio_waiting_message_replay">Replay: the radio plays live and cannot follow this picture. It starts in about %1$s s.</string>
     <string name="custom_radio_overlay_label_auto">%1$s / auto-sync, %2$s seconds delayed</string>
     <string name="custom_radio_auto_sync_title">Radio auto-sync [correction %1$s, %2$s delayed]</string>
-    <string name="custom_radio_auto_sync_unavailable_title">Radio auto-sync [correction %1$s, waiting for live timing]</string>
+    <string name="custom_radio_auto_sync_unavailable_title">Radio auto-sync [correction %1$s, no live timing: the radio plays unsynced]</string>
     <string name="custom_radio_sync_switch_to_manual">Manual</string>
     <string name="custom_radio_sync_switch_to_auto">Auto-sync</string>
     <string name="custom_radio_buffer_exceeded_message">Too far behind live for the radio buffer: the radio can\'t stay in sync.</string>

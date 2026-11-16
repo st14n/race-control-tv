@@ -51,10 +51,11 @@
     <string name="custom_radio_sync_increase">Halve seconde vertragen</string>
     <string name="audio_selection_close">Sluiten</string>
     <string name="custom_radio_sync_close">Sluiten</string>
-    <string name="custom_radio_waiting_message">Radio wacht %1$s seconden voor synchronisatie.</string>
+    <string name="custom_radio_waiting_message">Radio maakt verbinding en start synchroon met het beeld (ca. %1$s s).</string>
+    <string name="custom_radio_waiting_message_replay">Herhaling: de radio speelt live mee en kan dit beeld niet volgen. Start over ca. %1$s s.</string>
     <string name="custom_radio_overlay_label_auto">%1$s / auto-sync, %2$s seconden vertraagd</string>
     <string name="custom_radio_auto_sync_title">Radio auto-sync [correctie %1$s, %2$s vertraagd]</string>
-    <string name="custom_radio_auto_sync_unavailable_title">Radio auto-sync [correctie %1$s, wacht op live-tijd]</string>
+    <string name="custom_radio_auto_sync_unavailable_title">Radio auto-sync [correctie %1$s, geen live-tijd: de radio speelt niet gesynchroniseerd]</string>
     <string name="custom_radio_sync_switch_to_manual">Handmatig</string>
     <string name="custom_radio_sync_switch_to_auto">Auto-sync</string>
     <string name="custom_radio_buffer_exceeded_message">Te ver achter live voor de radiobuffer: de radio kan niet synchroon blijven.</string>
