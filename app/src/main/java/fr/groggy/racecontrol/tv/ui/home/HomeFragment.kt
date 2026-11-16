@@ -100,10 +100,15 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
                 if (current != null) selectLatestEvent()
             }
             ensureArchiveRowPresent()
+            // A weekend not shown before (a new race weekend, or another class) is selected; otherwise the
+            // card selected last time stays selected
+            val newWeekend = latestSeenWeekend() != headerName
+            if (newWeekend) rememberLatestSeenWeekend(headerName)
             if (!hasLoadedDataOnce) {
                 hasLoadedDataOnce = true
-                // The card selected last time, if that weekend is still the one shown; else the latest weekend
-                if (!restoreSelection(keep, focus = true)) maybeSelectLatestEventByDefault()
+                if (newWeekend || !restoreSelection(keep, focus = true)) maybeSelectLatestEventByDefault()
+            } else if (newWeekend) {
+                selectLatestEvent()
             } else if (current?.headerItem?.name == headerName) {
                 restoreSelection(keep)
             }
@@ -124,8 +129,25 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
     }
 
     private fun onEmptySeason() {
-        /* Session wasn't started yet, just add the archive */
+        /* Session wasn't started yet (or this class has none this season): only the archive */
+        latestEventRow?.let { row ->
+            val index = homeEntriesAdapter.indexOf(row)
+            if (index >= 0) homeEntriesAdapter.removeItems(index, 1)
+        }
+        latestEventRow = null
         ensureArchiveRowPresent()
+    }
+
+    private val weekendPrefs by lazy {
+        requireContext().getSharedPreferences("home_latest_weekend", android.content.Context.MODE_PRIVATE)
+    }
+    private val viewModelForSeries: HomeViewModel by viewModels()
+
+    /** The latest weekend the home screen showed for the chosen class. */
+    private fun latestSeenWeekend(): String? = weekendPrefs.getString(viewModelForSeries.selectedSeries().name, null)
+
+    private fun rememberLatestSeenWeekend(header: String) {
+        weekendPrefs.edit().putString(viewModelForSeries.selectedSeries().name, header).apply()
     }
 
     private fun ensureArchiveRowPresent() {

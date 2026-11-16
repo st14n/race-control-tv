@@ -25,6 +25,7 @@
     <string name="choose_a_season">Kies een seizoen</string>
 
     <string name="teaser_image_text">Huidig seizoen: %1$d</string>
+    <string name="home_season_button">Seizoen %1$d</string>
     <string name="teaser_image_description">Huidig seizoen</string>
 
     <string name="home_all">Toon alle</string>

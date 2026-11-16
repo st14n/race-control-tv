@@ -22,6 +22,8 @@ import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.R
 import fr.groggy.racecontrol.tv.core.credentials.CredentialsService
 import fr.groggy.racecontrol.tv.core.season.SeasonService
+import fr.groggy.racecontrol.tv.core.series.Series
+import fr.groggy.racecontrol.tv.core.series.SeriesFilter
 import fr.groggy.racecontrol.tv.f1tv.Archive
 import fr.groggy.racecontrol.tv.update.UpdateManager
 import fr.groggy.racecontrol.tv.ui.season.browse.SeasonBrowseActivity
@@ -47,7 +49,8 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
     @Inject internal lateinit var seasonService: SeasonService
     @Inject internal lateinit var credentialsService: CredentialsService
     @Inject internal lateinit var updateManager: UpdateManager
-    private var teaserImage: ImageView? = null
+    @Inject internal lateinit var seriesFilter: SeriesFilter
+    private val seriesButtons = mutableMapOf<Series, TextView>()
     private var teaserContainer: View? = null
     private var settingsButton: View? = null
     private var fragmentContainer: FragmentContainerView? = null
@@ -73,16 +76,9 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
 
         val currentYear = Year.now().value
         createdInYear = currentYear
-        teaserImage = findViewById(R.id.teaserImage)
         teaserContainer = findViewById(R.id.teaserContainer)
         fragmentContainer = findViewById(R.id.fragment_container)
-        teaserImage?.setOnClickListener {
-            val activity = SeasonBrowseActivity.intent(this, Archive(currentYear))
-            startActivity(activity)
-        }
-
-        val teaserImageText = findViewById<TextView>(R.id.teaserImageText)
-        teaserImageText.text = resources.getString(R.string.teaser_image_text, currentYear)
+        buildSeriesButtons(findViewById(R.id.seriesButtons), currentYear)
 
         settingsButton = findViewById(R.id.settings)
         settingsButton?.let(::applySettingsButtonInsets)
@@ -118,6 +114,44 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
                 ensureHomeFragmentPresent()
             }
         }
+    }
+
+    /**
+     * One button per class (F1, F2, F3, F1 Academy): the rows below show that class. The last button
+     * opens the whole current season (of the chosen class), which the season picture used to do.
+     */
+    private fun buildSeriesButtons(container: ViewGroup, currentYear: Int) {
+        val density = resources.displayMetrics.density
+        fun button(text: String, onClick: () -> Unit) = TextView(this).apply {
+            this.text = text
+            textSize = 20f
+            setTextColor(android.graphics.Color.WHITE)
+            isFocusable = true
+            isClickable = true
+            setBackgroundResource(R.drawable.series_button_background)
+            val h = (20 * density).toInt()
+            val v = (10 * density).toInt()
+            setPadding(h, v, h, v)
+            setOnClickListener { onClick() }
+            container.addView(this, android.widget.LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { marginEnd = (12 * density).toInt() })
+        }
+        for (series in Series.entries) {
+            seriesButtons[series] = button(series.label) {
+                seriesFilter.select(series)
+                markSelectedSeries()
+            }
+        }
+        button(getString(R.string.home_season_button, currentYear)) {
+            startActivity(SeasonBrowseActivity.intent(this, Archive(currentYear)))
+        }
+        markSelectedSeries()
+    }
+
+    private fun markSelectedSeries() {
+        val selected = seriesFilter.selected.value
+        seriesButtons.forEach { (series, view) -> view.isActivated = series == selected }
     }
 
     private fun ensureHomeFragmentPresent() {

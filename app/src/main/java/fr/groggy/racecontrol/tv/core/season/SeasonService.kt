@@ -95,7 +95,8 @@ class SeasonService @Inject constructor(
                         largePictureUrl =session.largePictureUrl,
                         contentSubtype = session.contentSubtype,
                         thumbnail = thumbnail,
-                        channels = session.channels
+                        channels = session.channels,
+                        series = session.series
                     ) }
                 }
             }

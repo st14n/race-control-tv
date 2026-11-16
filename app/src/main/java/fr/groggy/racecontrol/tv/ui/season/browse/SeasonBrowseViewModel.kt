@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import fr.groggy.racecontrol.tv.core.season.SeasonService
+import fr.groggy.racecontrol.tv.core.series.forSeries
 import fr.groggy.racecontrol.tv.f1tv.Archive
 import fr.groggy.racecontrol.tv.f1tv.F1TvChannelId
 import fr.groggy.racecontrol.tv.f1tv.F1TvEventId
@@ -17,15 +18,19 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SeasonBrowseViewModel @Inject constructor(
-    private val seasonService: SeasonService
+    private val seasonService: SeasonService,
+    private val seriesFilter: fr.groggy.racecontrol.tv.core.series.SeriesFilter
 ) : ViewModel() {
 
     suspend fun archiveLoaded(archive: Archive): Season {
         return loaded(seasonService.season(archive))
     }
 
+    /** The season with only the sessions of the class chosen on the home screen. */
     suspend fun getSeason(archive: Archive): Flow<Season> {
-        return seasonService.season(archive)
+        return kotlinx.coroutines.flow.combine(seasonService.season(archive), seriesFilter.selected) { season, series ->
+            season.forSeries(series)
+        }
     }
 
     private suspend fun loaded(season: Flow<Season>): Season {
@@ -51,7 +56,8 @@ data class Session(
     override val contentSubtype: String,
     override val thumbnail: Image?,
     val largePictureUrl:String,
-    val channels: List<F1TvChannelId>
+    val channels: List<F1TvChannelId>,
+    val series: String = "FORMULA 1"
 ) : SessionCard {
 
     companion object {

@@ -33,7 +33,8 @@ data class F1TvSessionMetadata(
 data class F1TvSessionEmfAttributes(
     @param:Json(name = "MeetingKey") val meetingKey: String,
     @param:Json(name = "Meeting_Start_Date") val startDate: String?,
-    @param:Json(name = "Meeting_End_Date") val endDate: String?
+    @param:Json(name = "Meeting_End_Date") val endDate: String?,
+    @param:Json(name = "Series") val series: String? = null
 )
 
 class F1TvSessionId(val value: String)
@@ -49,7 +50,9 @@ data class F1TvSession(
     val period: InstantPeriod,
     val available: Boolean,
     val images: List<F1TvImageId>,
-    val channels: List<F1TvChannelId>
+    val channels: List<F1TvChannelId>,
+    /** F1's "Series" of the session: "FORMULA 1", "FORMULA 2", "FORMULA 3", "F1 ACADEMY"... */
+    val series: String = "FORMULA 1"
 )
 
 @JsonClass(generateAdapter = true)

@@ -17,5 +17,6 @@ data class SessionEntity(
     @ColumnInfo(name = "end_time") val endTime: Long,
     @ColumnInfo(name = "available") val available: Boolean,
     @ColumnInfo(name = "images") val images: String,
-    @ColumnInfo(name = "channels") val channels: String
+    @ColumnInfo(name = "channels") val channels: String,
+    @ColumnInfo(name = "series", defaultValue = "FORMULA 1") val series: String = "FORMULA 1"
 )

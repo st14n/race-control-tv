@@ -132,7 +132,8 @@ class F1TvClient @Inject constructor(
                     ),
                     available = true,
                     images = listOf(),
-                    channels = listOf()
+                    channels = listOf(),
+                    series = it.metadata.emfAttributes.series ?: "FORMULA 1"
                 )
             }
         } catch (e: Exception) {
@@ -193,7 +194,8 @@ class F1TvClient @Inject constructor(
                     ),
                     available = true,
                     images = listOf(),
-                    channels = listOf()
+                    channels = listOf(),
+                    series = it.metadata.emfAttributes.series
                 )
             }
         } catch (e: Exception) {
