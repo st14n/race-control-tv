@@ -50,7 +50,7 @@ class UpdateManager @Inject constructor(
         private val TAG = UpdateManager::class.simpleName
         private const val CHECK_INTERVAL_MS = 10 * 60 * 1000L
 
-        private val ACCENT = Color.parseColor("#0096A6")
+        private val ACCENT = Color.parseColor("#E10600")
     }
 
     private var startedActivities = 0
@@ -276,6 +276,10 @@ class UpdateManager @Inject constructor(
     private fun show(built: AlertDialog, focusedButton: Int) {
         dialog = built
         built.setOnShowListener {
+            built.window?.setBackgroundDrawable(android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = 16f * built.context.resources.displayMetrics.density
+                setColor(Color.parseColor("#16181D"))
+            })
             val textColors = ColorStateList(
                 arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
                 intArrayOf(Color.WHITE, Color.parseColor("#B0BEC5"))
@@ -284,9 +288,15 @@ class UpdateManager @Inject constructor(
                 built.getButton(which)?.apply {
                     isFocusable = true
                     setTextColor(textColors)
+                    // Redesign: a red pill on focus
+                    val radius = 24f * resources.displayMetrics.density
+                    fun pill(color: Int) = android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = radius
+                        setColor(color)
+                    }
                     background = StateListDrawable().apply {
-                        addState(intArrayOf(android.R.attr.state_focused), ColorDrawable(ACCENT))
-                        addState(intArrayOf(android.R.attr.state_pressed), ColorDrawable(ACCENT))
+                        addState(intArrayOf(android.R.attr.state_focused), pill(ACCENT))
+                        addState(intArrayOf(android.R.attr.state_pressed), pill(ACCENT))
                         addState(intArrayOf(), ColorDrawable(Color.TRANSPARENT))
                     }
                 }

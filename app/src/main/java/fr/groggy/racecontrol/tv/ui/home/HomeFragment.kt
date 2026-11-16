@@ -77,14 +77,6 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
         savedInstanceState: Bundle?
     ): View? {
         val view = super.onCreateView(inflater, container, savedInstanceState)
-        view?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-            val dimensionPixelSize =
-                inflater.context.resources.getDimensionPixelSize(R.dimen.lb_browse_rows_fading_edge)
-            val horizontalMargin = -dimensionPixelSize * 2 - 4
-
-            leftMargin = horizontalMargin
-            rightMargin = horizontalMargin
-        }
 
         return view
     }
@@ -173,7 +165,7 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
         }
     }
 
-    /** The big card: the session that is live now, else the newest one of the newest weekend. */
+    /** The big card: the session that is live now, else the newest replay of the newest weekend. */
     private fun updateHero(
         season: Season,
         eventName: String,
@@ -181,7 +173,10 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
         newWeekend: Boolean,
         progress: List<WatchProgressStore.Entry>
     ) {
-        val session = sessions.firstOrNull { SessionCardPresenter.isLive(it.contentSubtype) } ?: sessions.first()
+        // Live first; otherwise the newest full replay (a race or qualifying, not a show after it)
+        val session = sessions.firstOrNull { SessionCardPresenter.isLive(it.contentSubtype) }
+            ?: sessions.firstOrNull { it.contentSubtype.equals("REPLAY", ignoreCase = true) }
+            ?: sessions.first()
         val byContent = season.events.flatMap { e -> e.sessions.map { it.contentId to (e.name to it) } }.toMap()
         val continueItems = progress.mapNotNull { entry ->
             byContent[entry.contentId]?.let { (event, s) -> ContinueItem(s, event, entry) }

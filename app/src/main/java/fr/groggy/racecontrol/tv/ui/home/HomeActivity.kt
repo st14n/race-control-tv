@@ -104,6 +104,8 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
                 Log.d("Fetching new data", "Lifecycle state is ${lifecycle.currentState}")
                 try {
                     seasonService.loadSeason(Archive(Year.now().value))
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
                 } catch (_: Exception) {
                     /*
                      * If for whatever reason this doesn't load, just give up
@@ -164,6 +166,8 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
     }
 
     private fun ensureHomeFragmentPresent() {
+        // A refresh that finishes while the screen is closing must not touch its fragments (crashed)
+        if (isFinishing || isDestroyed || supportFragmentManager.isDestroyed || supportFragmentManager.isStateSaved) return
         if (supportFragmentManager.findFragmentByTag(TAG) !is HomeFragment) {
             supportFragmentManager.commit {
                 replace(R.id.fragment_container, HomeFragment(), TAG)

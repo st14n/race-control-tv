@@ -39,11 +39,6 @@ class SeasonArchiveFragment : RowsSupportFragment(), OnItemViewClickedListener {
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         val view = super.onCreateView(inflater, container, savedInstanceState)
-        view?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-            val fadingEdge = inflater.context.resources.getDimensionPixelSize(R.dimen.lb_browse_rows_fading_edge)
-            leftMargin = -fadingEdge * 2 - 4
-            rightMargin = -fadingEdge * 2 - 4
-        }
         return view
     }
 
