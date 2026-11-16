@@ -1,19 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="236dp"
-    android:orientation="horizontal"
-    android:paddingStart="40dp"
-    android:paddingEnd="40dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
     android:paddingTop="10dp"
     android:paddingBottom="8dp">
 
     <!-- The newest weekend's session: big, with its picture -->
     <FrameLayout
         android:id="@+id/hero_card"
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
+        android:layout_width="match_parent"
+        android:layout_height="210dp"
         android:background="@drawable/hero_background"
         android:clickable="true"
         android:focusable="true"
@@ -98,7 +97,7 @@
                 android:fontFamily="sans-serif-condensed"
                 android:maxLines="1"
                 android:textColor="@color/rc_text"
-                android:textSize="38sp"
+                android:textSize="30sp"
                 android:textStyle="bold" />
 
             <LinearLayout
@@ -122,6 +121,7 @@
 
                 <TextView
                     android:id="@+id/hero_hint"
+                    android:visibility="gone"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="14dp"
@@ -135,9 +135,9 @@
     <!-- Continue watching: replays stopped halfway -->
     <LinearLayout
         android:id="@+id/continue_column"
-        android:layout_width="300dp"
-        android:layout_height="match_parent"
-        android:layout_marginStart="24dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
         android:orientation="vertical">
 
         <TextView
@@ -156,5 +156,16 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical" />
+
+        <TextView
+            android:id="@+id/continue_empty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/continue_item_background"
+            android:padding="14dp"
+            android:text="@string/home_continue_empty"
+            android:textColor="@color/rc_text_muted"
+            android:textSize="13sp"
+            android:visibility="gone" />
     </LinearLayout>
 </LinearLayout>

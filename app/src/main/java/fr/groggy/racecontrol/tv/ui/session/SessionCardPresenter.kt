@@ -8,7 +8,7 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.leanback.widget.Presenter
-import com.bumptech.glide.Glide
+import fr.groggy.racecontrol.tv.ui.common.glideFor
 import com.bumptech.glide.load.resource.bitmap.CenterCrop
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners
 import fr.groggy.racecontrol.tv.R
@@ -54,16 +54,16 @@ class SessionCardPresenter @Inject constructor(
         val image = view.findViewById<ImageView>(R.id.card_image)
         if (settingsRepository.getCurrent().displayThumbnailsEnabled) {
             val radius = (10 * context.resources.displayMetrics.density).toInt()
-            Glide.with(context)
-                .load(session.thumbnail?.url)
-                .transform(CenterCrop(), RoundedCorners(radius))
-                .into(image)
+            glideFor(image)
+                ?.load(session.thumbnail?.url)
+                ?.transform(CenterCrop(), RoundedCorners(radius))
+                ?.into(image)
         }
     }
 
     override fun onUnbindViewHolder(viewHolder: ViewHolder) {
         val image = viewHolder.view.findViewById<ImageView>(R.id.card_image)
-        Glide.with(viewHolder.view.context).clear(image)
+        glideFor(image)?.clear(image)
         image.setImageDrawable(null)
     }
 

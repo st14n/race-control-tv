@@ -8,7 +8,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.leanback.widget.Row
 import androidx.leanback.widget.RowPresenter
-import com.bumptech.glide.Glide
+import fr.groggy.racecontrol.tv.ui.common.glideFor
 import com.bumptech.glide.load.resource.bitmap.CenterCrop
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners
 import fr.groggy.racecontrol.tv.R
@@ -74,17 +74,19 @@ class HeroRowPresenter(
         val heroImage = view.findViewById<ImageView>(R.id.hero_image)
         if (showThumbnails()) {
             val radius = (16 * context.resources.displayMetrics.density).toInt()
-            Glide.with(context)
-                .load(session.largePictureUrl.ifBlank { session.thumbnail?.url?.toString() })
-                .transform(CenterCrop(), RoundedCorners(radius))
-                .into(heroImage)
+            glideFor(heroImage)
+                ?.load(session.largePictureUrl.ifBlank { session.thumbnail?.url?.toString() })
+                ?.transform(CenterCrop(), RoundedCorners(radius))
+                ?.into(heroImage)
         }
         view.findViewById<View>(R.id.hero_card).setOnClickListener { onSessionClicked(session) }
 
         val column = view.findViewById<View>(R.id.continue_column)
         val list = view.findViewById<LinearLayout>(R.id.continue_items)
         list.removeAllViews()
-        column.visibility = if (row.continueItems.isEmpty()) View.GONE else View.VISIBLE
+        column.visibility = View.VISIBLE
+        view.findViewById<View>(R.id.continue_empty).visibility =
+            if (row.continueItems.isEmpty()) View.VISIBLE else View.GONE
         val inflater = LayoutInflater.from(context)
         row.continueItems.take(3).forEach { entry ->
             val itemView = inflater.inflate(R.layout.home_continue_item, list, false)
@@ -96,8 +98,8 @@ class HeroRowPresenter(
             val image = itemView.findViewById<ImageView>(R.id.continue_image)
             if (showThumbnails()) {
                 val radius = (8 * context.resources.displayMetrics.density).toInt()
-                Glide.with(context).load(entry.session.thumbnail?.url)
-                    .transform(CenterCrop(), RoundedCorners(radius)).into(image)
+                glideFor(image)?.load(entry.session.thumbnail?.url)
+                    ?.transform(CenterCrop(), RoundedCorners(radius))?.into(image)
             }
             val bar = itemView.findViewById<View>(R.id.continue_progress)
             val widthPx = (78 * context.resources.displayMetrics.density * entry.progress.fraction).toInt()
@@ -109,7 +111,8 @@ class HeroRowPresenter(
 
     override fun onUnbindRowViewHolder(vh: ViewHolder) {
         val view = vh.view
-        Glide.with(view.context).clear(view.findViewById<ImageView>(R.id.hero_image))
+        val heroImage = view.findViewById<ImageView>(R.id.hero_image)
+        glideFor(heroImage)?.clear(heroImage)
         view.findViewById<LinearLayout>(R.id.continue_items).removeAllViews()
         super.onUnbindRowViewHolder(vh)
     }

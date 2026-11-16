@@ -89,6 +89,31 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
         return view
     }
 
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        keepTopVisible()
+    }
+
+    /**
+     * Leanback scrolls every selected row to the top of the screen, so selecting the weekend row
+     * pushed the big card away. Rows near the top now stay where they are (the list only scrolls once
+     * the selection gets past the middle).
+     */
+    private fun keepTopVisible() {
+        verticalGridView?.apply {
+            windowAlignment = BaseGridView.WINDOW_ALIGN_BOTH_EDGE
+            windowAlignmentOffset = 0
+            windowAlignmentOffsetPercent = 55f
+            itemAlignmentOffset = 0
+            itemAlignmentOffsetPercent = 0f
+        }
+    }
+
+    override fun setAlignment(windowAlignOffsetTop: Int) {
+        super.setAlignment(windowAlignOffsetTop)
+        keepTopVisible()
+    }
+
     private fun buildRowsAdapter() {
         val viewModel: HomeViewModel by viewModels()
 

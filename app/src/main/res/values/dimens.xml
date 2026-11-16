@@ -1,0 +1,4 @@
+<resources>
+    <!-- Leanback default; wider on a TV (values-w720dp) -->
+    <dimen name="lb_settings_pane_width">360dp</dimen>
+</resources>

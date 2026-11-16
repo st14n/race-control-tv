@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/rc_background"
+    android:orientation="vertical">
+
+    <!-- Top bar: class pills (F1, F2, F3, F1 Academy), season and archive; settings on the right -->
+    <LinearLayout
+        android:id="@+id/topBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="40dp"
+        android:paddingEnd="40dp"
+        android:paddingTop="18dp"
+        android:paddingBottom="2dp">
+
+        <HorizontalScrollView
+            android:id="@+id/teaserContainer"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:clipToPadding="false"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/seriesButtons"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+
+        <ImageView
+            android:id="@+id/settings"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="12dp"
+            android:background="@drawable/round_icon_background"
+            android:clickable="true"
+            android:contentDescription="@string/settings_content_description"
+            android:focusable="true"
+            android:padding="9dp"
+            android:src="@drawable/ic_settings" />
+    </LinearLayout>
+
+    <androidx.fragment.app.FragmentContainerView
+        android:id="@+id/fragment_container"
+        android:name="fr.groggy.racecontrol.tv.ui.LoadingFragment"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+</LinearLayout>

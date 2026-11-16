@@ -14,9 +14,15 @@ import kotlin.math.min
 internal fun Dialog.showAsSidePanel(widthFraction: Float = 0.34f, maxWidthDp: Int = 440) {
     val window = window ?: return
     val metrics = context.resources.displayMetrics
-    val width = min((metrics.widthPixels * widthFraction).toInt(), (maxWidthDp * metrics.density).toInt())
-    window.setGravity(Gravity.END or Gravity.FILL_VERTICAL)
-    window.setLayout(width, ViewGroup.LayoutParams.MATCH_PARENT)
+    if (metrics.widthPixels / metrics.density < 600f) {
+        // A phone (portrait): a panel from the bottom over the full width, the picture stays above it
+        window.setGravity(Gravity.BOTTOM or Gravity.FILL_HORIZONTAL)
+        window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, (metrics.heightPixels * 0.7f).toInt())
+    } else {
+        val width = min((metrics.widthPixels * widthFraction).toInt(), (maxWidthDp * metrics.density).toInt())
+        window.setGravity(Gravity.END or Gravity.FILL_VERTICAL)
+        window.setLayout(width, ViewGroup.LayoutParams.MATCH_PARENT)
+    }
     window.setBackgroundDrawable(ColorDrawable(0xF20D0E11.toInt()))
     window.setDimAmount(0f)
 }

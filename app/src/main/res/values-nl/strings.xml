@@ -159,5 +159,6 @@
     <string name="feed_detail_pitlane">Pitstraat</string>
     <string name="duration_hours_minutes">%1$d u %2$d min</string>
     <string name="duration_minutes">%1$d min</string>
+    <string name="home_continue_empty">Replays die je halverwege stopt, verschijnen hier</string>
 </resources>
 

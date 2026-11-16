@@ -4,6 +4,16 @@
         <item name="android:colorBackground">@color/rc_background</item>
         <item name="defaultBrandColor">@color/rc_accent</item>
         <item name="rowHeaderStyle">@style/RcRowHeader</item>
+        <item name="preferenceTheme">@style/RcPreferenceTheme</item>
+    </style>
+
+    <!-- Settings in the redesign's colours: dark panel, red switches, a rounded focus highlight -->
+    <style name="RcPreferenceTheme" parent="PreferenceThemeOverlayLeanback">
+        <item name="android:windowBackground">@color/rc_surface</item>
+        <item name="defaultBrandColor">@color/rc_background</item>
+        <item name="android:colorAccent">@color/rc_accent</item>
+        <item name="android:colorControlActivated">@color/rc_accent</item>
+        <item name="android:selectableItemBackground">@drawable/preference_item_background</item>
     </style>
 
     <!-- Row titles of the redesign: condensed, bold, white -->
