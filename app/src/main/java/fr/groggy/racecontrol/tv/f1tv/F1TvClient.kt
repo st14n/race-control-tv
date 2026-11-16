@@ -239,11 +239,27 @@ class F1TvClient @Inject constructor(
                         type = F1TvBasicChannelType.from(it.type, it.title)
                     )
                 }
-            } ?: listOf()
+            }
+                // The feeds first (F1 LIVE, International, Tracker, Data, Pit Lane), the drivers' onboards
+                // after them; within a group in the order F1 lists them (the sort is stable)
+                ?.sortedBy { channelRank(it) }
+                ?: listOf()
         } catch (e: Exception) {
             e.printStackTrace()
             return listOf()
         }
+    }
+
+    private fun channelRank(channel: F1TvChannel): Int = when (channel) {
+        is F1TvBasicChannel -> when (channel.type) {
+            F1TvBasicChannelType.F1Live -> 0
+            F1TvBasicChannelType.Wif -> 1
+            F1TvBasicChannelType.Tracker -> 2
+            F1TvBasicChannelType.Data -> 3
+            F1TvBasicChannelType.PitLane -> 4
+            is F1TvBasicChannelType.Unknown -> 5
+        }
+        is F1TvOnboardChannel -> 6
     }
 
     private fun String.findChannelAndContentId(): Pair<String, String> {

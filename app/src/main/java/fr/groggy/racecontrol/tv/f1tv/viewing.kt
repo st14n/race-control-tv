@@ -54,6 +54,11 @@ data class F1TvViewing(
     val externalAudioContentId: String? = null,
     val externalAudioChannelId: String? = null,
     val externalAudioRequired: Boolean = false,
+    /** The external audio is the other main feed's commentary (International <-> F1 LIVE), added to the menu. */
+    val externalAudioIsCompanion: Boolean = false,
+    /** Name of this stream's feed and of the companion feed, to tell same-language tracks apart in the audio menu. */
+    val feedLabel: String? = null,
+    val companionFeedLabel: String? = null,
     /** Device identity to use on the Widevine license request for this route. */
     val drmDeviceInfo: String = ""
 ) : Parcelable

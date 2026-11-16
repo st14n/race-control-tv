@@ -12,6 +12,7 @@ import androidx.leanback.media.PlaybackBaseControlGlue
 import androidx.leanback.media.PlaybackTransportControlGlue
 import androidx.leanback.widget.*
 import androidx.media3.common.C
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Format
 import androidx.media3.common.Player
 import androidx.media3.common.Tracks
@@ -42,7 +43,11 @@ class ExoPlayerPlaybackTransportControlGlue(
     private val currentAudioLabelOverride: (() -> String?)? = null,
     private val onCustomRadioOffsetAdjust: ((Long) -> Unit)? = null,
     private val onControlsInteraction: (() -> Unit)? = null,
-    private val onPlayerMenuDismissed: (() -> Unit)? = null
+    private val onPlayerMenuDismissed: (() -> Unit)? = null,
+    /** Names of this feed and of the merged other feed (International / F1 Live), or null without a merged feed. */
+    private val feedLabels: (() -> Pair<String, String>?)? = null,
+    /** The viewer picked this audio track by hand (so it can be put back after the radio stops). */
+    private val onAudioOverrideChosen: ((TrackSelectionOverride) -> Unit)? = null
 ) : PlaybackTransportControlGlue<LeanbackPlayerAdapter>(
     activity,
     LeanbackPlayerAdapter(activity, exoPlayer, 1_000)
@@ -346,9 +351,12 @@ class ExoPlayerPlaybackTransportControlGlue(
         val audioGroups = exoPlayer.currentTracks.groups
             .filter { it.type == C.TRACK_TYPE_AUDIO }
         activity.window.decorView.post {
+            val labels = feedLabels?.invoke()
             val dialog = AudioSelectionDialogFragment(
                 audioGroups = audioGroups,
                 includeCustomRadioOption = isCustomRadioSelectable?.invoke() != false,
+                feedLabel = labels?.first,
+                companionFeedLabel = labels?.second,
                 onDialogDismissed = ::onMenuDismissed
             )
             dialog.onAudioLanguageSelected { language ->
@@ -359,6 +367,14 @@ class ExoPlayerPlaybackTransportControlGlue(
                         .setPreferredTextLanguage(language)
                 )
                 updateSubtitle()
+            }
+            dialog.onAudioTrackChosen { group, index ->
+                // With two feeds merged the same language exists twice: select the exact track
+                val override = TrackSelectionOverride(group.mediaTrackGroup, index)
+                onAudioOverrideChosen?.invoke(override)
+                trackSelector.setParameters(
+                    trackSelector.buildUponParameters().setOverrideForType(override)
+                )
             }
             dialog.onCustomRadioSelected {
                 onCustomRadioRequested?.invoke()

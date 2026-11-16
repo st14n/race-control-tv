@@ -12,6 +12,8 @@ data class Settings(
     val disableHdrOn4kStreams: Boolean,
     /** Merge the PRES/F1Live audio stream alongside the selected video channel. */
     val useExternalAudio: Boolean,
+    /** Offer the commentary of both International and F1 LIVE (and the radio) whichever of the two is playing. */
+    val combineCommentary: Boolean,
     /** Manual A/V sync offset in milliseconds (positive = audio ahead of video). */
     val audioOffsetMs: Long,
     /** Custom radio initial sync delay in milliseconds (used when auto-sync is off or unavailable). */
@@ -55,6 +57,7 @@ data class Settings(
             disableUhdManifests = BuildConfig.DEFAULT_DISABLE_UHD_MANIFESTS,
             disableHdrOn4kStreams = false,
             useExternalAudio = false,
+            combineCommentary = true,
             audioOffsetMs = 0L,
             customRadioDelayMs = 20_000L,
             customRadioAutoSync = true,
@@ -74,6 +77,7 @@ data class Settings(
         const val KEY_DISABLE_UHD_MANIFEST = "disable_uhd_manifests"
         const val KEY_FORCE_SDR_TONE_MAPPING = "force_sdr_tone_mapping"
         const val KEY_USE_EXTERNAL_AUDIO = "use_external_audio"
+        const val KEY_COMBINE_COMMENTARY = "combine_commentary"
         const val KEY_AUDIO_OFFSET_MS = "audio_offset_ms"
         const val KEY_CUSTOM_RADIO_DELAY_MS = "custom_radio_delay_ms"
         const val KEY_CUSTOM_RADIO_AUTO_SYNC = "custom_radio_auto_sync"

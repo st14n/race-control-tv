@@ -104,6 +104,7 @@ class SettingsRepository(
                 disableUhdManifests = getBoolean(Settings.KEY_DISABLE_UHD_MANIFEST, Settings.DEFAULT.disableUhdManifests),
                 disableHdrOn4kStreams = getBoolean(Settings.KEY_FORCE_SDR_TONE_MAPPING, Settings.DEFAULT.disableHdrOn4kStreams),
                 useExternalAudio = getBoolean(Settings.KEY_USE_EXTERNAL_AUDIO, Settings.DEFAULT.useExternalAudio),
+                combineCommentary = getBoolean(Settings.KEY_COMBINE_COMMENTARY, Settings.DEFAULT.combineCommentary),
                 audioOffsetMs = getString(Settings.KEY_AUDIO_OFFSET_MS, null)?.toLongOrNull()
                     ?: Settings.DEFAULT.audioOffsetMs,
                 customRadioDelayMs = getString(Settings.KEY_CUSTOM_RADIO_DELAY_MS, null)?.toLongOrNull()

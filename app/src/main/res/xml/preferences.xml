@@ -43,6 +43,12 @@
             android:defaultValue="true" />
 
         <SwitchPreferenceCompat
+            android:key="combine_commentary"
+            android:title="@string/settings_combine_commentary_title"
+            android:summary="@string/settings_combine_commentary_summary"
+            android:defaultValue="true" />
+
+        <SwitchPreferenceCompat
             android:key="disable_uhd_manifests"
             android:title="@string/settings_disable_uhd_manifests_title"
             android:summary="@string/settings_disable_uhd_manifests_summary"

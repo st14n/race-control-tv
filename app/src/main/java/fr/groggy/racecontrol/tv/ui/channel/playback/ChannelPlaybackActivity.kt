@@ -230,6 +230,8 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
             if (settings.useExternalAudio) {
                 val externalAudioPreferHdr = preferHdrManifest && !viewing.externalAudioRequired
                 viewing = tryAttachExternalAudio(viewing, contentId, channelId, streamType, externalAudioPreferHdr)
+            } else if (settings.combineCommentary && viewing.externalAudioUri == null && !companionDisabled) {
+                viewing = tryAttachCommentaryCompanion(viewing, contentId, channelId, streamType)
             }
 
             onViewingCreated(viewing)
@@ -254,6 +256,57 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
      * feed, which only has English and Spanish.)
      */
     private fun resolvePreferredChannelId(requestedChannelId: String?): String? = requestedChannelId
+
+    /** Set after a player error with the companion audio merged: the retry plays the stream alone. */
+    private var companionDisabled = false
+
+    /**
+     * International and F1 LIVE are the same pictures with different commentary (International: several
+     * languages, F1 LIVE: its own English and Spanish). Whichever is playing, the other's audio is
+     * merged in as extra audio tracks, so the audio menu offers all of it. Non-fatal: any failure
+     * (no such feed, request fails) leaves the viewing as it is, and so does a player error later
+     * (see [playerError]).
+     */
+    private suspend fun tryAttachCommentaryCompanion(
+        viewing: F1TvViewing,
+        contentId: String,
+        currentChannelId: String?,
+        streamType: Settings.StreamType
+    ): F1TvViewing = try {
+        val basic = f1TvClient.getChannels(contentId).filterIsInstance<F1TvBasicChannel>()
+        val f1Live = basic.firstOrNull { it.type == F1TvBasicChannelType.F1Live }
+        val international = basic.firstOrNull { it.type == F1TvBasicChannelType.Wif }
+        if (f1Live?.channelId == null || international == null) {
+            viewing
+        } else {
+            val watchingF1Live = currentChannelId == f1Live.channelId
+            val watchingInternational = currentChannelId == null || currentChannelId == international.channelId
+            if (!watchingF1Live && !watchingInternational) {
+                viewing // Tracker, Data, a driver's onboard: their own audio only
+            } else {
+                // Same standard stream for the audio of the other feed: it is only listened to
+                val otherChannel = if (watchingF1Live) international.channelId else f1Live.channelId
+                Log.i(TAG, "Adding the other main feed's commentary (channelId=$otherChannel) to the audio menu")
+                val other = viewingService.getViewing(otherChannel, contentId, streamType, preferHdrManifest = false)
+                viewing.copy(
+                    externalAudioUri = other.url,
+                    externalAudioStreamType = other.streamType,
+                    externalAudioLaURL = other.laURL,
+                    externalAudioPlayApiVersion = other.playApiVersion,
+                    externalAudioEntitlementtoken = other.entitlementtoken,
+                    externalAudioContentId = other.contentId,
+                    externalAudioChannelId = other.channelId,
+                    externalAudioRequired = false,
+                    externalAudioIsCompanion = true,
+                    feedLabel = getString(if (watchingF1Live) R.string.feed_label_f1_live else R.string.feed_label_international),
+                    companionFeedLabel = getString(if (watchingF1Live) R.string.feed_label_international else R.string.feed_label_f1_live)
+                )
+            }
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "Could not add the other feed's commentary (non-fatal): ${e.message}")
+        viewing
+    }
 
     /**
      * Non-fatal: attempts to find the PRES/F1Live channel and populate [F1TvViewing]
@@ -693,6 +746,22 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
             return
         }
         val failedViewing = currentViewing
+        if (failedViewing != null && failedViewing.externalAudioIsCompanion && !companionDisabled &&
+            !isFinishing && !isDestroyed
+        ) {
+            // The merged second feed is the likeliest thing to go wrong: play the stream alone
+            Log.w(TAG, "Player error with the other feed's commentary merged in: playing without it")
+            companionDisabled = true
+            onViewingCreated(
+                failedViewing.copy(
+                    externalAudioUri = null,
+                    externalAudioIsCompanion = false,
+                    feedLabel = null,
+                    companionFeedLabel = null
+                )
+            )
+            return
+        }
         val triedHdrManifest = failedViewing?.let {
             ProtectedHdrStreamClassifier.looksLikeHdrUhdWidevine(it) ||
                 looksLikeUhdOrHdr(it.streamType) ||

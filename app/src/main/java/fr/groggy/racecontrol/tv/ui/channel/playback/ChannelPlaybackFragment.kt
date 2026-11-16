@@ -126,6 +126,8 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     @Inject internal lateinit var settingsRepository: SettingsRepository
 
     private var playbackGlue: ExoPlayerPlaybackTransportControlGlue? = null
+    /** The audio track the viewer picked in the audio menu, if any. */
+    private var userAudioOverride: androidx.media3.common.TrackSelectionOverride? = null
     private val customRadio by lazy {
         CustomRadioController(
             fragment = this,
@@ -139,8 +141,18 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                     Log.i(TAG, "Main player audio muted=$muted reason=$reason")
                 }
                 override val mainAudioFeatures: AcousticFeatureStream get() = this@ChannelPlaybackFragment.mainAudioFeatures
-                override fun setAmbientAudioPreferred(preferred: Boolean): Boolean =
-                    _player?.selectAmbientAudioTrack(preferred) ?: false
+                override fun setAmbientAudioPreferred(preferred: Boolean): Boolean {
+                    val player = _player ?: return false
+                    val result = player.selectAmbientAudioTrack(preferred)
+                    if (!preferred) {
+                        // Clearing the FX override also cleared the viewer's own pick: put it back
+                        userAudioOverride?.let {
+                            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                                .setOverrideForType(it).build()
+                        }
+                    }
+                    return result
+                }
                 override fun refreshRadioOverlay() {
                     playbackGlue?.refreshSubtitle()
                 }
@@ -453,7 +465,14 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                 },
                 onCustomRadioOffsetAdjust = customRadio::adjust,
                 onControlsInteraction = ::resetOverlayAutoCloseTimer,
-                onPlayerMenuDismissed = ::hidePlayerMenusAndControls
+                onPlayerMenuDismissed = ::hidePlayerMenusAndControls,
+                feedLabels = {
+                    val v = currentViewing ?: findViewing(this)
+                    val a = v?.feedLabel
+                    val b = v?.companionFeedLabel
+                    if (v != null && v.externalAudioIsCompanion && a != null && b != null) a to b else null
+                },
+                onAudioOverrideChosen = { userAudioOverride = it }
             )
             playbackGlue = glue
             glue.host = VideoSupportFragmentGlueHost(this)
@@ -500,7 +519,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             )
             val hasHdrWidevineVideo = looksLikeHdrUhdWidevine(viewing)
             val useExternalAudio = viewing.externalAudioUri != null &&
-                (settings.useExternalAudio || viewing.externalAudioRequired)
+                (settings.useExternalAudio || viewing.externalAudioRequired || viewing.externalAudioIsCompanion)
             val useVideoOnlyHdrMain = hasHdrWidevineVideo && useExternalAudio
             // Keep Media3 audio enabled here: the HDR main source is filtered to video-only,
             // so disabling the audio track type would also disable the merged companion audio.

@@ -13,7 +13,9 @@ import java.util.Locale
 
 private data class AudioSelectionItem(
     val format: Format,
-    val displayLabel: String
+    val displayLabel: String,
+    val group: Tracks.Group,
+    val trackIndex: Int
 )
 
 internal fun displayAudioTrackLabel(format: Format, displayLocale: Locale = Locale.getDefault()): String {
@@ -64,21 +66,26 @@ private fun audioSelectionSortPriority(format: Format): Int {
 class AudioSelectionDialogFragment(
     private val audioGroups: List<Tracks.Group>,
     private val includeCustomRadioOption: Boolean = true,
+    /** When the other main feed's commentary is merged in: the names of the two feeds. */
+    private val feedLabel: String? = null,
+    private val companionFeedLabel: String? = null,
     private val onDialogDismissed: (() -> Unit)? = null
 ) : DialogFragment() {
 
     private var onAudioLanguageSelectedListener: ((String?) -> Unit)? = null
+    private var onAudioTrackChosenListener: ((Tracks.Group, Int) -> Unit)? = null
     private var onCustomRadioSelectedListener: (() -> Unit)? = null
 
-    private val formats: List<Format> by lazy {
-        audioGroups.flatMap { group ->
-            (0 until group.length).map { group.getTrackFormat(it) }
-        }
-    }
-
     private val audioItems: List<AudioSelectionItem> by lazy {
-        formats.map { format ->
-            AudioSelectionItem(format = format, displayLabel = displayAudioTrackLabel(format))
+        audioGroups.flatMap { group ->
+            (0 until group.length).map { index ->
+                val format = group.getTrackFormat(index)
+                // A merged second source has its group ids prefixed with its position: "1:..."
+                val fromCompanion = companionFeedLabel != null && group.mediaTrackGroup.id.startsWith("1:")
+                val feed = if (companionFeedLabel == null) null else if (fromCompanion) companionFeedLabel else feedLabel
+                val label = displayAudioTrackLabel(format).let { if (feed != null) "$it ($feed)" else it }
+                AudioSelectionItem(format = format, displayLabel = label, group = group, trackIndex = index)
+            }
         }.sortedWith(
             compareBy<AudioSelectionItem>(
                 { audioSelectionSortPriority(it.format) },
@@ -125,7 +132,11 @@ class AudioSelectionDialogFragment(
         val audioIndex = if (includeCustomRadioOption) index - 1 else index
         when {
             includeCustomRadioOption && index == 0 -> onCustomRadioSelectedListener?.invoke()
-            audioIndex in audioItems.indices -> onAudioLanguageSelectedListener?.invoke(audioItems[audioIndex].format.language)
+            audioIndex in audioItems.indices -> {
+                val item = audioItems[audioIndex]
+                onAudioLanguageSelectedListener?.invoke(item.format.language)
+                onAudioTrackChosenListener?.invoke(item.group, item.trackIndex)
+            }
         }
         dismiss()
     }
@@ -137,6 +148,11 @@ class AudioSelectionDialogFragment(
 
     fun onAudioLanguageSelected(listener: (String?) -> Unit): AudioSelectionDialogFragment {
         onAudioLanguageSelectedListener = listener
+        return this
+    }
+
+    fun onAudioTrackChosen(listener: (Tracks.Group, Int) -> Unit): AudioSelectionDialogFragment {
+        onAudioTrackChosenListener = listener
         return this
     }
 

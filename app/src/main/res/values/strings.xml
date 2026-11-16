@@ -38,6 +38,10 @@
     <string name="settings_bypass_channel_selection_summary">If ON after select a event you will be immediately redirected to the player in the general broadcast</string>
     <string name="settings_display_thumbnails_enabled_title">Display Thumbnails</string>
     <string name="settings_display_thumbnails_enabled_summary">Thumbnails may contain spoilers. Turning this OFF will disable thumbnail images</string>
+    <string name="settings_combine_commentary_title">All commentary options</string>
+    <string name="settings_combine_commentary_summary">Watching International or F1 LIVE, offer the commentary of both in the audio menu (plus the radio). Switch off if a stream stutters.</string>
+    <string name="feed_label_international">International</string>
+    <string name="feed_label_f1_live">F1 Live</string>
     <string name="settings_disable_uhd_manifests_title">Disable UHD (4K) manifests</string>
     <string name="settings_disable_uhd_manifests_summary">UHD/4K plays the unencrypted 4K stream. Replays have it; a live session plays in 4K only if that stream is offered for it, otherwise in 1080p. Switch this on to always play in 1080p SDR.</string>
     <string name="settings_disable_hdr_on_4k_streams_title">Disable HDR on 4K streams (SDR Tone Mapping)</string>
