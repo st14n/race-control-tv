@@ -1,29 +1,43 @@
 # Race Control TV
 
-Android TV client for watching F1 TV content with a remote-friendly Leanback UI.
+Android TV client for watching F1 TV content with a remote-friendly interface. It also runs on Android phones.
 
 This repository is an updated fork focused on current Android TV devices, local sideload installs, and up-to-date playback behavior. It is not affiliated with Formula 1 or F1 TV.
 
 ## What It Does
 
-- Browse current and archived sessions.
-- Play main feeds, onboard cameras, tracker/data channels, and other multi-channel session feeds when F1 TV exposes them.
-- Support multiple audio tracks, including commentary-free feeds when available.
-- Show and switch video quality from the player controls.
-- Display the active video quality and audio language in the playback overlay.
-- Support subtitles/closed captions when provided by the upstream stream.
-- Support custom radio audio injection with adjustable sync delay.
-- Use a TV-first sign-in flow instead of requiring a browser on another device.
+- **Home screen:** buttons for each class (F1, F2, F3, F1 Academy), the current season and the archive. Below them:
+  - a big card for the newest race weekend (selected automatically when a new weekend starts);
+  - "Continue watching", with replays you stopped halfway;
+  - the sessions of that weekend.
+- **Season and archive screens:** browse every season of the selected class, one row per race weekend.
+- **Feeds:** International, F1 LIVE, Tracker, Data, Pit Lane and the onboard cameras, when F1 TV offers them. The feed picker in the player shows the main feeds as tiles and the onboards in team colours.
+  - The feed that plays is marked.
+  - Switching feed in a replay continues at the same moment.
+- **Commentary:** every audio track of the stream.
+  - International and F1 LIVE also offer each other's commentary, so all languages, F1 LIVE's commentary and the circuit-only (FX) track are in one menu.
+  - English and Spanish say which feed they come from.
+- **Quality:** 4K HDR replays from F1's unencrypted 4K stream. The current quality, feed and audio are shown in the player.
+- **Continue watching:** replays remember where you stopped, and the cards show how far you got.
+- **Custom radio:** play your own radio stream instead of the TV commentary.
+  - The radio is synced with the picture automatically, by comparing the circuit sound.
+  - Two buttons in the player move it 0.5 s earlier or later.
+- **Player menus:** they open as a panel at the side (at the bottom on a phone), so the picture stays visible.
+- **Other:** subtitles when the stream has them. Sign-in works on the TV itself, without a browser on another device. The app is in Dutch and English.
 
 ## Playback Notes
 
-- Playback capability depends on what F1 TV returns for a given session, region, account tier, and device path.
-- **UHD/4K works for replays only.** For live sessions UHD does not work in this app at the moment (the picture stays green or black), so live sessions always play in 1080p. "Disable UHD (4K) manifests" additionally switches replays to 1080p SDR. The official F1 TV app is not affected by this limitation.
+- Playback capability depends on what F1 TV returns for a given session, region, account tier and device.
+- **4K/UHD:** replays play F1's unencrypted 4K HDR stream (the same one F1's own TV app plays).
+  - If F1 renames that stream, the app tries the names that follow F1's naming scheme. It uses a stream only after checking that it really is unencrypted 4K/HDR, and remembers the one that works.
+  - Live sessions play in 4K only when F1 offers that stream for them, otherwise in 1080p. This has not been verified live yet.
+  - "Disable UHD (4K) manifests" in Settings always plays 1080p SDR.
 - If a preferred playback path fails, the app falls back to more widely compatible stream variants automatically.
+- **Radio sync:** tuned on recorded race audio, not yet on a live radio stream.
 
 ## Requirements
 
-- An Android TV or Google TV device running Android 9+.
+- An Android TV or Google TV device running Android 9+ (Fire TV devices and Android phones should work too, but are less tested).
 - A valid F1 TV subscription with access to the content you want to watch.
 - Sideloading enabled if you are installing the APK manually.
 
@@ -41,7 +55,12 @@ This project is distributed as a sideloaded APK. It is not maintained through th
 
 ### Prebuilt APK
 
-Download a release APK from your distribution point of choice and sideload it with ADB or your preferred TV installer.
+Download the latest APK from [Releases](https://github.com/st14n/race-control-tv/releases) and sideload it with ADB or your preferred TV installer. Each release has two APKs:
+
+- `-radio`: a third-party radio stream is preconfigured (see the Legal Notice).
+- `-standard`: no radio stream. You can enter your own in Settings.
+
+Neither contains an F1 account; you sign in on the device. The app checks for new releases and offers to install them.
 
 ### Build And Install From Source
 
@@ -98,14 +117,15 @@ These are optional. The normal flow is still signing in on device and changing s
 ## Current App Features
 
 - TV-native sign-in screen with saved credentials.
-- Home screen focused on current season and available sessions.
-- Session screen with per-channel browsing for onboard and data feeds.
-- Playback controls for seek, audio track selection, channel switching, quality selection, subtitles, and custom radio sync.
-- App language options for English, German, Spanish, French, Dutch, Polish, Portuguese, Russian, or system default.
+- Home screen with class buttons, the newest weekend, continue watching and the archive.
+- Feed picker with the main feeds and the onboard cameras.
+- Playback controls for seeking, audio, feed switching, quality, subtitles and the custom radio (sync menu plus quick earlier/later buttons).
+- Settings for playback, 4K/HDR, the radio and the app language (Dutch, English or the system language).
 
 ## Limitations
 
-- UHD/4K does not work for live sessions (see Playback Notes); live plays in 1080p, replays can use UHD.
+- 4K for live sessions is unverified (see Playback Notes).
+- Continue watching covers replays of the current season.
 - This app only plays streams and metadata that F1 TV currently exposes to the authenticated account.
 - Availability of subtitles, alternate audio, onboard feeds, HDR, or higher resolutions varies by session, subscription and device.
 - Buffering or stream-rule failures are often upstream service issues rather than local player bugs.
@@ -113,15 +133,23 @@ These are optional. The normal flow is still signing in on device and changing s
 
 ## Screenshots
 
-![Browse current season](/screenshots/season_browse.png)
+Home screen: class buttons, the newest weekend, continue watching and the sessions of the weekend.
 
-![Browse sessions of an event](/screenshots/event_sessions_browse.png)
+![Home screen](/screenshots/home.png)
 
-![Channel selection of a multi-channel session](/screenshots/session_channel_selection.png)
+A season, one row per race weekend.
 
-![Channel playback](/screenshots/channel_playback.png)
+![Season](/screenshots/season.png)
 
-![Channel audio selection](/screenshots/channel_audio_selection.png)
+The archive.
+
+![Archive](/screenshots/archive.png)
+
+Settings.
+
+![Settings](/screenshots/settings.png)
+
+The player cannot be captured with a screenshot: the video plays on a protected surface, so Android leaves it out of screenshots.
 
 ## Credits
 
