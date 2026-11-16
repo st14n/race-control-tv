@@ -175,16 +175,18 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
 
     override fun onSwitchChannel(channel: Channel) {
         val sessionId = ChannelPlaybackFragment.findSessionId(this) ?: return
-        startActivity(
-            intent(
-                this,
-                sessionId,
-                channel.id?.value,
-                channel.contentId,
-                ChannelPlaybackFragment.findIsLiveSession(this),
-                ChannelPlaybackFragment.findSeasonYear(this)
-            )
+        // A replay continues where it was on the other feed (it used to start over)
+        val keepPositionMs = activePlaybackFragment()?.positionToKeepOnFeedSwitchMs()
+        val next = intent(
+            this,
+            sessionId,
+            channel.id?.value,
+            channel.contentId,
+            ChannelPlaybackFragment.findIsLiveSession(this),
+            ChannelPlaybackFragment.findSeasonYear(this)
         )
+        if (keepPositionMs != null) ChannelPlaybackFragment.putStartPositionMs(next, keepPositionMs)
+        startActivity(next)
         finish()
     }
 

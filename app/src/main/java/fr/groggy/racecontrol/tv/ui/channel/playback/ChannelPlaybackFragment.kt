@@ -69,6 +69,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         private const val ARG_CHANNEL_ID = "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_CHANNEL_ID"
         private const val ARG_IS_LIVE_SESSION = "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_IS_LIVE_SESSION"
         private const val ARG_SEASON_YEAR = "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_SEASON_YEAR"
+        private const val ARG_START_POSITION_MS = "fr.groggy.racecontrol.tv.ui.channel.playback.ARG_START_POSITION_MS"
         // DIAGNOSTIC (2026-08-23): see createMediaSource. Off by default.
         private const val FORCE_WIDEVINE_L3_VALIDATION_DIAGNOSTIC = false
         // DIAGNOSTIC (2026-10-11): route the standard (SDR / UHD DASH) path through
@@ -90,6 +91,9 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         fun putContentId(intent: Intent, contentId: String) = intent.putExtra(ARG_CONTENT_ID, contentId)
         fun putIsLiveSession(intent: Intent, isLiveSession: Boolean) = intent.putExtra(ARG_IS_LIVE_SESSION, isLiveSession)
         fun putSeasonYear(intent: Intent, seasonYear: Int) = intent.putExtra(ARG_SEASON_YEAR, seasonYear)
+        /** Where to start a replay (switching feed keeps the position); 0 = from the start / live edge. */
+        fun putStartPositionMs(intent: Intent, positionMs: Long) = intent.putExtra(ARG_START_POSITION_MS, positionMs)
+        fun findStartPositionMs(activity: Activity): Long = activity.intent.getLongExtra(ARG_START_POSITION_MS, 0L)
 
         fun findChannelId(activity: Activity): String? = activity.intent.getStringExtra(ARG_CHANNEL_ID)
         fun findContentId(activity: Activity): String? = activity.intent.getStringExtra(ARG_CONTENT_ID)
@@ -124,6 +128,13 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
 
     @Inject internal lateinit var httpDataSourceFactory: HttpDataSource.Factory
     @Inject internal lateinit var settingsRepository: SettingsRepository
+
+    /** For switching feed in a replay: where the picture is now, or null for live / unknown. */
+    internal fun positionToKeepOnFeedSwitchMs(): Long? {
+        val p = _player ?: return null
+        if (p.isCurrentMediaItemLive || p.currentPosition <= 0L) return null
+        return p.currentPosition
+    }
 
     private var playbackGlue: ExoPlayerPlaybackTransportControlGlue? = null
     /** The audio track the viewer picked in the audio menu, if any. */
@@ -577,7 +588,14 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                 mainSource
             }
 
-            player.setMediaSource(mediaSource)
+            // Only set by a feed switch in a replay (see positionToKeepOnFeedSwitchMs); a live stream never has one
+            val startPositionMs = ChannelPlaybackFragment.findStartPositionMs(requireActivity())
+            if (startPositionMs > 0L) {
+                Log.i(TAG, "Starting at ${startPositionMs / 1000}s (kept from the feed that was playing)")
+                player.setMediaSource(mediaSource, startPositionMs)
+            } else {
+                player.setMediaSource(mediaSource)
+            }
             player.prepare()
             scheduleStartupBufferingWatchdog("prepare")
             scheduleToneMappingFirstFrameWatchdog("prepare")
