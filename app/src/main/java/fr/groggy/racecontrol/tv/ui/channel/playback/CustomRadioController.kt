@@ -171,7 +171,12 @@ internal class CustomRadioController(
         acousticExecutor.shutdownNow()
     }
 
-    fun isSelectable(settings: Settings = settingsRepository.getCurrent()): Boolean {
+    /** The radio can always be picked in the audio menu (in a replay it plays unsynced). */
+    @Suppress("UNUSED_PARAMETER")
+    fun isSelectable(settings: Settings = settingsRepository.getCurrent()): Boolean = true
+
+    /** "Only live" limits starting the radio by itself, not picking it by hand. */
+    private fun mayAutoStart(settings: Settings): Boolean {
         if (!settings.restrictCustomRadioToLiveSessions) return true
         return ChannelPlaybackFragment.findIsLiveSession(fragment.requireActivity())
     }
@@ -404,7 +409,7 @@ internal class CustomRadioController(
 
     private fun shouldAutoInject(settings: Settings): Boolean {
         if (!settings.autoSelectCustomRadio) return false
-        if (!isSelectable(settings)) return false
+        if (!mayAutoStart(settings)) return false
         return buildPlan(settings).isNotEmpty()
     }
 

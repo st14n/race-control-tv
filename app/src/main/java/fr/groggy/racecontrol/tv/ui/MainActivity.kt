@@ -20,6 +20,12 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        // First start: language, feed and live audio first (comes back here when done)
+        if (fr.groggy.racecontrol.tv.ui.onboarding.OnboardingActivity.isNeeded(this)) {
+            startActivity(fr.groggy.racecontrol.tv.ui.onboarding.OnboardingActivity.intent(this))
+            finish()
+            return
+        }
         startHomeActivity()
     }
 

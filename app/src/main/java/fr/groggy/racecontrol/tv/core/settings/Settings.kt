@@ -38,7 +38,9 @@ data class Settings(
     /** F1TV account password (stored locally for auto-fill). */
     val f1Password: String,
     /** Check GitHub releases for a newer version whenever the app is opened. */
-    val autoUpdateCheck: Boolean
+    val autoUpdateCheck: Boolean,
+    /** The feed a session opens on: [FEED_INTERNATIONAL] or [FEED_F1_LIVE]. */
+    val defaultFeed: String = FEED_INTERNATIONAL
 ) {
     enum class StreamType(val rawName: String) {
         HLS("HLS"), DASH("DASH"), DASH_HLS("HLS")
@@ -65,7 +67,7 @@ data class Settings(
             customRadioAcousticSync = true,
             customRadioUrl = "",
             autoSelectCustomRadio = true,
-            restrictCustomRadioToLiveSessions = false,
+            restrictCustomRadioToLiveSessions = true,
             f1Username = "",
             f1Password = "",
             autoUpdateCheck = true
@@ -92,5 +94,8 @@ data class Settings(
         const val KEY_F1_USERNAME = "f1_username"
         const val KEY_F1_PASSWORD = "f1_password"
         const val KEY_AUTO_UPDATE_CHECK = "auto_update_check"
+        const val KEY_DEFAULT_FEED = "default_feed"
+        const val FEED_INTERNATIONAL = "international"
+        const val FEED_F1_LIVE = "f1live"
     }
 }

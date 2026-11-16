@@ -22,6 +22,11 @@ private data class AudioSelectionItem(
 )
 
 internal fun displayAudioTrackLabel(format: Format, displayLocale: Locale = Locale.getDefault()): String {
+    // F1's circuit-sound-only track (no commentary)
+    val raw = format.language?.lowercase(Locale.ROOT)
+    if (raw == "fx" || raw == "cfx") {
+        return if (displayLocale.language == "nl") "Alleen circuitgeluid (FX)" else "Circuit sound only (FX)"
+    }
     val normalizedLanguage = format.language?.let(::normalizeAudioLanguageCode)
     val localizedLanguage = normalizedLanguage
         ?.let(Locale::forLanguageTag)

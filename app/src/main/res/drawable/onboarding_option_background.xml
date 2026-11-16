@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A choice on the first-start screens: white edge on focus, a red edge for the current choice -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape><corners android:radius="14dp" /><solid android:color="@color/rc_accent" /><stroke android:width="3dp" android:color="#FFFFFF" /></shape>
+    </item>
+    <item android:state_activated="true">
+        <shape><corners android:radius="14dp" /><solid android:color="@color/rc_surface_raised" /><stroke android:width="2dp" android:color="@color/rc_accent" /></shape>
+    </item>
+    <item>
+        <shape><corners android:radius="14dp" /><solid android:color="@color/rc_surface_raised" /></shape>
+    </item>
+</selector>

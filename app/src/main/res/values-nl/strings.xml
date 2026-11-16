@@ -92,10 +92,10 @@
     <string name="settings_custom_radio_delay_title">Radio synchronisatievertraging</string>
     <string name="settings_custom_radio_url_title">Aangepaste radio URL</string>
     <string name="settings_custom_radio_url_summary">Laat leeg om de standaardstreams te gebruiken</string>
-    <string name="settings_auto_select_custom_radio_title">Gebruik aangepaste radio wanneer beschikbaar</string>
-    <string name="settings_auto_select_custom_radio_summary">Vervang F1-audio automatisch door de ingebouwde of opgeslagen aangepaste radiostream wanneer die beschikbaar is.</string>
-    <string name="settings_restrict_custom_radio_to_live_sessions_title">Aangepaste radio alleen gebruiken bij live-sessies</string>
-    <string name="settings_restrict_custom_radio_to_live_sessions_summary">Voorkomt dat aangepaste radio automatisch of handmatig wordt geselecteerd bij VOD- en replay-sessies.</string>
+    <string name="settings_auto_select_custom_radio_title">Live met mijn radio</string>
+    <string name="settings_auto_select_custom_radio_summary">Je eigen radio start vanzelf en loopt gelijk met het beeld. Het commentaar van de feed blijft in het audiomenu.</string>
+    <string name="settings_restrict_custom_radio_to_live_sessions_title">Radio alleen vanzelf starten bij live</string>
+    <string name="settings_restrict_custom_radio_to_live_sessions_summary">In replays start de radio niet vanzelf. Je kunt hem wel kiezen in het audiomenu.</string>
     <string name="custom_radio_live_only_message">Aangepaste radio is beperkt tot live-sessies.</string>
     <string name="settings_app_locale_title">App-taal</string>
     <string name="channel_selection_now_playing">nu aan het kijken</string>
@@ -160,5 +160,25 @@
     <string name="duration_hours_minutes">%1$d u %2$d min</string>
     <string name="duration_minutes">%1$d min</string>
     <string name="home_continue_empty">Replays die je halverwege stopt, verschijnen hier</string>
+    <string name="settings_default_feed_title">Standaard feed</string>
+    <string name="settings_default_feed_summary">%s · de feed waarop een sessie opent</string>
+    <string name="feed_international">International</string>
+    <string name="feed_f1_live">F1 Live (met eigen commentaar van F1)</string>
+    <string name="onboarding_language_title">Kies je taal</string>
+    <string name="onboarding_language_subtitle">Je kunt dit later wijzigen in Instellingen.</string>
+    <string name="onboarding_language_system">Systeemtaal</string>
+    <string name="onboarding_feed_title">Welke feed wil je kijken?</string>
+    <string name="onboarding_feed_subtitle">Een sessie opent op deze feed. In de speler kun je altijd wisselen.</string>
+    <string name="onboarding_feed_international">International</string>
+    <string name="onboarding_feed_international_detail">Wereldbeeld met alle commentaartalen</string>
+    <string name="onboarding_feed_f1live">F1 Live</string>
+    <string name="onboarding_feed_f1live_detail">Eigen studio en commentaar van F1</string>
+    <string name="onboarding_audio_title">Wat wil je horen bij een live sessie?</string>
+    <string name="onboarding_audio_subtitle">Bij een replay hoor je altijd het commentaar van de feed. Beide blijven in het audiomenu.</string>
+    <string name="onboarding_audio_feed">Commentaar van de feed</string>
+    <string name="onboarding_audio_feed_detail">Het commentaar van de feed die je kijkt</string>
+    <string name="onboarding_audio_radio">Mijn radio</string>
+    <string name="onboarding_audio_radio_detail">Je eigen radio, gelijk met het beeld</string>
+    <string name="onboarding_step">Stap %1$d van %2$d</string>
 </resources>
 

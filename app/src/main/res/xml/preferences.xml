@@ -26,6 +26,14 @@
 
     <PreferenceCategory android:title="@string/settings_category_player_title">
 
+        <ListPreference
+            android:key="default_feed"
+            android:title="@string/settings_default_feed_title"
+            android:summary="@string/settings_default_feed_summary"
+            android:entries="@array/default_feed_entries"
+            android:entryValues="@array/default_feed_values"
+            android:defaultValue="international" />
+
         <SwitchPreference
             android:key="bypass_channel_selection"
             android:title="@string/settings_bypass_channel_selection_title"
@@ -133,13 +141,6 @@
             android:defaultValue="@string/language_default" />
 
 
-        <ListPreference
-            android:key="app_locale"
-            android:title="@string/settings_app_locale_title"
-            android:summary="%s"
-            android:entries="@array/app_locale_entries"
-            android:entryValues="@array/app_locale_values"
-            android:defaultValue="system" />
 
         <SwitchPreference
             android:key="auto_update_check"

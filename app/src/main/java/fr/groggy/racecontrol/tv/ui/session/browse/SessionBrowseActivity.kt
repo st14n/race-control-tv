@@ -12,11 +12,14 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.launch
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.R
+import fr.groggy.racecontrol.tv.core.settings.Settings
+import fr.groggy.racecontrol.tv.f1tv.F1TvBasicChannelType
 import fr.groggy.racecontrol.tv.ui.channel.playback.ChannelPlaybackActivity
 import org.threeten.bp.Year
 
 @AndroidEntryPoint
 class SessionBrowseActivity : FragmentActivity() {
+    @javax.inject.Inject internal lateinit var settingsRepository: fr.groggy.racecontrol.tv.core.settings.SettingsRepository
     companion object {
         private const val IS_LIVE_SESSION = "fr.groggy.racecontrol.tv.ui.session.browse.IS_LIVE_SESSION"
 
@@ -72,10 +75,17 @@ class SessionBrowseActivity : FragmentActivity() {
                     }
                     is MultiChannelsSession -> {
                         Log.d("SessionBrowseActivity", "Skipping channel selection and opening playback directly")
+                        // The feed chosen in Settings (or at first start); none = International
+                        val preferredFeed = if (settingsRepository.getCurrent().defaultFeed == Settings.FEED_F1_LIVE) {
+                            session.channels.filterIsInstance<BasicChannel>()
+                                .firstOrNull { it.type == F1TvBasicChannelType.F1Live }?.id?.value
+                        } else {
+                            null
+                        }
                         val intent = ChannelPlaybackActivity.intent(
                             this@SessionBrowseActivity,
                             sessionId,
-                            null,
+                            preferredFeed,
                             session.contentId,
                             isLiveSession || session.isLiveSession,
                             seasonYear

@@ -195,4 +195,12 @@
         <item>current</item>
         <item>legacy</item>
     </string-array>
+    <string-array name="default_feed_entries">
+        <item>@string/feed_international</item>
+        <item>@string/feed_f1_live</item>
+    </string-array>
+    <string-array name="default_feed_values" translatable="false">
+        <item>international</item>
+        <item>f1live</item>
+    </string-array>
 </resources>
