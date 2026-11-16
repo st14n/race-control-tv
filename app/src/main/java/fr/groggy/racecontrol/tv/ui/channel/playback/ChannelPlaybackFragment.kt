@@ -129,6 +129,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
 
     @Inject internal lateinit var httpDataSourceFactory: HttpDataSource.Factory
     @Inject internal lateinit var settingsRepository: SettingsRepository
+    @Inject internal lateinit var watchProgressStore: fr.groggy.racecontrol.tv.core.progress.WatchProgressStore
 
     /** For switching feed in a replay: where the picture is now, or null for live / unknown. */
     internal fun positionToKeepOnFeedSwitchMs(): Long? {
@@ -406,6 +407,24 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             return _player!!
         }
 
+    /** Where a replay was left, for "Continue watching" on the home screen (live streams are not kept). */
+    private fun recordWatchProgress(player: ExoPlayer) {
+        runCatching {
+            if (player.isCurrentMediaItemLive || player.currentMediaItem == null) return
+            val activity = activity ?: return
+            val sessionId = findSessionId(activity) ?: return
+            val contentId = findContentId(activity) ?: return
+            watchProgressStore.record(
+                sessionId = sessionId,
+                contentId = contentId,
+                channelId = findChannelId(activity),
+                feedLabel = (currentViewing ?: findViewing(this))?.feedLabel,
+                positionMs = player.currentPosition,
+                durationMs = player.duration.takeIf { it != androidx.media3.common.C.TIME_UNSET } ?: return
+            )
+        }.onFailure { Log.w(TAG, "Unable to record watch progress", it) }
+    }
+
     private fun releasePlayerSafely(source: String) {
         cancelStartupBufferingWatchdog()
         cancelToneMappingFirstFrameWatchdog()
@@ -416,6 +435,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         if (source == "surfaceDestroyed" && !playerToRelease.isCurrentMediaItemLive && playerToRelease.currentPosition > 0) {
             resumeAfterSurfaceLossMs = playerToRelease.currentPosition
         }
+        recordWatchProgress(playerToRelease)
         _player = null
         boundHlgGraphSurfaceView = null
         // A new player must be bound to the surface again

@@ -1,4 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:state_selected="true" android:drawable="@drawable/border_shape"/>
-    <item android:state_selected="false" android:drawable="@color/card_background"/>
+    <item android:state_selected="true"><shape><corners android:radius="10dp" /><solid android:color="@color/rc_surface_raised" /><stroke android:width="3dp" android:color="#FFFFFF" /></shape></item>
+    <item android:state_focused="true"><shape><corners android:radius="10dp" /><solid android:color="@color/rc_surface_raised" /><stroke android:width="3dp" android:color="#FFFFFF" /></shape></item>
+    <item><shape><corners android:radius="10dp" /><solid android:color="@color/rc_surface" /></shape></item>
 </selector>

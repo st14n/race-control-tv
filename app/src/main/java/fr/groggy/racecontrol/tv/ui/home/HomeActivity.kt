@@ -122,20 +122,21 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
      */
     private fun buildSeriesButtons(container: ViewGroup, currentYear: Int) {
         val density = resources.displayMetrics.density
-        fun button(text: String, onClick: () -> Unit) = TextView(this).apply {
+        fun button(text: String, background: Int = R.drawable.series_button_background, onClick: () -> Unit) = TextView(this).apply {
             this.text = text
-            textSize = 20f
+            textSize = 16f
+            typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
             setTextColor(android.graphics.Color.WHITE)
+            gravity = android.view.Gravity.CENTER
             isFocusable = true
             isClickable = true
-            setBackgroundResource(R.drawable.series_button_background)
+            setBackgroundResource(background)
             val h = (20 * density).toInt()
-            val v = (10 * density).toInt()
-            setPadding(h, v, h, v)
+            setPadding(h, 0, h, 0)
             setOnClickListener { onClick() }
             container.addView(this, android.widget.LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { marginEnd = (12 * density).toInt() })
+                ViewGroup.LayoutParams.WRAP_CONTENT, (40 * density).toInt()
+            ).apply { marginEnd = (10 * density).toInt() })
         }
         for (series in Series.entries) {
             seriesButtons[series] = button(series.label) {
@@ -143,8 +144,16 @@ class HomeActivity : FragmentActivity(R.layout.activity_home) {
                 markSelectedSeries()
             }
         }
-        button(getString(R.string.home_season_button, currentYear)) {
+        // A thin divider, then the season and the archive
+        container.addView(View(this).apply { setBackgroundColor(getColor(R.color.rc_line)) },
+            android.widget.LinearLayout.LayoutParams((1 * density).toInt().coerceAtLeast(1), (26 * density).toInt()).apply {
+                marginStart = (4 * density).toInt(); marginEnd = (14 * density).toInt()
+            })
+        button(getString(R.string.home_season_button, currentYear), R.drawable.outline_pill_background) {
             startActivity(SeasonBrowseActivity.intent(this, Archive(currentYear)))
+        }
+        button(getString(R.string.home_archive_button), R.drawable.outline_pill_background) {
+            startActivity(fr.groggy.racecontrol.tv.ui.season.archive.SeasonArchiveActivity.intent(this))
         }
         markSelectedSeries()
     }

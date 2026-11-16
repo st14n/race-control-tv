@@ -197,6 +197,12 @@ class ExoPlayerPlaybackTransportControlGlue(
                 val glue = item as PlaybackBaseControlGlue<*>
                 viewHolder.title.text = glue.title
                 viewHolder.subtitle.text = glue.subtitle
+                // Redesign: the session small and grey, what plays (feed / quality / audio) big
+                viewHolder.title.setTextColor(ContextCompat.getColor(context, R.color.rc_text_secondary))
+                viewHolder.title.textSize = 16f
+                viewHolder.subtitle.setTextColor(ContextCompat.getColor(context, R.color.rc_text))
+                viewHolder.subtitle.textSize = 24f
+                viewHolder.subtitle.typeface = android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.BOLD)
                 overlaySubtitleView = viewHolder.subtitle
             }
         }

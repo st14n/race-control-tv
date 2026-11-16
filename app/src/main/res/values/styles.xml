@@ -1,5 +1,22 @@
 <resources>
-    <style name="AppTheme" parent="@style/Theme.Leanback" />
+    <style name="AppTheme" parent="@style/Theme.Leanback">
+        <item name="android:windowBackground">@color/rc_background</item>
+        <item name="android:colorBackground">@color/rc_background</item>
+        <item name="defaultBrandColor">@color/rc_accent</item>
+        <item name="rowHeaderStyle">@style/RcRowHeader</item>
+    </style>
+
+    <!-- Row titles of the redesign: condensed, bold, white -->
+    <style name="RcRowHeader" parent="Widget.Leanback.Row.Header">
+        <item name="android:textAppearance">@style/RcRowHeaderText</item>
+    </style>
+
+    <style name="RcRowHeaderText" parent="TextAppearance.Leanback.Row.Header">
+        <item name="android:textSize">20sp</item>
+        <item name="android:fontFamily">sans-serif-condensed</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/rc_text</item>
+    </style>
 
     <style name="PlaybackTheme" parent="@style/Theme.Leanback">
         <item name="android:windowNoTitle">true</item>
@@ -16,6 +33,8 @@
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:colorBackground">@android:color/black</item>
         <item name="android:windowIsTranslucent">false</item>
+        <item name="playbackProgressPrimaryColor">@color/rc_accent</item>
+        <item name="defaultBrandColor">@color/rc_accent</item>
     </style>
 
     <style name="TextCardStyle" parent="Widget.Leanback.BaseCardViewStyle">

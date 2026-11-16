@@ -15,8 +15,12 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.launch
 import dagger.hilt.android.AndroidEntryPoint
 import fr.groggy.racecontrol.tv.R
+import fr.groggy.racecontrol.tv.core.progress.WatchProgressStore
+import fr.groggy.racecontrol.tv.core.settings.SettingsRepository
 import fr.groggy.racecontrol.tv.ui.BrowseSelectionMemory
 import fr.groggy.racecontrol.tv.f1tv.Archive
+import fr.groggy.racecontrol.tv.ui.channel.playback.ChannelPlaybackActivity
+import fr.groggy.racecontrol.tv.ui.channel.playback.ChannelPlaybackFragment
 import fr.groggy.racecontrol.tv.ui.season.archive.SeasonArchiveActivity
 import fr.groggy.racecontrol.tv.ui.season.browse.Season
 import fr.groggy.racecontrol.tv.ui.season.browse.SeasonBrowseActivity
@@ -24,6 +28,7 @@ import fr.groggy.racecontrol.tv.ui.season.browse.Session
 import fr.groggy.racecontrol.tv.ui.session.SessionCardPresenter
 import fr.groggy.racecontrol.tv.ui.session.browse.SessionBrowseActivity
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
 import org.threeten.bp.Year
 import javax.inject.Inject
 
@@ -31,12 +36,32 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
     @Inject internal lateinit var sessionCardPresenter: SessionCardPresenter
+    @Inject internal lateinit var watchProgressStore: WatchProgressStore
+    @Inject internal lateinit var settingsRepository: SettingsRepository
 
-    private val homeEntriesAdapter = ArrayObjectAdapter(ListRowPresenter())
+    private val heroPresenter by lazy {
+        HeroRowPresenter(
+            showThumbnails = { settingsRepository.getCurrent().displayThumbnailsEnabled },
+            onSessionClicked = ::openSession,
+            onContinueClicked = ::continueWatching
+        )
+    }
+    private val homeEntriesAdapter by lazy {
+        ArrayObjectAdapter(
+            ClassPresenterSelector()
+                .addClassPresenter(HeroRow::class.java, heroPresenter)
+                .addClassPresenter(ListRow::class.java, ListRowPresenter(FocusHighlight.ZOOM_FACTOR_SMALL).apply {
+                    shadowEnabled = false
+                    selectEffectEnabled = false
+                })
+        )
+    }
     private val currentYear = Year.now().value
     private var archivesRow: ListRow? = null
     /** The row with the latest weekend's sessions: there is only ever one. */
     private var latestEventRow: ListRow? = null
+    private var heroRow: HeroRow? = null
+    private var heroKey: String? = null
     private var hasLoadedDataOnce = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -72,44 +97,50 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
         lifecycleScope.launch {
             lifecycle.repeatOnLifecycle(Lifecycle.State.CREATED) {
                 viewModel.getCurrentSeason(Archive(currentYear))
-                    .collect(::onUpdatedSeason)
+                    .combine(watchProgressStore.entries) { season, progress -> season to progress }
+                    .collect { (season, progress) -> onUpdatedSeason(season, progress) }
             }
         }
     }
 
-    private fun onUpdatedSeason(season: Season) {
+    private fun onUpdatedSeason(season: Season, progress: List<WatchProgressStore.Entry>) {
         // What was selected before this update: an update must not move the selection
         val keep = selectionMemory.current
         val events = season.events.filter { it.sessions.isNotEmpty() }
         if (events.isNotEmpty()) {
             val event = events.first()
-            val headerName =
-                getString(R.string.season_last_event, event.name, currentYear.toString())
+            val headerName = getString(R.string.home_weekend_row, event.name)
+            // A weekend not shown before (a new race weekend, or another class) is selected
+            val newWeekend = latestSeenWeekend() != headerName
+            if (newWeekend) rememberLatestSeenWeekend(headerName)
+            updateHero(season, event.name, event.sessions, newWeekend, progress)
+
             val current = latestEventRow
             if (current != null && current.headerItem.name == headerName) {
                 // Same weekend: update its sessions in place (diffed, focus stays where it is)
                 getLastSessionsRow(event.sessions, headerName, current)
+                // The progress bars on the cards
+                (current.adapter as ArrayObjectAdapter).let { it.notifyArrayItemRangeChanged(0, it.size()) }
             } else {
-                // A new weekend (or the first data): it replaces the previous weekend's row. Before, it
-                // was added above it, so the screen kept showing the old weekend (the new one was one
-                // row up) and every weekend the app stayed open added another row.
+                // A new weekend (or the first data): it replaces the previous weekend's row
                 val row = getLastSessionsRow(event.sessions, headerName, null)
                 val index = current?.let { homeEntriesAdapter.indexOf(it) } ?: -1
-                if (index >= 0) homeEntriesAdapter.replace(index, row) else homeEntriesAdapter.add(0, row)
+                if (index >= 0) {
+                    homeEntriesAdapter.replace(index, row)
+                } else {
+                    val hero = heroRow
+                    val at = if (hero != null && homeEntriesAdapter.indexOf(hero) == 0) 1 else 0
+                    homeEntriesAdapter.add(at, row)
+                }
                 latestEventRow = row
-                if (current != null) selectLatestEvent()
             }
             ensureArchiveRowPresent()
-            // A weekend not shown before (a new race weekend, or another class) is selected; otherwise the
-            // card selected last time stays selected
-            val newWeekend = latestSeenWeekend() != headerName
-            if (newWeekend) rememberLatestSeenWeekend(headerName)
             if (!hasLoadedDataOnce) {
                 hasLoadedDataOnce = true
-                if (newWeekend || !restoreSelection(keep, focus = true)) maybeSelectLatestEventByDefault()
+                if (newWeekend || !restoreSelection(keep, focus = true)) selectTop(focus = true)
             } else if (newWeekend) {
-                selectLatestEvent()
-            } else if (current?.headerItem?.name == headerName) {
+                selectTop(focus = false)
+            } else {
                 restoreSelection(keep)
             }
         } else {
@@ -117,23 +148,45 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
         }
     }
 
-    private fun selectLatestEvent() {
-        view?.post { setSelectedPosition(0, true) }
+    /** The big card: the session that is live now, else the newest one of the newest weekend. */
+    private fun updateHero(
+        season: Season,
+        eventName: String,
+        sessions: List<Session>,
+        newWeekend: Boolean,
+        progress: List<WatchProgressStore.Entry>
+    ) {
+        val session = sessions.firstOrNull { SessionCardPresenter.isLive(it.contentSubtype) } ?: sessions.first()
+        val byContent = season.events.flatMap { e -> e.sessions.map { it.contentId to (e.name to it) } }.toMap()
+        val continueItems = progress.mapNotNull { entry ->
+            byContent[entry.contentId]?.let { (event, s) -> ContinueItem(s, event, entry) }
+        }.take(3)
+        val key = listOf(session.id.value, session.name, session.contentSubtype, session.largePictureUrl, eventName, newWeekend,
+            continueItems.joinToString { "${it.session.id.value}:${it.progress.positionMs}" }).joinToString("|")
+        if (key == heroKey) return
+        heroKey = key
+        val row = HeroRow(session, eventName, newWeekend, continueItems)
+        val old = heroRow
+        val index = old?.let { homeEntriesAdapter.indexOf(it) } ?: -1
+        if (index >= 0) homeEntriesAdapter.replace(index, row) else homeEntriesAdapter.add(0, row)
+        heroRow = row
     }
 
-    private fun maybeSelectLatestEventByDefault() {
+    private fun selectTop(focus: Boolean) {
         view?.post {
-            setSelectedPosition(0, false)
-            view?.requestFocus()
+            setSelectedPosition(0, !focus)
+            if (focus) view?.requestFocus()
         }
     }
 
     private fun onEmptySeason() {
         /* Session wasn't started yet (or this class has none this season): only the archive */
-        latestEventRow?.let { row ->
+        listOfNotNull(heroRow, latestEventRow).forEach { row ->
             val index = homeEntriesAdapter.indexOf(row)
             if (index >= 0) homeEntriesAdapter.removeItems(index, 1)
         }
+        heroRow = null
+        heroKey = null
         latestEventRow = null
         ensureArchiveRowPresent()
     }
@@ -152,9 +205,7 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
 
     private fun ensureArchiveRowPresent() {
         val archive = archivesRow ?: return
-        val hasArchiveRow = homeEntriesAdapter.unmodifiableList<ListRow>()
-            .any { it.headerItem.name == archive.headerItem.name }
-        if (!hasArchiveRow) {
+        if (homeEntriesAdapter.indexOf(archive) < 0) {
             homeEntriesAdapter.add(archive)
         }
     }
@@ -222,26 +273,38 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
         return true
     }
 
+    private fun openSession(session: Session) {
+        startActivity(SessionBrowseActivity.intent(requireActivity(), session.id.value, session.contentId, currentYear))
+    }
+
+    /** Straight into the player, on the feed and at the moment the replay was left. */
+    private fun continueWatching(item: ContinueItem) {
+        val intent = ChannelPlaybackActivity.intent(
+            requireActivity(),
+            item.session.id.value,
+            item.progress.channelId,
+            item.session.contentId,
+            false,
+            currentYear
+        )
+        ChannelPlaybackFragment.putStartPositionMs(intent, item.progress.positionMs)
+        startActivity(intent)
+    }
+
     override fun onItemClicked(
         itemViewHolder: Presenter.ViewHolder?,
         item: Any?,
         rowViewHolder: RowPresenter.ViewHolder?,
         row: Row?
     ) {
-        val activity = when (item) {
-            is Session -> {
-                SessionBrowseActivity.intent(requireActivity(), item.id.value, item.contentId, currentYear)
-            }
-            is HomeItem -> when (item.type) {
-                HomeItemType.ARCHIVE -> {
-                    SeasonBrowseActivity.intent(requireContext(), Archive(item.text.toInt()))
+        when (item) {
+            is Session -> openSession(item)
+            is HomeItem -> startActivity(
+                when (item.type) {
+                    HomeItemType.ARCHIVE -> SeasonBrowseActivity.intent(requireContext(), Archive(item.text.toInt()))
+                    HomeItemType.ARCHIVE_ALL -> SeasonArchiveActivity.intent(requireContext())
                 }
-                HomeItemType.ARCHIVE_ALL -> {
-                    SeasonArchiveActivity.intent(requireContext())
-                }
-            }
-            else -> null
+            )
         }
-        activity?.let { startActivity(it) }
     }
 }

@@ -133,5 +133,31 @@
     <string name="settings_device_profile_summary">%s. Herstart de app om toe te passen. Falen 4K-herhalingen op je tv, probeer dan Oud (1.0.2).</string>
     <string name="custom_radio_quick_earlier">Radio 0,5 s eerder</string>
     <string name="custom_radio_quick_later">Radio 0,5 s later</string>
+    <string name="home_badge_live">LIVE</string>
+    <string name="home_continue_watching">Verder kijken</string>
+    <string name="home_hero_new_weekend">Nieuw weekend · %1$s</string>
+    <string name="home_hero_weekend">Laatste weekend · %1$s</string>
+    <string name="home_hero_watch_live">▶ Kijk live</string>
+    <string name="home_hero_watch">▶ Kijken</string>
+    <string name="home_hero_hint">Feeds en commentaar kies je in de speler</string>
+    <string name="home_archive_button">Archief</string>
+    <string name="home_weekend_row">%1$s · dit weekend</string>
+    <string name="home_continue_left">Nog %1$s · %2$s</string>
+    <string name="home_continue_left_nofeed">Nog %1$s</string>
+    <string name="session_kind_live">Live</string>
+    <string name="session_kind_replay">Replay</string>
+    <string name="session_kind_show">Show</string>
+    <string name="feed_picker_main">Hoofdbeeld</string>
+    <string name="feed_picker_onboard">Onboard</string>
+    <string name="feed_picker_now">▶ nu</string>
+    <string name="feed_picker_loading">Feeds laden…</string>
+    <string name="feed_picker_hint">OK kiest · Terug sluit · een replay gaat verder waar hij was</string>
+    <string name="feed_detail_international">Wereldbeeld · alle commentaartalen, FX en je eigen radio</string>
+    <string name="feed_detail_f1live">Eigen studio van F1 · Engels, Spaans</string>
+    <string name="feed_detail_tracker">Live posities</string>
+    <string name="feed_detail_data">Tijden en data</string>
+    <string name="feed_detail_pitlane">Pitstraat</string>
+    <string name="duration_hours_minutes">%1$d u %2$d min</string>
+    <string name="duration_minutes">%1$d min</string>
 </resources>
 
