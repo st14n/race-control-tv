@@ -57,6 +57,8 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     companion object {
         internal val TAG = ChannelPlaybackFragment::class.simpleName
 
+        private const val UHD_WIDTH = 3840
+        private const val UHD_HEIGHT = 2160
         private const val OVERLAY_AUTO_CLOSE_DELAY_MS = 10_000L
         private const val UHD_STARTUP_BUFFERING_TIMEOUT_MS = 12_000L
         private const val UHD_TONE_MAPPING_FIRST_FRAME_TIMEOUT_MS = 5_000L
@@ -537,6 +539,10 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             )
             playbackGlue = glue
             glue.host = VideoSupportFragmentGlueHost(this)
+            // Attaching the host makes LeanbackPlayerAdapter call player.setVideoSurface(raw surface),
+            // which drops the size the video graph needs ("Output surface and size not set" → no
+            // picture, watchdog → SDR fallback). Bind the SurfaceView again so the graph gets it.
+            boundHlgGraphSurfaceView = null
             boundPlaybackSurfaceView?.let {
                 bindPlaybackVideoSurface(it, "startPlayer")
             }
@@ -722,6 +728,16 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                 )
             } else {
                 Log.i(TAG, "Binding SurfaceView to ExoPlayer via setVideoSurfaceView (graph output path) source=$source")
+                // The video graph reports no video size, so onVideoSizeChanged never enlarges the
+                // buffer: it stays at the 1080p UI size and the tone-mapped 4K picture is drawn at
+                // 1080p. Give a 4K stream a 2160p buffer from the start (2160p SDR on e.g. a Shield).
+                val viewing = currentViewing ?: findViewing(this)
+                if (shouldUseHdrToSdrToneMapping(viewing) &&
+                    viewing?.streamType.orEmpty().contains("UHD", ignoreCase = true)
+                ) {
+                    surfaceView.holder.setFixedSize(UHD_WIDTH, UHD_HEIGHT)
+                    Log.i(TAG, "Tone-mapped UHD: SurfaceView buffer set to ${UHD_WIDTH}x$UHD_HEIGHT")
+                }
                 player.setVideoSurfaceView(surfaceView)
                 boundHlgGraphSurfaceView = surfaceView
                 Log.i(
