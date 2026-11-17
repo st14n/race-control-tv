@@ -41,7 +41,12 @@ class HdrToneMappingRenderersFactory(
      * audio never reaches [audioBufferSink], so the radio's acoustic sync would have nothing to
      * compare with (F1's 4K stream offers AC-3 5.1, which a TV with AC-3 support gets passed through).
      */
-    private val decodeAudioToPcm: Boolean = false
+    private val decodeAudioToPcm: Boolean = false,
+    /**
+     * Tone mapping of a Widevine stream needs a protected GL context; the unencrypted 4K stream is
+     * decoded into a normal texture and is tone-mapped with Media3's own GL objects.
+     */
+    private val toneMapProtectedContent: Boolean = true
 ) : DefaultRenderersFactory(context) {
 
     override fun buildAudioSink(
@@ -235,7 +240,9 @@ class HdrToneMappingRenderersFactory(
                         )
                     }
                     enableHdrToSdrToneMapping -> {
+                        Log.i(TAG, "Installing HDR-to-SDR tone mapping renderer protectedContent=$toneMapProtectedContent")
                         ToneMappingMediaCodecVideoRenderer(
+                            protectedContent = toneMapProtectedContent,
                             context = appContext,
                             codecAdapterFactory = codecAdapterFactory(),
                             mediaCodecSelector = mediaCodecSelector,
@@ -627,6 +634,7 @@ private class HardwareToneMappingMediaCodecVideoRenderer(
 }
 
 private class ToneMappingMediaCodecVideoRenderer(
+    private val protectedContent: Boolean,
     context: Context,
     codecAdapterFactory: MediaCodecAdapter.Factory,
     mediaCodecSelector: MediaCodecSelector,
@@ -668,9 +676,9 @@ private class ToneMappingMediaCodecVideoRenderer(
         context: Context,
         videoFrameReleaseControl: VideoFrameReleaseControl
     ): PlaybackVideoGraphWrapper {
-        val videoFrameProcessorFactory = DefaultVideoFrameProcessor.Factory.Builder()
-            .setGlObjectsProvider(ProtectedHlgGlObjectsProvider(forceSdrOutput = true))
-            .build()
+        val builder = DefaultVideoFrameProcessor.Factory.Builder()
+        if (protectedContent) builder.setGlObjectsProvider(ProtectedHlgGlObjectsProvider(forceSdrOutput = true))
+        val videoFrameProcessorFactory = builder.build()
         val videoGraphFactory = SingleInputVideoGraph.Factory(videoFrameProcessorFactory)
         return PlaybackVideoGraphWrapper.Builder(context, videoFrameReleaseControl)
             .setEnablePlaylistMode(true)

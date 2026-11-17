@@ -47,7 +47,7 @@
     <string name="settings_disable_uhd_manifests_title">Disable UHD (4K) manifests</string>
     <string name="settings_disable_uhd_manifests_summary">UHD/4K plays the unencrypted 4K stream. Replays have it; a live session plays in 4K only if that stream is offered for it, otherwise in 1080p. Switch this on to always play in 1080p SDR.</string>
     <string name="settings_disable_hdr_on_4k_streams_title">Disable HDR on 4K streams</string>
-    <string name="settings_disable_hdr_on_4k_streams_summary">Plays 4K streams in SDR (the stream’s SDR version, up to 1620p). Use it if HDR looks wrong or the picture turns green.</string>
+    <string name="settings_disable_hdr_on_4k_streams_summary">Converts HDR to SDR and keeps 4K (2160p). Use it if HDR looks wrong or the picture turns green.</string>
     <string name="settings_open_with_external_player_title">Open with external player (beta)</string>
     <string name="settings_reset_to_default_title">Reset settings to default</string>
     <string name="settings_open_with_external_player_summary">If ON we will use an external player to play content instead the built in player</string>

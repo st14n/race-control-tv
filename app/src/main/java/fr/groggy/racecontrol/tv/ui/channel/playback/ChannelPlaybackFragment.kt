@@ -308,12 +308,16 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     }
 
     /**
-     * "Disable HDR" only needs the tone-mapping renderer for a Widevine HDR stream. The unencrypted 4K
-     * stream has its own SDR ladder (picked in [restrictToOneUhdLadderIfNeeded]), and a normal stream is
-     * SDR already: forcing the tone-mapping renderer on those made playback fail and close.
+     * "Disable HDR": a 4K HDR stream (Widevine, or the unencrypted 4K stream's 2160p HLG ladder) is
+     * tone-mapped to SDR at full resolution. A normal stream is SDR already and plays as it is: forcing
+     * the tone-mapping renderer on it made playback fail and return to the home screen.
      */
     private fun toneMapsForSetting(viewing: F1TvViewing?): Boolean =
-        settingsRepository.getCurrent().disableHdrOn4kStreams && viewing?.let { looksLikeHdrUhdWidevine(it) } == true
+        settingsRepository.getCurrent().disableHdrOn4kStreams && viewing != null &&
+            (looksLikeHdrUhdWidevine(viewing) || isClearUhd(viewing))
+
+    private fun isClearUhd(viewing: F1TvViewing): Boolean =
+        viewing.streamType.orEmpty().contains("UHD", ignoreCase = true) && !looksLikeHdrUhdWidevine(viewing)
 
     private fun shouldUseProtectedHlgGraph(viewing: F1TvViewing? = currentViewing ?: findViewing(this)): Boolean {
         return !isForceDirectMedia3HdrSurface() &&
@@ -373,7 +377,8 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             enableCryptoDiagnostics = false,
             // The fingerprints (two FFTs every 20 ms) are only for the radio's acoustic sync
             audioBufferSink = if (radioMayPlay(settings)) mainAudioFeatures else null,
-            decodeAudioToPcm = radioMayPlay(settings)
+            decodeAudioToPcm = radioMayPlay(settings),
+            toneMapProtectedContent = viewing?.let { !isClearUhd(it) } ?: true
         )
     }
 
@@ -920,9 +925,9 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         if (appliedHdrLadderRestriction) return
         val viewing = currentViewing ?: findViewing(this) ?: return
         if (!viewing.streamType.orEmpty().contains("UHD", ignoreCase = true)) return
-        // HDR switched off in Settings: the SDR ladder, as on a display without HDR
-        val hdrDisplay = fr.groggy.racecontrol.tv.utils.DeviceInfo.supportsHlgDisplay(requireContext()) &&
-            !settingsRepository.getCurrent().disableHdrOn4kStreams
+        // HDR switched off in Settings: the 2160p HLG ladder, tone-mapped to SDR by the renderer
+        val hdrDisplay = fr.groggy.racecontrol.tv.utils.DeviceInfo.supportsHlgDisplay(requireContext()) ||
+            shouldUseHdrToSdrToneMapping(viewing)
         for (group in tracks.groups) {
             if (group.type != C.TRACK_TYPE_VIDEO) continue
             val codecs = (0 until group.length).map { group.getTrackFormat(it).codecs.orEmpty() }

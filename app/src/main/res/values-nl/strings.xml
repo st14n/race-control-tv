@@ -104,7 +104,7 @@
     <string name="settings_disable_uhd_manifests_title">UHD (4K)-manifesten uitschakelen</string>
     <string name="settings_disable_uhd_manifests_summary">UHD/4K speelt de onversleutelde 4K-stream. Herhalingen hebben die; een live sessie speelt alleen in 4K als die stream daarvoor wordt aangeboden, anders in 1080p. Zet dit aan om altijd in 1080p SDR af te spelen.</string>
     <string name="settings_disable_hdr_on_4k_streams_title">HDR uitschakelen bij 4K-streams</string>
-    <string name="settings_disable_hdr_on_4k_streams_summary">Speelt 4K-streams in SDR af (de SDR-versie van de stream, tot 1620p). Gebruik dit als HDR er niet goed uitziet of het beeld groen wordt.</string>
+    <string name="settings_disable_hdr_on_4k_streams_summary">Zet HDR-beeld om naar SDR met behoud van 4K (2160p). Gebruik dit als HDR er niet goed uitziet of het beeld groen wordt.</string>
 
     <string name="settings_auto_update_check_title">Controleer op updates bij het openen van de app</string>
     <string name="settings_auto_update_check_summary">Bied elke keer dat de app wordt geopend aan om een nieuwere release van GitHub te installeren.</string>
