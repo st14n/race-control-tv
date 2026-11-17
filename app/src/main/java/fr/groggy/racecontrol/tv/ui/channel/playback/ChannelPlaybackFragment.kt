@@ -303,13 +303,21 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         return arguments?.getBoolean(ARG_FORCE_HDR_TO_SDR_TONE_MAPPING, false) == true
     }
 
-    private fun shouldUseHdrToSdrToneMapping(): Boolean {
-        return settingsRepository.getCurrent().disableHdrOn4kStreams || isForceHdrToSdrToneMapping()
+    private fun shouldUseHdrToSdrToneMapping(viewing: F1TvViewing? = currentViewing ?: findViewing(this)): Boolean {
+        return isForceHdrToSdrToneMapping() || toneMapsForSetting(viewing)
     }
+
+    /**
+     * "Disable HDR" only needs the tone-mapping renderer for a Widevine HDR stream. The unencrypted 4K
+     * stream has its own SDR ladder (picked in [restrictToOneUhdLadderIfNeeded]), and a normal stream is
+     * SDR already: forcing the tone-mapping renderer on those made playback fail and close.
+     */
+    private fun toneMapsForSetting(viewing: F1TvViewing?): Boolean =
+        settingsRepository.getCurrent().disableHdrOn4kStreams && viewing?.let { looksLikeHdrUhdWidevine(it) } == true
 
     private fun shouldUseProtectedHlgGraph(viewing: F1TvViewing? = currentViewing ?: findViewing(this)): Boolean {
         return !isForceDirectMedia3HdrSurface() &&
-            !shouldUseHdrToSdrToneMapping() &&
+            !shouldUseHdrToSdrToneMapping(viewing) &&
             viewing?.let { looksLikeHdrUhdWidevine(it) } == true &&
             (isForceProtectedHlgGraph() || protectedHdrCapabilities.canCreateProtectedHlgEglSurface)
     }
@@ -327,7 +335,7 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
     private val renderersFactory: RenderersFactory by lazy {
         val settings = settingsRepository.getCurrent()
         val viewing = findViewing(this)
-        val enableHdrToSdrToneMapping = settings.disableHdrOn4kStreams || isForceHdrToSdrToneMapping()
+        val enableHdrToSdrToneMapping = shouldUseHdrToSdrToneMapping(viewing)
         val enableProtectedHlgVideoGraph = shouldUseProtectedHlgGraph(viewing) && !enableHdrToSdrToneMapping
         val enableOfficialLikeDirectHdrCodecConfig = false
         // The clean-room raw MediaCodec renderer models ClearVR's explicit
@@ -912,7 +920,9 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
         if (appliedHdrLadderRestriction) return
         val viewing = currentViewing ?: findViewing(this) ?: return
         if (!viewing.streamType.orEmpty().contains("UHD", ignoreCase = true)) return
-        val hdrDisplay = fr.groggy.racecontrol.tv.utils.DeviceInfo.supportsHlgDisplay(requireContext())
+        // HDR switched off in Settings: the SDR ladder, as on a display without HDR
+        val hdrDisplay = fr.groggy.racecontrol.tv.utils.DeviceInfo.supportsHlgDisplay(requireContext()) &&
+            !settingsRepository.getCurrent().disableHdrOn4kStreams
         for (group in tracks.groups) {
             if (group.type != C.TRACK_TYPE_VIDEO) continue
             val codecs = (0 until group.length).map { group.getTrackFormat(it).codecs.orEmpty() }
