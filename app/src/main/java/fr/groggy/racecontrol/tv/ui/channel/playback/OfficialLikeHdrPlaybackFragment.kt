@@ -719,12 +719,7 @@ class OfficialLikeHdrPlaybackFragment : VideoSupportFragment(), Player.Listener 
         // sequence so MediaTek's secure decoder reaches its UHD buffer state
         // through the same reconfiguration path.
         setForceHighestSupportedBitrate(false)
-        // The app's language (as the 1080p streams already got through the system locale). The 4K stream marks
-        // English as its default track, which otherwise wins. A language picked in the audio menu is kept.
-        setPreferredAudioLanguage(
-            trackSelector.parameters.preferredAudioLanguages.firstOrNull()
-                ?: requireContext().resources.configuration.locales[0].language
-        )
+        setPreferredAudioLanguage(null)
         setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, audioDisabled)
     }
 
