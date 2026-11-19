@@ -20,6 +20,18 @@ import org.threeten.bp.Year
 @AndroidEntryPoint
 class SessionBrowseActivity : FragmentActivity() {
     @javax.inject.Inject internal lateinit var settingsRepository: fr.groggy.racecontrol.tv.core.settings.SettingsRepository
+    @javax.inject.Inject internal lateinit var watchProgressStore: fr.groggy.racecontrol.tv.core.progress.WatchProgressStore
+
+    /** A replay watched before (and not finished): continue where it was left, on the feed it was left on. */
+    private fun resumeOf(contentId: String, live: Boolean) =
+        if (live) null else watchProgressStore.forContent(contentId)
+
+    private fun Intent.resumingAt(entry: fr.groggy.racecontrol.tv.core.progress.WatchProgressStore.Entry?) = apply {
+        if (entry != null) {
+            Log.d("SessionBrowseActivity", "Continuing the replay at ${entry.positionMs / 1000}s")
+            fr.groggy.racecontrol.tv.ui.channel.playback.ChannelPlaybackFragment.putStartPositionMs(this, entry.positionMs)
+        }
+    }
     companion object {
         private const val IS_LIVE_SESSION = "fr.groggy.racecontrol.tv.ui.session.browse.IS_LIVE_SESSION"
 
@@ -62,6 +74,7 @@ class SessionBrowseActivity : FragmentActivity() {
             lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 when (val session = viewModel.sessionLoaded(sessionId, contentId)) {
                     is SingleChannelSession -> {
+                        val resume = resumeOf(session.contentId, isLiveSession || session.isLiveSession)
                         val intent = ChannelPlaybackActivity.intent(
                             this@SessionBrowseActivity,
                             sessionId,
@@ -69,7 +82,7 @@ class SessionBrowseActivity : FragmentActivity() {
                             session.contentId,
                             isLiveSession || session.isLiveSession,
                             seasonYear
-                        )
+                        ).resumingAt(resume)
                         startActivity(intent)
                         finish()
                     }
@@ -82,14 +95,19 @@ class SessionBrowseActivity : FragmentActivity() {
                         } else {
                             null
                         }
+                        val resume = resumeOf(session.contentId, isLiveSession || session.isLiveSession)
                         val intent = ChannelPlaybackActivity.intent(
                             this@SessionBrowseActivity,
                             sessionId,
-                            preferredFeed,
+                            // No channel stored means the main feed (International), whatever the default feed is
+                            resume?.let { r ->
+                                r.channelId ?: session.channels.filterIsInstance<BasicChannel>()
+                                    .firstOrNull { it.type == F1TvBasicChannelType.Wif }?.id?.value
+                            } ?: preferredFeed,
                             session.contentId,
                             isLiveSession || session.isLiveSession,
                             seasonYear
-                        )
+                        ).resumingAt(resume)
                         startActivity(intent)
                         finish()
                     }

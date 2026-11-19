@@ -437,7 +437,8 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             watchProgressStore.record(
                 sessionId = sessionId,
                 contentId = contentId,
-                channelId = findChannelId(activity),
+                // The feed that plays now (a feed switch in the player changes it), so continuing opens that one
+                channelId = (currentViewing ?: findViewing(this))?.channelId ?: findChannelId(activity),
                 feedLabel = (currentViewing ?: findViewing(this))?.feedLabel,
                 positionMs = player.currentPosition,
                 durationMs = player.duration.takeIf { it != androidx.media3.common.C.TIME_UNSET } ?: return
