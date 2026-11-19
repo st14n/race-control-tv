@@ -36,6 +36,13 @@ internal interface CustomRadioHost {
 }
 
 /**
+ * Radio stations are mastered loud (measured: about -11 LUFS) and F1's commentary tracks quiet (about
+ * -23 LUFS): at full volume the radio was some 12 dB louder than the F1 audio it replaces. A quarter of the
+ * amplitude (-12 dB) brings it to the same level. The acoustic sync taps the audio before this volume.
+ */
+private const val RADIO_PLAYBACK_VOLUME = 25
+
+/**
  * Custom radio playback shared by the playback fragments: starting/stopping the radio, keeping it
  * in sync with the video, and the sync dialog.
  *
@@ -209,7 +216,7 @@ internal class CustomRadioController(
                 logTelemetry("unmuted", detail = "Waiting for auto-sync lock before switching audio")
                 return
             }
-            radioPlayer!!.setVolume(100)
+            radioPlayer!!.setVolume(RADIO_PLAYBACK_VOLUME)
             host.setMainAudioMuted(true, "custom_radio_unmute")
             preferAmbientMainAudio()
             logTelemetry("unmuted", detail = "Unmuted existing stream, no delay")
@@ -296,7 +303,7 @@ internal class CustomRadioController(
                 planEntry = planEntry,
                 userAgent = CUSTOM_RADIO_USER_AGENT,
                 initialAudioDelayMs = offsetMs,
-                initialVolume = 100,
+                initialVolume = RADIO_PLAYBACK_VOLUME,
                 audioBufferSink = radioAudioFeatures,
                 onStarted = {
                     if (!isCurrentAttempt(currentAttemptId)) return@createCustomRadioEngine
@@ -487,7 +494,7 @@ internal class CustomRadioController(
     private fun switchAudioToRadio(reason: String) {
         awaitingAutoSyncLock = false
         if (!isActive) return
-        radioPlayer?.setVolume(100)
+        radioPlayer?.setVolume(RADIO_PLAYBACK_VOLUME)
         host.setMainAudioMuted(true, "custom_radio_$reason")
         preferAmbientMainAudio()
         logTelemetry("audio_switched_to_radio", detail = "reason=$reason offsetMs=$offsetMs")

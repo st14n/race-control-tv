@@ -281,6 +281,11 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
             setMaxVideoBitrate(Int.MAX_VALUE)
             setForceHighestSupportedBitrate(true)
             setPreferredAudioLanguage(null)
+            // F1 Live's 4K stream offers each language as AAC stereo and as AC-3 5.1; Media3 picks the most
+            // channels. That AC-3 carries dialnorm -23, so every decoder (TV, soundbar, the device) plays it
+            // 8 dB quieter, with heavy compression: F1 Live sounded dull next to International and the radio.
+            // Start with the AAC; the 5.1 stays in the audio menu.
+            setPreferredAudioMimeTypes(androidx.media3.common.MimeTypes.AUDIO_AAC)
             setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, audioDisabled)
         }
 

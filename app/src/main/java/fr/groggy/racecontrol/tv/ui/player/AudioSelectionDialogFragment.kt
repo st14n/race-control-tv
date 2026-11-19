@@ -91,7 +91,9 @@ class AudioSelectionDialogFragment(
                 // A merged second source has its group ids prefixed with its position: "1:..."
                 val fromCompanion = companionFeedLabel != null && group.mediaTrackGroup.id.startsWith("1:")
                 val feed = if (companionFeedLabel == null) null else if (fromCompanion) companionFeedLabel else feedLabel
-                val label = displayAudioTrackLabel(format).let { if (feed != null) "$it ($feed)" else it }
+                // Stereo and 5.1 of one language are different tracks (F1 Live 4K has both): say which
+                val surround = if (format.channelCount >= 6) " 5.1" else ""
+                val label = (displayAudioTrackLabel(format) + surround).let { if (feed != null) "$it ($feed)" else it }
                 AudioSelectionItem(
                     format = format,
                     displayLabel = label,
