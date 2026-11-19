@@ -220,7 +220,9 @@ class OnboardingActivity : FragmentActivity() {
                 isClickable = true
                 isActivated = option.selected
                 setBackgroundResource(R.drawable.onboarding_option_background)
-                setPadding(dp(22), dp(14), dp(22), dp(14))
+                // Language grid: lower tiles, so all choices fit on a TV screen
+                val vertical = if (columns > 1) 8 else 14
+                setPadding(dp(22), dp(vertical), dp(22), dp(vertical))
                 setOnClickListener { option.onPick() }
             }
             tile.addView(TextView(this).apply {

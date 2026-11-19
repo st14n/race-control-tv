@@ -277,7 +277,9 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
     private fun setupEventListeners() {
         onItemViewClickedListener = this
         onItemViewSelectedListener = OnItemViewSelectedListener { _, item, _, row ->
-            val header = (row as? ListRow)?.headerItem?.name ?: return@OnItemViewSelectedListener
+            // The big card (or Continue watching) is not a card row: forget the old row, else reopening the
+            // app jumps back to e.g. the archive and scrolls the big card out of view
+            val header = (row as? ListRow)?.headerItem?.name ?: return@OnItemViewSelectedListener selectionMemory.forget()
             itemKey(item)?.let { selectionMemory.remember(header, it) }
         }
     }

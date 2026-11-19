@@ -29,6 +29,13 @@ class BrowseSelectionMemory(context: Context, private val screen: String) {
         prefs.edit { putString(screen, "$row\u0000$item") }
     }
 
+    /** Something without a remembered position (e.g. the home screen's big card) was selected: start there next time. */
+    fun forget() {
+        if (current == null) return
+        current = null
+        prefs.edit { remove(screen) }
+    }
+
     private fun load(): Selection? {
         val raw = prefs.getString(screen, null) ?: return null
         val parts = raw.split('\u0000')
