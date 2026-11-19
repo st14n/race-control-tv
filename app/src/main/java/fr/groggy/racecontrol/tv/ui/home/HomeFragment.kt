@@ -23,6 +23,7 @@ import fr.groggy.racecontrol.tv.ui.channel.playback.ChannelPlaybackActivity
 import fr.groggy.racecontrol.tv.ui.channel.playback.ChannelPlaybackFragment
 import fr.groggy.racecontrol.tv.ui.season.archive.SeasonArchiveActivity
 import fr.groggy.racecontrol.tv.ui.season.browse.Season
+import fr.groggy.racecontrol.tv.ui.season.browse.Event
 import fr.groggy.racecontrol.tv.ui.season.browse.SeasonBrowseActivity
 import fr.groggy.racecontrol.tv.ui.season.browse.Session
 import fr.groggy.racecontrol.tv.ui.session.SessionCardPresenter
@@ -130,7 +131,7 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
             // A weekend not shown before (a new race weekend, or another class) is selected
             val newWeekend = latestSeenWeekend() != headerName
             if (newWeekend) rememberLatestSeenWeekend(headerName)
-            updateHero(season, event.name, event.sessions, newWeekend, progress)
+            updateHero(season, events, newWeekend, progress)
 
             val current = latestEventRow
             if (current != null && current.headerItem.name == headerName) {
@@ -168,24 +169,31 @@ class HomeFragment : RowsSupportFragment(), OnItemViewClickedListener {
     /** The big card: the session that is live now, else the newest replay of the newest weekend. */
     private fun updateHero(
         season: Season,
-        eventName: String,
-        sessions: List<Session>,
+        events: List<Event>,
         newWeekend: Boolean,
         progress: List<WatchProgressStore.Entry>
     ) {
-        // Live first; otherwise the newest full replay (a race or qualifying, not a show after it)
-        val session = sessions.firstOrNull { SessionCardPresenter.isLive(it.contentSubtype) }
-            ?: sessions.firstOrNull { it.contentSubtype.equals("REPLAY", ignoreCase = true) }
-            ?: sessions.first()
+        // Live first; otherwise the newest replay of a real session (race, sprint, qualifying, practice).
+        // F1 marks those as having onboard cameras; a show such as the Weekend Warm-Up is also a "replay".
+        // Before a weekend's first session that is the previous weekend's race.
+        fun isRealReplay(s: Session) = s.contentSubtype.equals("REPLAY", ignoreCase = true) && s.hasOnboards
+        val newest = events.first()
+        val (event, session) = newest.sessions.firstOrNull { SessionCardPresenter.isLive(it.contentSubtype) }?.let { newest to it }
+            ?: events.firstNotNullOfOrNull { e -> e.sessions.firstOrNull(::isRealReplay)?.let { e to it } }
+            ?: newest.sessions.firstOrNull { it.contentSubtype.equals("REPLAY", ignoreCase = true) }?.let { newest to it }
+            ?: (newest to newest.sessions.first())
+        val eventName = event.name
+        // "New weekend" only labels the newest weekend, not the previous race shown before it starts
+        val heroNewWeekend = newWeekend && event === newest
         val byContent = season.events.flatMap { e -> e.sessions.map { it.contentId to (e.name to it) } }.toMap()
         val continueItems = progress.mapNotNull { entry ->
             byContent[entry.contentId]?.let { (event, s) -> ContinueItem(s, event, entry) }
         }.take(3)
-        val key = listOf(session.id.value, session.name, session.contentSubtype, session.largePictureUrl, eventName, newWeekend,
+        val key = listOf(session.id.value, session.name, session.contentSubtype, session.largePictureUrl, eventName, heroNewWeekend,
             continueItems.joinToString { "${it.session.id.value}:${it.progress.positionMs}" }).joinToString("|")
         if (key == heroKey) return
         heroKey = key
-        val row = HeroRow(session, eventName, newWeekend, continueItems)
+        val row = HeroRow(session, eventName, heroNewWeekend, continueItems)
         val old = heroRow
         val index = old?.let { homeEntriesAdapter.indexOf(it) } ?: -1
         if (index >= 0) homeEntriesAdapter.replace(index, row) else homeEntriesAdapter.add(0, row)

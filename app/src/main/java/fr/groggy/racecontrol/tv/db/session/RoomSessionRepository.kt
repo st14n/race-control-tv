@@ -46,7 +46,8 @@ class RoomSessionRepository @Inject constructor(
             available = session.available,
             images = imageIdListMapper.fromDto(session.images),
             channels = channelIdListMapper.fromDto(session.channels),
-            series = session.series
+            series = session.series,
+            hasOnboards = session.hasOnboards
         )
 
     override suspend fun save(session: F1TvSession) {
@@ -73,7 +74,8 @@ class RoomSessionRepository @Inject constructor(
             available = session.available,
             images = imageIdListMapper.toDto(session.images),
             channels = channelIdListMapper.toDto(session.channels),
-            series = session.series
+            series = session.series,
+            hasOnboards = session.hasOnboards
         )
 
 }

@@ -34,7 +34,9 @@ data class F1TvSessionEmfAttributes(
     @param:Json(name = "MeetingKey") val meetingKey: String,
     @param:Json(name = "Meeting_Start_Date") val startDate: String?,
     @param:Json(name = "Meeting_End_Date") val endDate: String?,
-    @param:Json(name = "Series") val series: String? = null
+    @param:Json(name = "Series") val series: String? = null,
+    /** "OBC": the session has onboard cameras, i.e. it is a real session (race, sprint, qualifying, practice), not a show */
+    @param:Json(name = "OBC") val onboardCameras: Any? = null
 )
 
 class F1TvSessionId(val value: String)
@@ -52,7 +54,9 @@ data class F1TvSession(
     val images: List<F1TvImageId>,
     val channels: List<F1TvChannelId>,
     /** F1's "Series" of the session: "FORMULA 1", "FORMULA 2", "FORMULA 3", "F1 ACADEMY"... */
-    val series: String = "FORMULA 1"
+    val series: String = "FORMULA 1",
+    /** A real session (with onboard cameras), not a show such as the Weekend Warm-Up */
+    val hasOnboards: Boolean = false
 )
 
 @JsonClass(generateAdapter = true)

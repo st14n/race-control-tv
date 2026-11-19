@@ -133,7 +133,8 @@ class F1TvClient @Inject constructor(
                     available = true,
                     images = listOf(),
                     channels = listOf(),
-                    series = it.metadata.emfAttributes.series ?: "FORMULA 1"
+                    series = it.metadata.emfAttributes.series ?: "FORMULA 1",
+                    hasOnboards = it.metadata.emfAttributes.onboardCameras.let { obc -> obc == true || obc?.toString().equals("true", ignoreCase = true) }
                 )
             }
         } catch (e: Exception) {

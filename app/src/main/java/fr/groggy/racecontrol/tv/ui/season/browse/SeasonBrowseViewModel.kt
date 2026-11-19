@@ -57,7 +57,8 @@ data class Session(
     override val thumbnail: Image?,
     val largePictureUrl:String,
     val channels: List<F1TvChannelId>,
-    val series: String = "FORMULA 1"
+    val series: String = "FORMULA 1",
+    val hasOnboards: Boolean = false
 ) : SessionCard {
 
     companion object {

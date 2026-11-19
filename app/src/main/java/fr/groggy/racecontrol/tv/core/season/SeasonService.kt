@@ -96,7 +96,8 @@ class SeasonService @Inject constructor(
                         contentSubtype = session.contentSubtype,
                         thumbnail = thumbnail,
                         channels = session.channels,
-                        series = session.series
+                        series = session.series,
+                        hasOnboards = session.hasOnboards
                     ) }
                 }
             }

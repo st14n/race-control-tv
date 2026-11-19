@@ -18,5 +18,6 @@ data class SessionEntity(
     @ColumnInfo(name = "available") val available: Boolean,
     @ColumnInfo(name = "images") val images: String,
     @ColumnInfo(name = "channels") val channels: String,
-    @ColumnInfo(name = "series", defaultValue = "FORMULA 1") val series: String = "FORMULA 1"
+    @ColumnInfo(name = "series", defaultValue = "FORMULA 1") val series: String = "FORMULA 1",
+    @ColumnInfo(name = "has_onboards", defaultValue = "0") val hasOnboards: Boolean = false
 )
