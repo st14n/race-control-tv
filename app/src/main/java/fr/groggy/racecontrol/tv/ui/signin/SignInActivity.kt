@@ -311,7 +311,8 @@ class SignInActivity : ComponentActivity() {
             }
         """.trimIndent()
         private const val AUTO_FILL_RETRY_DELAY_MS = 2_000L
-        private const val AUTO_FILL_RETRY_ATTEMPTS = 8
+        private const val AUTO_FILL_RETRY_ATTEMPTS = 6
+        private const val MAX_STALLED_LOGIN_RESTARTS = 1
         private const val EXTRA_FRESH_LOGIN = "fresh_login"
         // A cookie token closer to expiry than this triggers a full login instead of being reused
         private const val MIN_TOKEN_REMAINING_VALIDITY_MS = 24L * 60 * 60 * 1000
@@ -349,6 +350,9 @@ class SignInActivity : ComponentActivity() {
     private var loginFlowStarted = false
     // Set once the WebView cookies were cleared to force a full login; after that any unexpired token is accepted
     private var hasResetSession = false
+    // Counts page loads, so a login page that never moves on after the auto-fill can be detected
+    private var pageStarts = 0
+    private var stalledLoginRestarts = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Log.d(TAG, "onCreate")
@@ -416,14 +420,24 @@ class SignInActivity : ComponentActivity() {
                     // If your F1Credentials requires 3 args, adjust accordingly or update the data class
                     val credentials = F1Credentials(login = username, password = password)
                     credentialsService.saveCredentials(credentials)
-                    Log.d(TAG, "Credentials saved via JS Interface for: $username")
+                    Log.d(TAG, "Credentials saved via JS Interface")
                 }
             }
         }, "Android")
 
+        // Only the auto-fill's own status lines; they never contain the login or password
+        loginWebView.webChromeClient = object : android.webkit.WebChromeClient() {
+            override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
+                val text = message.message()
+                if (text.startsWith("AutoFill:") || text.startsWith("CaptureCredentials:")) Log.d(TAG, "WebView: $text")
+                return true
+            }
+        }
+
         loginWebView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
+                pageStarts += 1
                 autoAcceptCookieDialog()
             }
 
@@ -580,6 +594,7 @@ class SignInActivity : ComponentActivity() {
             )
 
             pendingAutoFillRetry?.cancel()
+            val pageStartsAtFill = pageStarts
             pendingAutoFillRetry = lifecycleScope.launch {
                 repeat(AUTO_FILL_RETRY_ATTEMPTS) { attempt ->
                     delay(AUTO_FILL_RETRY_DELAY_MS)
@@ -598,6 +613,16 @@ class SignInActivity : ComponentActivity() {
                         autoSubmit = true
                     )
                 }
+                // Sometimes F1's login page takes the details but never moves on (seen 2026-11-19: a minute of
+                // nothing, then a fresh attempt worked in seconds). Start the sign-in again instead of waiting.
+                if (!isFinishing && isLoginPage(loginWebView.url) && pageStarts == pageStartsAtFill &&
+                    stalledLoginRestarts < MAX_STALLED_LOGIN_RESTARTS
+                ) {
+                    stalledLoginRestarts += 1
+                    Log.w(TAG, "Login page did not move on after auto-fill; starting the sign-in again (restart $stalledLoginRestarts)")
+                    loginFlowStarted = false
+                    loginWebView.loadUrl(F1TV_URL)
+                }
             }
         }
     }
@@ -611,7 +636,7 @@ class SignInActivity : ComponentActivity() {
 
         val savedCredentials = credentialsService.getSavedCredentials()
         if (savedCredentials != null) {
-            Log.d(TAG, "Saved credentials found for ${savedCredentials.login}. Injecting JS for auto-fill.")
+            Log.d(TAG, "Saved credentials found. Injecting JS for auto-fill.")
             return savedCredentials
         }
 
@@ -684,6 +709,11 @@ class SignInActivity : ComponentActivity() {
                         form.submit.click();
                         return;
                     }
+                    console.log('AutoFill: not settled attempt=' + attempt + ' login=' + !!form.login
+                        + ' password=' + !!form.password + ' button=' + !!form.submit
+                        + ' loginMatches=' + (!!form.login && form.login.value === expectedLogin)
+                        + ' passwordMatches=' + (!!form.password && form.password.value === expectedPassword)
+                        + ' buttonDisabled=' + (!!form.submit && form.submit.getAttribute('aria-disabled') === 'true'));
                     if (attempt >= 20) {
                         console.log('AutoFill: form never settled, not submitting.');
                         window.__f1AutoFillPending = false;

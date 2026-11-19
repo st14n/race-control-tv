@@ -34,10 +34,7 @@
             android:entryValues="@array/default_feed_values"
             android:defaultValue="international" />
 
-        <SwitchPreference
-            android:key="bypass_channel_selection"
-            android:title="@string/settings_bypass_channel_selection_title"
-            android:summary="@string/settings_bypass_channel_selection_summary"/>
+        <!-- No "bypass channel selection": a session always opens on the default feed; feeds are picked in the player -->
 
         <SwitchPreference
             android:key="open_with_external_player"

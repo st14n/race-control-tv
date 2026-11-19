@@ -378,12 +378,34 @@ class ExoPlayerPlaybackTransportControlGlue(
                 onDialogDismissed = ::onMenuDismissed
             )
                 .setResolutionSelectedListener { width, height ->
-                    trackSelector.setParameters(
-                        trackSelector.buildUponParameters().setMaxVideoSize(width, height)
-                    )
+                    val builder = trackSelector.buildUponParameters().setMaxVideoSize(width, height)
+                    limitVideoOverride(builder, width, height)
+                    trackSelector.setParameters(builder)
                 }.show(activity.supportFragmentManager, null)
         }
     }
+
+    /**
+     * A 4K stream plays through a track override (one of its two ladders, HLG or SDR). An override ignores
+     * the max video size, so the chosen resolution never applied: narrow the override to the tracks that fit.
+     * Ladder tracks are remembered on first use, so a larger resolution can be chosen again afterwards.
+     */
+    private fun limitVideoOverride(builder: DefaultTrackSelector.Parameters.Builder, width: Int, height: Int) {
+        for (group in exoPlayer.currentTracks.groups) {
+            if (group.type != C.TRACK_TYPE_VIDEO) continue
+            val mediaGroup = group.mediaTrackGroup
+            val override = trackSelector.parameters.overrides[mediaGroup] ?: continue
+            val ladder = videoLadders.getOrPut(mediaGroup) { override.trackIndices.toList() }
+            val fits = ladder.filter {
+                val format = mediaGroup.getFormat(it)
+                format.width <= width && format.height <= height
+            }
+            val keep = fits.ifEmpty { listOf(ladder.minByOrNull { mediaGroup.getFormat(it).height } ?: continue) }
+            builder.setOverrideForType(TrackSelectionOverride(mediaGroup, keep))
+        }
+    }
+
+    private val videoLadders = mutableMapOf<androidx.media3.common.TrackGroup, List<Int>>()
 
     private fun toggleClosedCaptions() {
         if (closedCaptionAction.index == PlaybackControlsRow.ClosedCaptioningAction.INDEX_OFF) {
