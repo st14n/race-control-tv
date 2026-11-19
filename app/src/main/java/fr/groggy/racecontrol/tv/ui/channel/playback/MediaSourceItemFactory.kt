@@ -52,23 +52,6 @@ object MediaSourceItemFactory {
         )
     }
 
-    /** [MediaItem] for the same feed's standard stream that supplies the other commentary languages. */
-    fun newLanguageAudioMediaItem(viewing: F1TvViewing): MediaItem {
-        val uri = requireNotNull(viewing.languageAudioUri) { "languageAudioUri must not be null" }
-        return buildMediaItem(
-            uri = uri,
-            contentId = viewing.languageAudioContentId ?: viewing.contentId,
-            channelId = viewing.languageAudioChannelId ?: viewing.channelId,
-            playApiVersion = viewing.languageAudioPlayApiVersion ?: viewing.playApiVersion,
-            platform = viewing.platform,
-            streamType = viewing.languageAudioStreamType ?: viewing.streamType,
-            laURL = viewing.languageAudioLaURL ?: viewing.laURL,
-            ascendontoken = viewing.ascendontoken,
-            entitlementtoken = viewing.languageAudioEntitlementtoken ?: viewing.entitlementtoken,
-            drmDeviceInfo = viewing.drmDeviceInfo
-        )
-    }
-
     private fun buildMediaItem(
         uri: Uri,
         contentId: String,

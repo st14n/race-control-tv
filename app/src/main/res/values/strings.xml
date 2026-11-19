@@ -188,6 +188,6 @@
     <string name="settings_audio_language_title">Commentary</string>
     <string name="settings_audio_language_summary">%s · what a stream starts with, in every resolution. You can switch in the audio menu.</string>
     <string name="onboarding_audio_language_title">Which commentary do you want to hear?</string>
-    <string name="onboarding_audio_language_subtitle">Every stream starts with it, also in 4K. If a feed does not have it, you hear its own commentary. You can switch in the audio menu.</string>
+    <string name="onboarding_audio_language_subtitle">Every stream starts with it, in every resolution. F1 Live has English and Spanish; other languages come from the International feed. You can switch in the audio menu.</string>
     <string name="onboarding_new_setting">New setting</string>
 </resources>

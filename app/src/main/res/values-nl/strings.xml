@@ -185,7 +185,7 @@
     <string name="settings_audio_language_title">Commentaar</string>
     <string name="settings_audio_language_summary">%s · waarmee een stream begint, in elke resolutie. In het audiomenu kun je wisselen.</string>
     <string name="onboarding_audio_language_title">Welk commentaar wil je horen?</string>
-    <string name="onboarding_audio_language_subtitle">Elke stream begint ermee, ook in 4K. Heeft een feed het niet, dan hoor je het eigen commentaar van die feed. In het audiomenu kun je wisselen.</string>
+    <string name="onboarding_audio_language_subtitle">Elke stream begint ermee, in elke resolutie. F1 Live heeft Engels en Spaans; andere talen komen van de International-feed. In het audiomenu kun je wisselen.</string>
     <string name="onboarding_new_setting">Nieuwe instelling</string>
 </resources>
 
