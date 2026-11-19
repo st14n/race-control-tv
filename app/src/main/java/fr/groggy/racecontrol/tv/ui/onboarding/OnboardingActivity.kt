@@ -36,7 +36,13 @@ class OnboardingActivity : FragmentActivity() {
         private const val KEY_STEP = "onboarding_step"
 
         fun isNeeded(context: Context): Boolean =
-            !PreferenceManager.getDefaultSharedPreferences(context).getBoolean(KEY_DONE, false)
+            !PreferenceManager.getDefaultSharedPreferences(context).getBoolean(KEY_DONE, false) || missesNewSetting(context)
+
+        /** Set up before the commentary choice existed: ask only that (once). */
+        private fun missesNewSetting(context: Context): Boolean {
+            val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+            return prefs.getBoolean(KEY_DONE, false) && !prefs.contains(Settings.KEY_AUDIO_LANGUAGE)
+        }
 
         fun intent(context: Context) = Intent(context, OnboardingActivity::class.java)
     }
@@ -50,11 +56,15 @@ class OnboardingActivity : FragmentActivity() {
     private val radioAvailable: Boolean
         get() = BuildConfig.CUSTOM_RADIO_URL.isNotBlank() || settingsRepository.getCurrent().customRadioUrl.isNotBlank()
 
-    private val stepCount: Int get() = if (radioAvailable) 3 else 2
+    private val stepCount: Int get() = if (radioAvailable) 4 else 3
+
+    /** An existing user who only gets the new commentary question */
+    private var onlyNewSetting = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        showStep(prefs.getInt(KEY_STEP, 0))
+        onlyNewSetting = missesNewSetting(this)
+        showStep(if (onlyNewSetting) 2 else prefs.getInt(KEY_STEP, 0))
     }
 
     private fun showStep(step: Int) {
@@ -62,9 +72,30 @@ class OnboardingActivity : FragmentActivity() {
         when (step) {
             0 -> languageStep()
             1 -> feedStep()
-            2 -> if (radioAvailable) audioStep() else finishOnboarding()
+            2 -> commentaryStep()
+            3 -> if (radioAvailable && !onlyNewSetting) audioStep() else finishOnboarding()
             else -> finishOnboarding()
         }
+    }
+
+    private fun commentaryStep() {
+        val current = prefs.getString(Settings.KEY_AUDIO_LANGUAGE, null)
+            ?: java.util.Locale.getDefault().language.takeIf { it in listOf("en", "nl", "de", "fr", "es", "pt", "ja") }
+            ?: Settings.AUDIO_LANGUAGE_STREAM
+        fun pick(value: String) = {
+            prefs.edit { putString(Settings.KEY_AUDIO_LANGUAGE, value) }
+            settingsRepository.applySettings()
+            showStep(3)
+        }
+        val labels = resources.getStringArray(R.array.audio_language_entries)
+        val values = resources.getStringArray(R.array.audio_language_values)
+        render(
+            step = 2,
+            title = getString(R.string.onboarding_audio_language_title),
+            subtitle = getString(R.string.onboarding_audio_language_subtitle),
+            options = values.indices.map { i -> Option(labels[i], null, current == values[i], pick(values[i])) },
+            grid = true
+        )
     }
 
     private fun languageStep() {
@@ -122,7 +153,7 @@ class OnboardingActivity : FragmentActivity() {
             finishOnboarding()
         }
         render(
-            step = 2,
+            step = 3,
             title = getString(R.string.onboarding_audio_title),
             subtitle = getString(R.string.onboarding_audio_subtitle),
             options = listOf(
@@ -144,7 +175,7 @@ class OnboardingActivity : FragmentActivity() {
     }
 
     /** One screen of the redesign: step counter, big title, explanation, and the choices as tiles. */
-    private fun render(step: Int, title: String, subtitle: String, options: List<Option>) {
+    private fun render(step: Int, title: String, subtitle: String, options: List<Option>, grid: Boolean = false) {
         val density = resources.displayMetrics.density
         fun dp(v: Int) = (v * density).toInt()
         val wide = resources.configuration.screenWidthDp >= 720
@@ -156,7 +187,8 @@ class OnboardingActivity : FragmentActivity() {
             setPadding(dp(if (wide) 96 else 24), dp(if (wide) 64 else 32), dp(if (wide) 96 else 24), dp(32))
         }
         column.addView(TextView(this).apply {
-            text = getString(R.string.onboarding_step, step + 1, stepCount).uppercase()
+            text = (if (onlyNewSetting) getString(R.string.onboarding_new_setting)
+                else getString(R.string.onboarding_step, step + 1, stepCount)).uppercase()
             setTextColor(ContextCompat.getColor(this@OnboardingActivity, R.color.rc_accent))
             textSize = 14f
             letterSpacing = 0.06f
@@ -177,7 +209,10 @@ class OnboardingActivity : FragmentActivity() {
         })
 
         var focusTarget: View? = null
-        options.forEach { option ->
+        // Many short choices (languages): two columns, so they fit on a TV screen without scrolling
+        val columns = if (grid && wide) 2 else 1
+        var rowLayout: LinearLayout? = null
+        options.forEachIndexed { optionIndex, option ->
             val tile = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER_VERTICAL
@@ -201,10 +236,21 @@ class OnboardingActivity : FragmentActivity() {
                     textSize = 14f
                 })
             }
-            column.addView(tile, LinearLayout.LayoutParams(
-                if (wide) dp(520) else ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = dp(12) })
+            if (columns == 1) {
+                column.addView(tile, LinearLayout.LayoutParams(
+                    if (wide) dp(520) else ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { bottomMargin = dp(12) })
+            } else {
+                if (optionIndex % columns == 0) {
+                    rowLayout = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                    column.addView(rowLayout)
+                }
+                rowLayout?.addView(tile, LinearLayout.LayoutParams(dp(340), ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    bottomMargin = dp(10)
+                    marginEnd = dp(12)
+                })
+            }
             if (focusTarget == null || option.selected) focusTarget = tile
         }
 
@@ -218,6 +264,10 @@ class OnboardingActivity : FragmentActivity() {
 
     override fun onBackPressed() {
         val step = prefs.getInt(KEY_STEP, 0)
-        if (step > 0) showStep(step - 1) else super.onBackPressed()
+        if (onlyNewSetting) {
+            // Not answered: keep the stream's own commentary, and do not ask again
+            prefs.edit { putString(Settings.KEY_AUDIO_LANGUAGE, Settings.AUDIO_LANGUAGE_STREAM) }
+            finishOnboarding()
+        } else if (step > 0) showStep(step - 1) else super.onBackPressed()
     }
 }

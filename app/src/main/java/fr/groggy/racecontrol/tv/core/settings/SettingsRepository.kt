@@ -134,7 +134,8 @@ class SettingsRepository(
                 f1Username = getString(Settings.KEY_F1_USERNAME, "") ?: "",
                 f1Password = getString(Settings.KEY_F1_PASSWORD, "") ?: "",
                 autoUpdateCheck = getBoolean(Settings.KEY_AUTO_UPDATE_CHECK, Settings.DEFAULT.autoUpdateCheck),
-                defaultFeed = getString(Settings.KEY_DEFAULT_FEED, null) ?: Settings.DEFAULT.defaultFeed
+                defaultFeed = getString(Settings.KEY_DEFAULT_FEED, null) ?: Settings.DEFAULT.defaultFeed,
+                audioLanguage = getString(Settings.KEY_AUDIO_LANGUAGE, null) ?: Settings.DEFAULT.audioLanguage
             )
         }
     }

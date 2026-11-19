@@ -601,6 +601,33 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                 rawMainSource
             }
 
+            val offsetMs = settings.audioOffsetMs
+            fun audioOnly(source: MediaSource): MediaSource {
+                val audioOnlySource = FilteringMediaSource(source, C.TRACK_TYPE_AUDIO)
+                return if (offsetMs != 0L) {
+                    ClippingMediaSource.Builder(audioOnlySource)
+                        .setStartPositionUs(if (offsetMs > 0) offsetMs * 1000L else 0L)
+                        .setEndPositionUs(C.TIME_END_OF_SOURCE)
+                        .setEnableInitialDiscontinuity(false)
+                        .setAllowDynamicClippingUpdates(true)
+                        .setRelativeToDefaultPosition(false)
+                        .build()
+                } else audioOnlySource
+            }
+            // The 4K stream's other commentary languages, from the same feed's standard stream. Merged last,
+            // so a merged other feed keeps position 1 (the audio menu tells that one apart by it).
+            val languageAudioSource = viewing.languageAudioUri?.let { uri ->
+                Log.i(TAG, "Merging the standard stream's commentary languages into the 4K stream")
+                audioOnly(
+                    createMediaSource(
+                        uri.toString(),
+                        viewing.languageAudioStreamType,
+                        MediaSourceItemFactory.newLanguageAudioMediaItem(viewing),
+                        rewriteF1CmafHlsDrm = false
+                    )
+                )
+            }
+
             val mediaSource = if (useExternalAudio) {
                 Log.i(TAG, "External audio enabled — building MergingMediaSource")
                 val audioItem = MediaSourceItemFactory.newExternalAudioMediaItem(viewing)
@@ -637,8 +664,14 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
                 MergingMediaSource(
                     /* adjustPeriodTimeOffsets = */ true,
                     /* clipDurations = */ false,
-                    finalMainSource,
-                    finalAudioSource
+                    *listOfNotNull(finalMainSource, finalAudioSource, languageAudioSource).toTypedArray()
+                )
+            } else if (languageAudioSource != null) {
+                MergingMediaSource(
+                    /* adjustPeriodTimeOffsets = */ true,
+                    /* clipDurations = */ false,
+                    mainSource,
+                    languageAudioSource
                 )
             } else {
                 mainSource
@@ -929,6 +962,46 @@ class ChannelPlaybackFragment : VideoSupportFragment(), Player.Listener {
 
     override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
         restrictToOneUhdLadderIfNeeded(tracks)
+        applyPresetAudioLanguageIfNeeded(tracks)
+    }
+
+    private var appliedPresetAudioLanguage = false
+
+    /**
+     * The commentary chosen at first start (Settings): picked once, when the tracks are known. Only this
+     * feed's own tracks count (the 4K stream and its merged standard-stream languages), never the other
+     * feed's commentary merged in for the menu. Not available here: the stream's own default stays.
+     * A pick in the audio menu, or the radio, wins.
+     */
+    private fun applyPresetAudioLanguageIfNeeded(tracks: androidx.media3.common.Tracks) {
+        if (appliedPresetAudioLanguage || userAudioOverride != null) return
+        val audioGroups = tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
+        if (audioGroups.isEmpty()) return
+        appliedPresetAudioLanguage = true
+        val wanted = settingsRepository.getCurrent().audioLanguage
+        if (wanted == Settings.AUDIO_LANGUAGE_STREAM || customRadio.isActive) return
+        val viewing = currentViewing ?: findViewing(this)
+        fun isOtherFeed(group: androidx.media3.common.Tracks.Group) =
+            viewing?.externalAudioIsCompanion == true && group.mediaTrackGroup.id.startsWith("1:")
+        fun language(format: androidx.media3.common.Format): String? {
+            val raw = format.language?.lowercase(Locale.ROOT) ?: return null
+            return if (raw == "cfx") "fx" else fr.groggy.racecontrol.tv.ui.player.normalizeAudioLanguageCode(raw)
+        }
+        val match = audioGroups.filterNot(::isOtherFeed).firstNotNullOfOrNull { group ->
+            (0 until group.length).firstOrNull { group.isTrackSupported(it) && language(group.getTrackFormat(it)) == wanted }
+                ?.let { group to it }
+        }
+        if (match == null) {
+            Log.i(TAG, "Preset commentary '$wanted' not in this stream: keeping its default")
+            return
+        }
+        val (group, index) = match
+        if (group.isTrackSelected(index)) return
+        Log.i(TAG, "Preset commentary '$wanted': selecting it")
+        trackSelector.setParameters(
+            trackSelector.buildUponParameters()
+                .setOverrideForType(androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, index))
+        )
     }
 
     /**

@@ -34,6 +34,14 @@
             android:entryValues="@array/default_feed_values"
             android:defaultValue="international" />
 
+        <ListPreference
+            android:key="audio_language"
+            android:title="@string/settings_audio_language_title"
+            android:summary="@string/settings_audio_language_summary"
+            android:entries="@array/audio_language_entries"
+            android:entryValues="@array/audio_language_values"
+            android:defaultValue="stream" />
+
         <!-- No "bypass channel selection": a session always opens on the default feed; feeds are picked in the player -->
 
         <SwitchPreference

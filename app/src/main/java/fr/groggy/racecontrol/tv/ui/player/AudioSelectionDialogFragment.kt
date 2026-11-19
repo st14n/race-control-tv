@@ -42,7 +42,7 @@ internal fun displayAudioTrackLabel(format: Format, displayLocale: Locale = Loca
         ?: "Audio"
 }
 
-private fun normalizeAudioLanguageCode(language: String): String? {
+internal fun normalizeAudioLanguageCode(language: String): String? {
     val candidate = language
         .substringBefore('-')
         .substringBefore('_')

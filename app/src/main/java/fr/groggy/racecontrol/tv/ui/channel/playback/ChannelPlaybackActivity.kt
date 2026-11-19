@@ -251,6 +251,9 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
             } else if (settings.combineCommentary && viewing.externalAudioUri == null && !companionDisabled) {
                 viewing = tryAttachCommentaryCompanion(viewing, contentId, channelId, streamType)
             }
+            if (!companionDisabled) {
+                viewing = tryAttachLanguageAudio(viewing, contentId, channelId, streamType)
+            }
 
             onViewingCreated(viewing)
         } catch (e: ViewingService.TokenExpiredException) {
@@ -307,6 +310,39 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
             null -> if (channelId == null) getString(R.string.feed_label_international) else null
         }
     }.getOrNull()
+
+    /**
+     * The unencrypted 4K stream carries only English (and Spanish) commentary. Merge in the same feed's
+     * standard stream for its audio, so every language F1 offers can be picked (and preset). Not for a
+     * Widevine 4K stream, which already gets the standard audio companion, nor when that is merged already.
+     */
+    private suspend fun tryAttachLanguageAudio(
+        viewing: F1TvViewing,
+        contentId: String,
+        currentChannelId: String?,
+        streamType: Settings.StreamType
+    ): F1TvViewing {
+        val clearUhd = viewing.streamType.orEmpty().contains("UHD", ignoreCase = true) &&
+            !ProtectedHdrStreamClassifier.looksLikeHdrUhdWidevine(viewing)
+        if (!clearUhd || viewing.externalAudioRequired) return viewing
+        return try {
+            Log.i(TAG, "Adding the standard stream's commentary languages to the 4K stream (channelId=$currentChannelId)")
+            val standard = viewingService.getViewing(currentChannelId, contentId, streamType, preferHdrManifest = false, attempts = 1)
+            if (standard.url == viewing.url) viewing else viewing.copy(
+                languageAudioUri = standard.url,
+                languageAudioStreamType = standard.streamType,
+                languageAudioLaURL = standard.laURL,
+                languageAudioPlayApiVersion = standard.playApiVersion,
+                languageAudioEntitlementtoken = standard.entitlementtoken,
+                languageAudioContentId = standard.contentId,
+                languageAudioChannelId = standard.channelId,
+                feedLabel = viewing.feedLabel ?: feedLabelOf(contentId, currentChannelId)
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not add the standard stream's languages (non-fatal): ${e.message}")
+            viewing
+        }
+    }
 
     /** Set after a player error with the companion audio merged: the retry plays the stream alone. */
     private var companionDisabled = false
@@ -814,16 +850,17 @@ class ChannelPlaybackActivity : FragmentActivity(R.layout.activity_channel_playb
             return
         }
         val failedViewing = currentViewing
-        if (failedViewing != null && failedViewing.externalAudioIsCompanion && !companionDisabled &&
-            !isFinishing && !isDestroyed
+        if (failedViewing != null && (failedViewing.externalAudioIsCompanion || failedViewing.languageAudioUri != null) &&
+            !companionDisabled && !isFinishing && !isDestroyed
         ) {
             // The merged second feed is the likeliest thing to go wrong: play the stream alone
             Log.w(TAG, "Player error with the other feed's commentary merged in: playing without it")
             companionDisabled = true
             onViewingCreated(
                 failedViewing.copy(
-                    externalAudioUri = null,
+                    externalAudioUri = if (failedViewing.externalAudioIsCompanion) null else failedViewing.externalAudioUri,
                     externalAudioIsCompanion = false,
+                    languageAudioUri = null,
                     feedLabel = null,
                     companionFeedLabel = null
                 )

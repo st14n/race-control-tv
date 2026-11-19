@@ -40,7 +40,9 @@ data class Settings(
     /** Check GitHub releases for a newer version whenever the app is opened. */
     val autoUpdateCheck: Boolean,
     /** The feed a session opens on: [FEED_INTERNATIONAL] or [FEED_F1_LIVE]. */
-    val defaultFeed: String = FEED_INTERNATIONAL
+    val defaultFeed: String = FEED_INTERNATIONAL,
+    /** The commentary a stream starts with: a language code ("nl", "en"...), "fx" or [AUDIO_LANGUAGE_STREAM]. */
+    val audioLanguage: String = AUDIO_LANGUAGE_STREAM
 ) {
     enum class StreamType(val rawName: String) {
         HLS("HLS"), DASH("DASH"), DASH_HLS("HLS")
@@ -97,5 +99,8 @@ data class Settings(
         const val KEY_DEFAULT_FEED = "default_feed"
         const val FEED_INTERNATIONAL = "international"
         const val FEED_F1_LIVE = "f1live"
+        const val KEY_AUDIO_LANGUAGE = "audio_language"
+        /** No preset: the stream's own default commentary */
+        const val AUDIO_LANGUAGE_STREAM = "stream"
     }
 }

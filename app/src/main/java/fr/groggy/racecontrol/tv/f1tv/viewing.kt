@@ -59,6 +59,17 @@ data class F1TvViewing(
     /** Name of this stream's feed and of the companion feed, to tell same-language tracks apart in the audio menu. */
     val feedLabel: String? = null,
     val companionFeedLabel: String? = null,
+    /**
+     * The same feed's standard stream, merged in for its audio only: F1's 4K stream carries just English (and
+     * Spanish), the standard stream every commentary language. Lets a 4K viewer pick any language.
+     */
+    val languageAudioUri: Uri? = null,
+    val languageAudioStreamType: String? = null,
+    val languageAudioLaURL: String? = null,
+    val languageAudioPlayApiVersion: String? = null,
+    val languageAudioEntitlementtoken: String? = null,
+    val languageAudioContentId: String? = null,
+    val languageAudioChannelId: String? = null,
     /** Device identity to use on the Widevine license request for this route. */
     val drmDeviceInfo: String = ""
 ) : Parcelable

@@ -203,4 +203,26 @@
         <item>international</item>
         <item>f1live</item>
     </string-array>
+    <string-array name="audio_language_entries">
+        <item>@string/audio_language_stream</item>
+        <item>English</item>
+        <item>Nederlands</item>
+        <item>Deutsch</item>
+        <item>Français</item>
+        <item>Español</item>
+        <item>Português</item>
+        <item>日本語</item>
+        <item>@string/audio_language_fx</item>
+    </string-array>
+    <string-array name="audio_language_values" translatable="false">
+        <item>stream</item>
+        <item>en</item>
+        <item>nl</item>
+        <item>de</item>
+        <item>fr</item>
+        <item>es</item>
+        <item>pt</item>
+        <item>ja</item>
+        <item>fx</item>
+    </string-array>
 </resources>
